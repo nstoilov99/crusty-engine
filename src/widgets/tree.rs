@@ -64,8 +64,8 @@ impl<'a, T: PartialEq + Copy> TreeNode<'a, T> {
         );
 
         // ── Input
-        let chev_hovered = ui.ctx().input.pointer_in(chevron_rect);
-        let label_hovered = ui.ctx().input.pointer_in(label_rect);
+        let chev_hovered = ui.contains_pointer(chevron_rect);
+        let label_hovered = ui.contains_pointer(label_rect);
         let row_hovered = chev_hovered || label_hovered;
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;

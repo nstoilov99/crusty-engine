@@ -15,6 +15,7 @@ use crusty_gui::paint::{Mesh, Tessellator};
 use crusty_gui::prelude::*;
 use crusty_gui::style::Style;
 use crusty_gui::text::TextRenderer;
+use crusty_gui::widgets::Window as GuiWindow;
 
 use vulkano::VulkanLibrary;
 use vulkano::command_buffer::allocator::{
@@ -61,6 +62,8 @@ struct Renderer {
     tessellator: Tessellator,
     scene_mesh: Mesh,
     ui_mesh: Mesh,
+    tess_us: f32,
+    gpu_name: String,
 }
 
 impl Renderer {
@@ -155,11 +158,33 @@ impl Renderer {
 
             let inner_size: [u32; 2] = window.inner_size().into();
 
+            // Prefer Mailbox (low-latency vsync: always presents the newest
+            // queued frame, no tearing) so dragging stays smooth on high-
+            // refresh displays. Fall back to Fifo, which is always available.
+            let present_modes: Vec<PresentMode> = device
+                .physical_device()
+                .surface_present_modes(&surface, Default::default())
+                .unwrap_or_default();
+            let present_mode = if present_modes.contains(&PresentMode::Mailbox) {
+                PresentMode::Mailbox
+            } else {
+                PresentMode::Fifo
+            };
+            // Mailbox needs a spare image to swap to; triple-buffer it.
+            let mut min_image_count = if present_mode == PresentMode::Mailbox {
+                surface_caps.min_image_count.max(3)
+            } else {
+                surface_caps.min_image_count.max(2)
+            };
+            if let Some(max) = surface_caps.max_image_count {
+                min_image_count = min_image_count.min(max);
+            }
+
             Swapchain::new(
                 device.clone(),
                 surface.clone(),
                 SwapchainCreateInfo {
-                    min_image_count: surface_caps.min_image_count.max(2),
+                    min_image_count,
                     image_format,
                     image_extent: inner_size,
                     image_usage: ImageUsage::COLOR_ATTACHMENT,
@@ -168,7 +193,7 @@ impl Renderer {
                         .into_iter()
                         .next()
                         .expect("no supported composite alpha"),
-                    present_mode: PresentMode::Fifo,
+                    present_mode,
                     ..Default::default()
                 },
             )
@@ -215,6 +240,7 @@ impl Renderer {
                 .expect("offscreen render pass has subpass 0"),
         );
         let text = TextRenderer::new(device.clone(), [1024, 1024]);
+        let gpu_name = device.physical_device().properties().device_name.clone();
 
         Self {
             window,
@@ -233,6 +259,8 @@ impl Renderer {
             tessellator: Tessellator::new(),
             scene_mesh: Mesh::default(),
             ui_mesh: Mesh::default(),
+            tess_us: 0.0,
+            gpu_name,
         }
     }
 
@@ -276,6 +304,19 @@ impl Renderer {
             self.recreate_swapchain();
         }
 
+        // The glyph atlas is a single image shared across frames. If new
+        // glyphs were queued this frame (e.g. a theme/font change), we must
+        // finish any in-flight frames still sampling it before overwriting
+        // its pixels — vulkano can't synchronise a write to a resource a
+        // live submission is still reading. This stalls only on the rare
+        // frames that actually upload new glyphs.
+        if self.text.atlas().has_pending() {
+            // Safe: we own every queue submission on this device and are
+            // about to rebuild the frame, so nothing else is recording.
+            let _ = unsafe { self.device.wait_idle() };
+            self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
+        }
+
         self.previous_frame_end.as_mut().unwrap().cleanup_finished();
 
         let (image_index, suboptimal, acquire_future) =
@@ -302,10 +343,13 @@ impl Renderer {
         // Flush any glyph bitmaps queued by widget code.
         self.text.atlas_mut().flush_uploads(&mut builder);
 
+        let tess_start = Instant::now();
         self.tessellator.reset(&mut self.scene_mesh);
         self.tessellator.tessellate(scene_paint, &mut self.scene_mesh);
         self.tessellator.reset(&mut self.ui_mesh);
         self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
+        let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
+        self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
 
         let screen_size = [inner_size[0] as f32, inner_size[1] as f32];
         let bg_clear = [0.04_f32, 0.05, 0.08, 1.0];
@@ -535,6 +579,10 @@ struct App {
     entity_name: String,
     asset_path: String,
     selected_entity: &'static str,
+    settings_window_open: bool,
+    about_modal_open: bool,
+    window_slider: f32,
+    ui_us: f32,
 }
 
 impl Default for App {
@@ -558,6 +606,10 @@ impl Default for App {
             entity_name: "PlayerCamera".to_string(),
             asset_path: "assets/scenes/demo.scene".to_string(),
             selected_entity: "",
+            settings_window_open: true,
+            about_modal_open: false,
+            window_slider: 0.4,
+            ui_us: 0.0,
         }
     }
 }
@@ -687,6 +739,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                renderer.text.new_frame();
                 let size = renderer.window.inner_size();
                 let pixels_per_point = renderer.window.scale_factor() as f32;
                 let inner_size: [u32; 2] = size.into();
@@ -717,6 +770,7 @@ impl ApplicationHandler for App {
                     ..Default::default()
                 };
 
+                let ui_start = Instant::now();
                 self.ctx.begin_frame(input);
                 // Apply the active theme before any widget reads it.
                 self.ctx.style = self.theme.style();
@@ -740,6 +794,14 @@ impl ApplicationHandler for App {
                 let selected_entity = &mut self.selected_entity;
                 let click_count = self.click_count;
                 let frame_time_ms = (dt * 1000.0) as f32;
+                // Isolated CPU costs (previous frame, smoothed): the
+                // immediate-mode UI pass and tessellation, in µs. These are
+                // the figures comparable to egui's reported CPU time.
+                let ui_us = self.ui_us;
+                let tess_us = renderer.tess_us;
+                let gpu_name = renderer.gpu_name.clone();
+                let mut settings_open = self.settings_window_open;
+                let mut about_open = self.about_modal_open;
 
                 DockArea::new(&mut self.dock_tree, &mut self.dock_state).show(
                     &mut self.ctx,
@@ -823,10 +885,25 @@ impl ApplicationHandler for App {
                                 .size(st.fonts.small)
                                 .color(st.palette.text_dim)
                                 .show(ui);
+                            Label::new(format!("UI pass: {:.0} µs", ui_us))
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            Label::new(format!("Tessellate: {:.0} µs", tess_us))
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
                             Label::new(format!("Quality: {:?}", *quality))
                                 .size(st.fonts.small)
                                 .color(st.palette.text_dim)
                                 .show(ui);
+                            ui.add_space(st.spacing.padding);
+                            if ui.button("Open Settings window").clicked() {
+                                settings_open = true;
+                            }
+                            if ui.button("Open About (modal)").clicked() {
+                                about_open = true;
+                            }
                         }
                         "Inspector" => {
                             let st = ui.style();
@@ -934,9 +1011,11 @@ impl ApplicationHandler for App {
                             let st = ui.style();
                             let avail = ui.available().height();
                             ui.scroll_area(avail, |ui| {
+                                let gpu_line =
+                                    format!("[10:23:45] Vulkano 0.35 — {gpu_name}");
                                 let lines = [
                                     "[10:23:45] Engine v0.1.0 starting up",
-                                    "[10:23:45] Vulkano 0.35 — RTX 4080",
+                                    gpu_line.as_str(),
                                     "[10:23:46] Loading project 'demo-scene'...",
                                     "[10:23:46] Compiled 12 shaders",
                                     "[10:23:46] Loaded 218 entities",
@@ -982,7 +1061,66 @@ impl ApplicationHandler for App {
                 );
                 self.click_count = self.click_count.saturating_add(click_delta);
 
+                // ── Phase 9: floating windows (own layers, z-ordered,
+                // click-to-front; the modal blocks everything beneath).
+                let window_slider = &mut self.window_slider;
+                self.ctx.run_root(&mut renderer.text, screen_rect, |ui| {
+                    GuiWindow::new("Settings")
+                        .open(&mut settings_open)
+                        .default_pos(Pos2::new(260.0, 140.0))
+                        .default_size(Vec2::new(320.0, 260.0))
+                        .show(ui, |ui| {
+                            ui.label("A floating window:");
+                            let st = ui.style();
+                            Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.item);
+                            ui.slider(window_slider, 0.0..=1.0);
+                            ui.progress_bar(*window_slider);
+                            ui.add_space(st.spacing.item);
+                            if ui.button("Open About (modal)").clicked() {
+                                about_open = true;
+                            }
+                        });
+
+                    if about_open {
+                        let mut close_clicked = false;
+                        GuiWindow::new("About crusty-gui")
+                            .open(&mut about_open)
+                            .modal(true)
+                            .resizable(false)
+                            .collapsible(false)
+                            .close_on_click_outside(true)
+                            .default_pos(Pos2::new(
+                                screen_rect.center().x - 170.0,
+                                screen_rect.center().y - 110.0,
+                            ))
+                            .default_size(Vec2::new(340.0, 200.0))
+                            .show(ui, |ui| {
+                                ui.label("crusty-gui \u{2014} Phase 9");
+                                let st = ui.style();
+                                Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
+                                    .size(st.fonts.small)
+                                    .color(st.palette.text_dim)
+                                    .show(ui);
+                                ui.add_space(st.spacing.item);
+                                if ui.button("Close").clicked() {
+                                    close_clicked = true;
+                                }
+                            });
+                        if close_clicked {
+                            about_open = false;
+                        }
+                    }
+                });
+                self.settings_window_open = settings_open;
+                self.about_modal_open = about_open;
+
                 let output = self.ctx.end_frame();
+                let ui_us = ui_start.elapsed().as_secs_f32() * 1e6;
+                self.ui_us = self.ui_us * 0.9 + ui_us * 0.1;
 
                 let scene_paint = build_scene_paint(inner_size);
                 renderer.render(&scene_paint, &output.paint);

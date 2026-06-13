@@ -1,6 +1,7 @@
 use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
 use crate::input::Key;
+use crate::layer::Order;
 use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 
@@ -21,11 +22,7 @@ pub fn context_menu_for(
     let id = ui.alloc_id(("context_menu", &id_source));
 
     let right_pressed = ui.ctx().input.right_pressed;
-    let pointer_in_rect = ui
-        .ctx()
-        .input
-        .pointer_pos
-        .map_or(false, |p| rect.contains(p));
+    let pointer_in_rect = ui.contains_pointer(rect);
     let pointer_pos = ui.ctx().input.pointer_pos;
     let pointer_pressed = ui.ctx().input.pointer_pressed;
 
@@ -50,6 +47,7 @@ pub fn context_menu_for(
             Vec2::new(180.0, 600.0),
         );
 
+        let menu_area_id = id.with("menu_area");
         let body_start = ui.ctx().paint.len();
         let used_h = {
             let Ui { ctx, text, .. } = ui;
@@ -65,6 +63,7 @@ pub fn context_menu_for(
                 opts,
                 menu_root_id,
             );
+            inner.set_area(Some(menu_area_id));
             body(&mut inner);
             inner.used_rect().height()
         };
@@ -87,6 +86,14 @@ pub fn context_menu_for(
             .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
         ));
         ui.ctx_mut().overlay_paint.extend(drained);
+
+        let area = ui.ctx_mut().memory.area_entry(
+            menu_area_id,
+            menu_rect.min,
+            Order::Tooltip,
+        );
+        area.pos = menu_rect.min;
+        area.size = menu_rect.size();
 
         if ui.ctx().memory.popup_close_requested {
             is_open = false;

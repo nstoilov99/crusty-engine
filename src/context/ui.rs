@@ -50,6 +50,9 @@ pub struct Ui<'a> {
     /// otherwise-identical labels in different Uis (e.g. two docked
     /// panels) get distinct Ids and don't collide in Memory.
     root_id: Id,
+    /// Floating area this Ui belongs to (`None` = root UI). Drives
+    /// occlusion-aware hit testing in [`contains_pointer`](Self::contains_pointer).
+    area: Option<Id>,
 }
 
 impl<'a> Ui<'a> {
@@ -83,7 +86,28 @@ impl<'a> Ui<'a> {
             next_index: 0,
             used: Rect::from_min_size(cursor, Vec2::ZERO),
             root_id,
+            area: None,
         }
+    }
+
+    /// Bind this Ui (and the widgets inside it) to a floating area so
+    /// hit testing respects z-order. Containers like `Area`, `Window`
+    /// and popup bodies call this right after construction.
+    pub fn set_area(&mut self, area: Option<Id>) {
+        self.area = area;
+    }
+
+    /// Floating area this Ui belongs to (`None` = root UI).
+    pub fn area(&self) -> Option<Id> {
+        self.area
+    }
+
+    /// Occlusion-aware pointer test: true when the pointer is inside
+    /// `rect` and no floating area above this Ui's layer (or a modal)
+    /// owns the pointer. Widgets use this instead of raw
+    /// `input.pointer_in`.
+    pub fn contains_pointer(&self, rect: Rect) -> bool {
+        self.ctx.pointer_over(self.area, rect)
     }
 
     pub fn ctx(&self) -> &Context {

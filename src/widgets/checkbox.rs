@@ -26,7 +26,7 @@ impl<'a> Checkbox<'a> {
         let total = Vec2::new(box_size + gap + label_size.x, box_size.max(label_size.y));
         let rect = ui.allocate(total);
 
-        let hovered = ui.ctx().input.pointer_in(rect);
+        let hovered = ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;

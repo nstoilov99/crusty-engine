@@ -108,6 +108,11 @@ impl GlyphAtlas {
         &self.view
     }
 
+    /// Whether any glyph bitmaps are queued for upload this frame.
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
     pub fn sampler(&self) -> &Arc<Sampler> {
         &self.sampler
     }

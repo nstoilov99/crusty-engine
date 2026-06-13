@@ -66,6 +66,7 @@ impl ScrollArea {
                 padding: Vec2::ZERO,
                 spacing: style.spacing.item,
             };
+            let parent_area = ui.area();
             let Ui { ctx, text, .. } = ui;
             let mut inner = Ui::with_root(
                 ctx,
@@ -75,6 +76,7 @@ impl ScrollArea {
                 inner_opts,
                 inner_root,
             );
+            inner.set_area(parent_area);
             let result = body(&mut inner);
             let used = (inner.used_rect().height()).max(0.0);
             (result, used)
@@ -83,7 +85,7 @@ impl ScrollArea {
         ui.ctx_mut().paint.push(PaintCmd::PopClip);
 
         // Handle mouse wheel.
-        let pointer_in_outer = ui.ctx().input.pointer_in(outer_rect);
+        let pointer_in_outer = ui.contains_pointer(outer_rect);
         let max_offset = (used_h - outer_rect.height()).max(0.0);
         let mut new_offset = prev_offset_y.clamp(0.0, max_offset);
         if pointer_in_outer {
@@ -123,7 +125,7 @@ impl ScrollArea {
 
             // Thumb hover + drag.
             let thumb_id = id.with("thumb");
-            let thumb_hovered = ui.ctx().input.pointer_in(thumb_rect);
+            let thumb_hovered = ui.contains_pointer(thumb_rect);
             let pointer_pressed = ui.ctx().input.pointer_pressed;
             let pointer_down = ui.ctx().input.pointer_down;
             let active_id = ui.ctx().memory.active_widget;

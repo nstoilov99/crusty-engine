@@ -47,7 +47,7 @@ impl<'a> TextEdit<'a> {
         let rect = ui.allocate(Vec2::new(width, height));
 
         // Hit-test for focus.
-        let hovered = ui.ctx().input.pointer_in(rect);
+        let hovered = ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         if pointer_pressed && hovered {
             // Claim focus; Context cleared `focused_widget` to None at

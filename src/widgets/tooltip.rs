@@ -10,9 +10,11 @@ use crate::paint::{PaintCmd, RectShape};
 /// the pointer is over the rect. A proper "appears after N ms" timer can
 /// land in a follow-up polish phase.
 pub fn show_tooltip_for(ui: &mut Ui, rect: Rect, text: &str) {
-    let pointer = match ui.ctx().input.pointer_pos {
-        Some(p) if rect.contains(p) => p,
-        _ => return,
+    if !ui.contains_pointer(rect) {
+        return;
+    }
+    let Some(pointer) = ui.ctx().input.pointer_pos else {
+        return;
     };
     let style = ui.style();
     let size = ui.text_mut().measure(text, style.fonts.small, None);

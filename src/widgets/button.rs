@@ -34,7 +34,7 @@ impl Button {
         );
         let rect = ui.allocate(button_size);
 
-        let hovered = ui.ctx().input.pointer_in(rect);
+        let hovered = ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;

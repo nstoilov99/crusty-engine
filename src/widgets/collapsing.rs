@@ -47,7 +47,7 @@ impl CollapsingHeader {
         let header_rect =
             ui.allocate(Vec2::new(ui.available().width(), row_h));
 
-        let hovered = ui.ctx().input.pointer_in(header_rect);
+        let hovered = ui.contains_pointer(header_rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;

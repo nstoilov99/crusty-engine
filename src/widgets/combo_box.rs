@@ -1,5 +1,6 @@
 use crate::context::{Direction, Ui, UiOptions};
 use crate::input::Key;
+use crate::layer::Order;
 use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
@@ -44,7 +45,7 @@ impl ComboBox {
         let trigger_h = style.fonts.body + 12.0;
         let trigger_rect = ui.allocate(Vec2::new(width, trigger_h));
 
-        let hovered = ui.ctx().input.pointer_in(trigger_rect);
+        let hovered = ui.contains_pointer(trigger_rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_pos = ui.ctx().input.pointer_pos;
 
@@ -124,6 +125,7 @@ impl ComboBox {
             // background underneath.
             let body_start_main = ui.ctx().paint.len();
 
+            let popup_area_id = id.with("popup_area");
             let used_h = {
                 let Ui { ctx, text, .. } = ui;
                 let opts = UiOptions {
@@ -138,6 +140,7 @@ impl ComboBox {
                     opts,
                     dropdown_root,
                 );
+                inner.set_area(Some(popup_area_id));
                 body(&mut inner);
                 inner.used_rect().height()
             };
@@ -161,6 +164,16 @@ impl ComboBox {
                 .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
             ));
             ui.ctx_mut().overlay_paint.extend(drained);
+
+            // Register the dropdown as a top-order interaction area so
+            // its items win pointer priority over any window beneath.
+            let area = ui.ctx_mut().memory.area_entry(
+                popup_area_id,
+                dropdown_rect.min,
+                Order::Tooltip,
+            );
+            area.pos = dropdown_rect.min;
+            area.size = dropdown_rect.size();
 
             // ── Close conditions
             if ui.ctx().memory.popup_close_requested {

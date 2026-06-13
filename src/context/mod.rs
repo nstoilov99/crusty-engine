@@ -8,10 +8,12 @@
 mod memory;
 mod ui;
 
-pub use memory::{Memory, WidgetMemory};
+pub use memory::{AreaState, Memory, WidgetMemory};
 pub use ui::{Direction, Ui, UiOptions};
 
+use crate::id::Id;
 use crate::input::{Event, Key, Modifiers, MouseButton, RawInput};
+use crate::layer::Order;
 use crate::math::{Pos2, Rect};
 use crate::paint::PaintCmd;
 use crate::style::Style;
@@ -39,6 +41,15 @@ pub struct Context {
     predicted_dt: f32,
     frame_index: u64,
     inside_frame: bool,
+
+    /// Finished floating-layer command lists for this frame; sorted by
+    /// `(Order, z)` and appended after `paint` at end_frame.
+    layers: Vec<(Id, Order, Vec<PaintCmd>)>,
+    /// Saved parent buffers while painting into a floating layer.
+    layer_stack: Vec<Vec<PaintCmd>>,
+    /// Area owning the pointer this frame (topmost at the pointer using
+    /// last-frame rects; modal-aware). `None` = the root UI.
+    hovered_area: Option<Id>,
 }
 
 impl Context {
@@ -66,7 +77,12 @@ impl Context {
         }
         self.paint.clear();
         self.overlay_paint.clear();
+        self.layers.clear();
+        self.layer_stack.clear();
         self.memory.popup_close_requested = false;
+        // Uses last frame's `seen` flags, so this must run before
+        // `memory.begin_frame()` clears them.
+        self.hovered_area = self.memory.hovered_area(self.input.pointer_pos);
         self.memory.begin_frame();
         // A click anywhere should clear focus; widgets then have a
         // chance to re-claim it during the frame.
@@ -84,14 +100,56 @@ impl Context {
         self.memory.end_frame(8);
         self.inside_frame = false;
         self.frame_index = self.frame_index.wrapping_add(1);
-        // Overlay commands render last → on top.
+        debug_assert!(
+            self.layer_stack.is_empty(),
+            "begin_layer without matching end_layer"
+        );
+        // Floating layers render above the root paint, sorted by
+        // (order class, stacking counter); legacy overlay commands
+        // (tooltips, combo dropdowns) render last → on very top.
+        let mut layers = std::mem::take(&mut self.layers);
+        layers.sort_by_key(|(id, order, _)| {
+            (*order, self.memory.area(*id).map_or(0, |a| a.z))
+        });
         let overlay = std::mem::take(&mut self.overlay_paint);
         let mut paint = std::mem::take(&mut self.paint);
+        for (_, _, cmds) in layers {
+            paint.extend(cmds);
+        }
         paint.extend(overlay);
         FrameOutput {
             screen_rect: self.screen_rect,
             paint,
         }
+    }
+
+    /// Redirect subsequent `paint` pushes into a fresh floating layer.
+    /// Every call must be paired with [`end_layer`](Self::end_layer).
+    pub fn begin_layer(&mut self) {
+        self.layer_stack.push(std::mem::take(&mut self.paint));
+    }
+
+    /// Close the current floating layer, filing its commands under
+    /// `(id, order)` for z-sorted composition at end_frame.
+    pub fn end_layer(&mut self, id: Id, order: Order) {
+        let parent = self
+            .layer_stack
+            .pop()
+            .expect("end_layer called without begin_layer");
+        let cmds = std::mem::replace(&mut self.paint, parent);
+        self.layers.push((id, order, cmds));
+    }
+
+    /// Area owning the pointer this frame (`None` = root UI).
+    #[inline]
+    pub fn hovered_area(&self) -> Option<Id> {
+        self.hovered_area
+    }
+
+    /// True when the pointer is inside `rect` *and* not occluded by (or
+    /// blocked from) a floating area other than `area`.
+    pub fn pointer_over(&self, area: Option<Id>, rect: Rect) -> bool {
+        self.input.pointer_in(rect) && self.hovered_area == area
     }
 
     /// Run a UI pass within a region. Convenience for the common case of

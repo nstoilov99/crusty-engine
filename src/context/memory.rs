@@ -12,7 +12,8 @@ use std::hash::BuildHasherDefault;
 use ahash::AHasher;
 
 use crate::id::Id;
-use crate::math::{Rect, Vec2};
+use crate::layer::Order;
+use crate::math::{Pos2, Rect, Vec2};
 
 #[derive(Clone, Copy, Debug)]
 pub struct WidgetMemory {
@@ -57,9 +58,35 @@ impl Default for WidgetMemory {
     }
 }
 
+/// Persistent state for a floating region (Area / Window / popup).
+/// `pos`/`size` describe the rect the area occupied last frame and drive
+/// pointer-priority hit testing for the *current* frame.
+#[derive(Clone, Copy, Debug)]
+pub struct AreaState {
+    pub pos: Pos2,
+    pub size: Vec2,
+    pub order: Order,
+    /// Monotonic stacking counter; higher = in front within the same
+    /// [`Order`].
+    pub z: u64,
+    /// Non-interactable areas (tooltips) never claim the pointer.
+    pub interactable: bool,
+    pub seen_this_frame: bool,
+    pub frames_unseen: u8,
+}
+
+impl AreaState {
+    pub fn rect(&self) -> Rect {
+        Rect::from_min_size(self.pos, self.size)
+    }
+}
+
 #[derive(Default)]
 pub struct Memory {
     widgets: HashMap<Id, WidgetMemory, BuildHasherDefault<AHasher>>,
+    areas: HashMap<Id, AreaState, BuildHasherDefault<AHasher>>,
+    /// Next value handed out by [`bring_area_to_front`](Self::bring_area_to_front).
+    next_area_z: u64,
     /// Whichever widget the user is currently pressing the primary
     /// pointer button on. Set when a press starts over a widget, cleared
     /// when the button is released. Used so a press that drifts off the
@@ -84,11 +111,99 @@ impl Memory {
         self.widgets.entry(id).or_default()
     }
 
+    pub fn area(&self, id: Id) -> Option<&AreaState> {
+        self.areas.get(&id)
+    }
+
+    /// Fetch (or create, front-most) the persistent state for a floating
+    /// area, marking it alive for this frame.
+    pub fn area_entry(&mut self, id: Id, default_pos: Pos2, order: Order) -> &mut AreaState {
+        let next_z = &mut self.next_area_z;
+        let entry = self.areas.entry(id).or_insert_with(|| {
+            let z = *next_z;
+            *next_z += 1;
+            AreaState {
+                pos: default_pos,
+                size: Vec2::ZERO,
+                order,
+                z,
+                interactable: true,
+                seen_this_frame: false,
+                frames_unseen: 0,
+            }
+        });
+        entry.order = order;
+        entry.seen_this_frame = true;
+        entry
+    }
+
+    /// Raise `id` above every other area in its order class.
+    pub fn bring_area_to_front(&mut self, id: Id) {
+        let z = self.next_area_z;
+        if let Some(area) = self.areas.get_mut(&id) {
+            area.z = z;
+            self.next_area_z += 1;
+        }
+    }
+
+    /// True when `id` is the front-most area of its order class.
+    pub fn is_area_front(&self, id: Id) -> bool {
+        let Some(area) = self.areas.get(&id) else {
+            return false;
+        };
+        self.areas
+            .values()
+            .filter(|a| a.order == area.order)
+            .all(|a| a.z <= area.z)
+    }
+
+    /// Topmost interactable area at `pointer` using last-frame rects, or
+    /// the front-most modal when the pointer is outside every modal-or-
+    /// higher area (a modal blocks everything below it). `None` means the
+    /// root UI owns the pointer.
+    ///
+    /// Must be called *before* [`begin_frame`](Self::begin_frame) clears
+    /// the `seen_this_frame` flags: only areas alive last frame count.
+    /// Area entries themselves are never evicted so closed windows keep
+    /// their position/size for when they reopen.
+    pub fn hovered_area(&self, pointer: Option<Pos2>) -> Option<Id> {
+        let mut top: Option<(Order, u64, Id)> = None;
+        let mut front_modal: Option<(u64, Id)> = None;
+        for (&id, a) in &self.areas {
+            if !a.interactable || !a.seen_this_frame {
+                continue;
+            }
+            if a.order == Order::Modal && front_modal.is_none_or(|(z, _)| a.z > z) {
+                front_modal = Some((a.z, id));
+            }
+            if let Some(p) = pointer {
+                if a.rect().contains(p) && top.is_none_or(|(o, z, _)| (a.order, a.z) > (o, z)) {
+                    top = Some((a.order, a.z, id));
+                }
+            }
+        }
+        match (top, front_modal) {
+            (Some((order, _, id)), Some((_, modal_id))) => {
+                if order >= Order::Modal {
+                    Some(id)
+                } else {
+                    Some(modal_id)
+                }
+            }
+            (Some((_, _, id)), None) => Some(id),
+            (None, Some((_, modal_id))) => Some(modal_id),
+            (None, None) => None,
+        }
+    }
+
     /// Run at the start of each frame, before any widget code runs.
     /// Marks every entry as not-yet-seen so we can detect dead widgets.
     pub fn begin_frame(&mut self) {
         for entry in self.widgets.values_mut() {
             entry.seen_this_frame = false;
+        }
+        for area in self.areas.values_mut() {
+            area.seen_this_frame = false;
         }
     }
 

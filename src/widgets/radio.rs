@@ -29,7 +29,7 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
         let rect = ui.allocate(total);
 
         let is_selected = *self.selection == self.option;
-        let hovered = ui.ctx().input.pointer_in(rect);
+        let hovered = ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;

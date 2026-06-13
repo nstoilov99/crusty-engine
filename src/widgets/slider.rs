@@ -41,7 +41,7 @@ impl<'a> Slider<'a> {
         let max = *self.range.end();
         let span = (max - min).max(1e-6);
 
-        let hovered = ui.ctx().input.pointer_in(rect);
+        let hovered = ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;

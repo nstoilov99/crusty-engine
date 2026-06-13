@@ -2,6 +2,7 @@
 //! free-function tooltip helper, and a free-function context-menu
 //! helper, all on top of the Phase 3–7 widget set.
 
+mod area;
 mod button;
 mod checkbox;
 mod collapsing;
@@ -16,7 +17,9 @@ mod slider;
 mod text_edit;
 mod tooltip;
 mod tree;
+mod window;
 
+pub use area::Area;
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use collapsing::CollapsingHeader;
@@ -31,6 +34,7 @@ pub use slider::Slider;
 pub use text_edit::TextEdit;
 pub use tooltip::show_tooltip_for;
 pub use tree::TreeNode;
+pub use window::{Window, WindowResponse};
 
 use std::ops::RangeInclusive;
 

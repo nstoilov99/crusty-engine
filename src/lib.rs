@@ -9,6 +9,7 @@ pub mod id;
 pub mod input;
 pub mod context;
 pub mod dock;
+pub mod layer;
 pub mod paint;
 pub mod response;
 pub mod style;
@@ -25,13 +26,14 @@ pub mod prelude {
     pub use crate::context::{Context, Direction, Ui, UiOptions};
     pub use crate::id::Id;
     pub use crate::input::{Event, Key, MouseButton, RawInput};
+    pub use crate::layer::Order;
     pub use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
     pub use crate::paint::{PaintCmd, RectShape};
     pub use crate::response::Response;
     pub use crate::dock::{DockArea, DockNode, SplitDirection};
     pub use crate::style::Style;
     pub use crate::widgets::{
-        Button, Checkbox, CollapsingHeader, ComboBox, Label, ProgressBar, Radio,
-        ScrollArea, SelectableValue, Slider, TextEdit, TreeNode,
+        Area, Button, Checkbox, CollapsingHeader, ComboBox, Label, ProgressBar,
+        Radio, ScrollArea, SelectableValue, Slider, TextEdit, TreeNode, Window,
     };
 }

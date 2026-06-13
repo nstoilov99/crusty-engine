@@ -273,7 +273,7 @@ fn handle_splitter_drag(
     ratio: &mut f32,
     parent_rect: Rect,
 ) {
-    let hovered = ctx.input.pointer_in(splitter_rect);
+    let hovered = ctx.pointer_over(None, splitter_rect);
     let pointer_pressed = ctx.input.pointer_pressed;
     let pointer_down = ctx.input.pointer_down;
     if pointer_pressed && hovered {
@@ -296,7 +296,7 @@ fn handle_splitter_drag(
 
 fn draw_splitter(ctx: &mut Context, splitter_rect: Rect, splitter_id: Id) {
     let style = ctx.style;
-    let hovered = ctx.input.pointer_in(splitter_rect);
+    let hovered = ctx.pointer_over(None, splitter_rect);
     let is_active = ctx.memory.active_widget == Some(splitter_id);
     let highlight = if is_active {
         1.0
@@ -331,7 +331,7 @@ fn draw_tabs(
         );
 
         let is_active = i == active_was;
-        let hovered = ctx.input.pointer_in(tab_rect);
+        let hovered = ctx.pointer_over(None, tab_rect);
         let fill = if is_active {
             style.palette.surface
         } else if hovered {
