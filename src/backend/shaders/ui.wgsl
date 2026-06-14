@@ -11,6 +11,10 @@
 //   3 — outer glow (sharper falloff than shadow).
 //   4 — glyph: samples the R8 glyph atlas at `uv`, output `color.rgb`
 //       with alpha = `color.a * atlas.r`.
+//   5 — image: samples the bound user texture at `uv`, multiplied by
+//       `color` as a tint (white = untinted).
+//   6 — color glyph: samples the RGBA color-glyph atlas at `uv`, RGB
+//       untinted, alpha scaled by `color.a` (color emoji).
 //
 // Coordinates are in physical pixels; the vertex shader maps to clip space
 // using the `screen_size` push constant.
@@ -25,6 +29,10 @@ var<push_constant> pc: PushConsts;
 @group(0) @binding(1) var s_backdrop: sampler;
 @group(0) @binding(2) var t_atlas: texture_2d<f32>;
 @group(0) @binding(3) var s_atlas: sampler;
+@group(0) @binding(4) var t_image: texture_2d<f32>;
+@group(0) @binding(5) var s_image: sampler;
+@group(0) @binding(6) var t_color: texture_2d<f32>;
+@group(0) @binding(7) var s_color: sampler;
 
 struct VsIn {
     @location(0) pos: vec2<f32>,
@@ -132,6 +140,17 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         // Glyph: sample the R8 atlas as a coverage mask.
         let coverage = textureSample(t_atlas, s_atlas, input.uv).r;
         return vec4<f32>(input.color.rgb, input.color.a * coverage);
+    }
+
+    if (mode < 5.5) {
+        // Image: sample the bound user texture, tinted by `color`.
+        return textureSample(t_image, s_image, input.uv) * input.color;
+    }
+
+    if (mode < 6.5) {
+        // Color glyph: sample the RGBA atlas, scale alpha by `color.a`.
+        let texel = textureSample(t_color, s_color, input.uv);
+        return vec4<f32>(texel.rgb, texel.a * input.color.a);
     }
 
     return input.color;

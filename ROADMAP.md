@@ -51,10 +51,10 @@ The editor relies on dialogs and popups everywhere.
 
 The viewport, asset thumbnails, and previews render engine images.
 
-- [ ] `TextureId` registry: user-registered vulkano `ImageView`s sampled in
+- [x] `TextureId` registry: user-registered vulkano `ImageView`s sampled in
       the UI shader (new textured fragment mode)
-- [ ] `Image` / `ImageButton` widgets with UV control
-- [ ] RGBA atlas page alongside R8 (also unblocks color emoji)
+- [x] `Image` / `ImageButton` widgets with UV control
+- [x] RGBA atlas page alongside R8 (also unblocks color emoji)
 
 ## Phase 11 — Layout engine upgrade
 

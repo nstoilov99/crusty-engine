@@ -9,7 +9,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crusty_gui::backend::vulkano::{BlurRenderer, OffscreenTargets, UiRenderer};
+use crusty_gui::backend::vulkano::{
+    BlurRenderer, OffscreenTargets, TextureRegistry, UiRenderer, upload_rgba_texture,
+};
 use crusty_gui::dock::{DockArea, DockNode, DockState};
 use crusty_gui::paint::{Mesh, Tessellator};
 use crusty_gui::prelude::*;
@@ -59,6 +61,8 @@ struct Renderer {
     ui: UiRenderer,
     blur: BlurRenderer,
     text: TextRenderer,
+    registry: TextureRegistry,
+    demo_texture: TextureId,
     tessellator: Tessellator,
     scene_mesh: Mesh,
     ui_mesh: Mesh,
@@ -240,6 +244,24 @@ impl Renderer {
                 .expect("offscreen render pass has subpass 0"),
         );
         let text = TextRenderer::new(device.clone(), [1024, 1024]);
+
+        // A simple checkerboard texture so the Viewport panel has something
+        // real to display through the Phase 10 texture path.
+        let mut registry = TextureRegistry::new(device.clone());
+        let demo_texture = {
+            const N: u32 = 64;
+            let mut pixels = Vec::with_capacity((N * N * 4) as usize);
+            for y in 0..N {
+                for x in 0..N {
+                    let on = ((x / 8) + (y / 8)) % 2 == 0;
+                    let (r, g, b) = if on { (90, 130, 200) } else { (30, 40, 60) };
+                    pixels.extend_from_slice(&[r, g, b, 255]);
+                }
+            }
+            let view = upload_rgba_texture(device.clone(), queue.clone(), N, N, &pixels);
+            registry.register(view, TextureFilter::Nearest)
+        };
+
         let gpu_name = device.physical_device().properties().device_name.clone();
 
         Self {
@@ -256,6 +278,8 @@ impl Renderer {
             ui,
             blur,
             text,
+            registry,
+            demo_texture,
             tessellator: Tessellator::new(),
             scene_mesh: Mesh::default(),
             ui_mesh: Mesh::default(),
@@ -376,6 +400,9 @@ impl Renderer {
             self.offscreen.sampler().clone(),
             self.text.atlas().view().clone(),
             self.text.atlas().sampler().clone(),
+            self.text.atlas().rgba_view().cloned(),
+            Some(self.text.atlas().sampler().clone()),
+            &self.registry,
         );
         builder
             .end_render_pass(Default::default())
@@ -459,6 +486,9 @@ impl Renderer {
             self.offscreen.sampler().clone(),
             self.text.atlas().view().clone(),
             self.text.atlas().sampler().clone(),
+            self.text.atlas().rgba_view().cloned(),
+            Some(self.text.atlas().sampler().clone()),
+            &self.registry,
         );
         builder
             .end_render_pass(Default::default())
@@ -800,6 +830,7 @@ impl ApplicationHandler for App {
                 let ui_us = self.ui_us;
                 let tess_us = renderer.tess_us;
                 let gpu_name = renderer.gpu_name.clone();
+                let demo_texture = renderer.demo_texture;
                 let mut settings_open = self.settings_window_open;
                 let mut about_open = self.about_modal_open;
 
@@ -880,6 +911,10 @@ impl ApplicationHandler for App {
                                 .size(st.fonts.small)
                                 .color(st.palette.text_dim)
                                 .show(ui);
+                            ui.add_space(st.spacing.padding);
+                            // Phase 10: a registered texture sampled through
+                            // the new MODE_IMAGE path.
+                            Image::new(demo_texture, Vec2::new(160.0, 160.0)).show(ui);
                             ui.add_space(st.spacing.padding);
                             Label::new(format!("Frame: {:.2} ms", frame_time_ms))
                                 .size(st.fonts.small)

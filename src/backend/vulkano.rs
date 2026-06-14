@@ -13,16 +13,20 @@
 //!   frosted glass. For passes that don't need a backdrop (e.g. drawing
 //!   the scene itself) the caller passes `targets.dummy_view()`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use vulkano::buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer};
+use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
+use vulkano::command_buffer::{
+    AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferToImageInfo, PrimaryAutoCommandBuffer,
+};
 use vulkano::descriptor_set::allocator::StandardDescriptorSetAllocator;
 use vulkano::descriptor_set::layout::{
     DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateInfo, DescriptorType,
 };
 use vulkano::descriptor_set::{DescriptorSet, WriteDescriptorSet};
-use vulkano::device::Device;
+use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
 use vulkano::image::sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode};
 use vulkano::image::view::ImageView;
@@ -49,8 +53,9 @@ use vulkano::pipeline::{
 };
 use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass};
 use vulkano::shader::{ShaderModule, ShaderModuleCreateInfo, ShaderStages};
+use vulkano::sync::GpuFuture;
 
-use crate::paint::{Mesh, Vertex};
+use crate::paint::{Mesh, TextureFilter, TextureId, Vertex};
 
 const UI_SPV: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ui.spv"));
 const BLUR_SPV: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/blur.spv"));
@@ -377,6 +382,97 @@ impl BlurRenderer {
     }
 }
 
+// ─── texture registry ───────────────────────────────────────────────────────
+
+struct RegisteredTexture {
+    view: Arc<ImageView>,
+    sampler: Arc<Sampler>,
+}
+
+/// Maps opaque [`TextureId`]s to the GPU `ImageView`s widgets sample via
+/// `MODE_IMAGE`. Register a vulkano `ImageView` (e.g. an engine viewport or
+/// asset thumbnail) to get a `TextureId`, then pass that id to the
+/// [`Image`](crate::widgets::Image) widget. The registry is handed to
+/// [`UiRenderer::draw`] so it can resolve ids back to views at record time.
+pub struct TextureRegistry {
+    next_id: u64,
+    textures: HashMap<TextureId, RegisteredTexture>,
+    linear: Arc<Sampler>,
+    nearest: Arc<Sampler>,
+}
+
+impl TextureRegistry {
+    pub fn new(device: Arc<Device>) -> Self {
+        let linear = Sampler::new(
+            device.clone(),
+            SamplerCreateInfo {
+                mag_filter: Filter::Linear,
+                min_filter: Filter::Linear,
+                mipmap_mode: SamplerMipmapMode::Nearest,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                ..Default::default()
+            },
+        )
+        .expect("failed to create linear texture sampler");
+        let nearest = Sampler::new(
+            device,
+            SamplerCreateInfo {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                mipmap_mode: SamplerMipmapMode::Nearest,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                ..Default::default()
+            },
+        )
+        .expect("failed to create nearest texture sampler");
+        Self {
+            next_id: 1,
+            textures: HashMap::new(),
+            linear,
+            nearest,
+        }
+    }
+
+    /// Register `view` with the given sampling `filter` and return a fresh
+    /// [`TextureId`]. The `ImageView`'s image must have `SAMPLED` usage.
+    pub fn register(&mut self, view: Arc<ImageView>, filter: TextureFilter) -> TextureId {
+        let sampler = match filter {
+            TextureFilter::Linear => self.linear.clone(),
+            TextureFilter::Nearest => self.nearest.clone(),
+        };
+        self.register_with_sampler(view, sampler)
+    }
+
+    /// Register `view` with a caller-provided sampler.
+    pub fn register_with_sampler(
+        &mut self,
+        view: Arc<ImageView>,
+        sampler: Arc<Sampler>,
+    ) -> TextureId {
+        let id = TextureId(self.next_id);
+        self.next_id += 1;
+        self.textures.insert(id, RegisteredTexture { view, sampler });
+        id
+    }
+
+    /// Point an existing id at a new `ImageView` (e.g. the viewport image
+    /// was recreated on resize). No-op if the id is unknown.
+    pub fn update(&mut self, id: TextureId, view: Arc<ImageView>) {
+        if let Some(tex) = self.textures.get_mut(&id) {
+            tex.view = view;
+        }
+    }
+
+    /// Drop a texture. Subsequent draws referencing it fall back to a dummy.
+    pub fn remove(&mut self, id: TextureId) {
+        self.textures.remove(&id);
+    }
+
+    fn get(&self, id: TextureId) -> Option<(&Arc<ImageView>, &Arc<Sampler>)> {
+        self.textures.get(&id).map(|t| (&t.view, &t.sampler))
+    }
+}
+
 // ─── ui renderer ────────────────────────────────────────────────────────────
 
 pub struct UiRenderer {
@@ -384,6 +480,10 @@ pub struct UiRenderer {
     memory_allocator: Arc<StandardMemoryAllocator>,
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     set_layout: Arc<DescriptorSetLayout>,
+    /// 1×1 RGBA fallback bound at the image / color-atlas slots when no real
+    /// texture is in play (non-image draws never sample it).
+    dummy_view: Arc<ImageView>,
+    default_sampler: Arc<Sampler>,
 }
 
 impl UiRenderer {
@@ -394,6 +494,19 @@ impl UiRenderer {
             device.clone(),
             Default::default(),
         ));
+
+        let dummy_view = make_dummy_rgba(&memory_allocator);
+        let default_sampler = Sampler::new(
+            device.clone(),
+            SamplerCreateInfo {
+                mag_filter: Filter::Linear,
+                min_filter: Filter::Linear,
+                mipmap_mode: SamplerMipmapMode::Nearest,
+                address_mode: [SamplerAddressMode::ClampToEdge; 3],
+                ..Default::default()
+            },
+        )
+        .expect("failed to create UI default sampler");
 
         let module = load_shader_module(&device, UI_SPV);
         let vs = module.entry_point("vs_main").expect("vs_main missing");
@@ -461,9 +574,16 @@ impl UiRenderer {
             memory_allocator,
             descriptor_set_allocator,
             set_layout,
+            dummy_view,
+            default_sampler,
         }
     }
 
+    /// Record the UI mesh. `backdrop`/`atlas` are the glassmorphism backdrop
+    /// and R8 glyph atlas (constant for the mesh). `color_atlas` is the
+    /// optional RGBA color-glyph page (`None` → dummy). `registry` resolves
+    /// per-draw [`TextureId`]s for `MODE_IMAGE` quads.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
@@ -473,6 +593,9 @@ impl UiRenderer {
         backdrop_sampler: Arc<Sampler>,
         atlas: Arc<ImageView>,
         atlas_sampler: Arc<Sampler>,
+        color_atlas: Option<Arc<ImageView>>,
+        color_atlas_sampler: Option<Arc<Sampler>>,
+        registry: &TextureRegistry,
     ) {
         if mesh.is_empty() {
             return;
@@ -481,18 +604,9 @@ impl UiRenderer {
         let vertex_buffer = self.upload_vertices(&mesh.vertices);
         let index_buffer = self.upload_indices(&mesh.indices);
 
-        let descriptor_set = DescriptorSet::new(
-            self.descriptor_set_allocator.clone(),
-            self.set_layout.clone(),
-            [
-                WriteDescriptorSet::image_view(0, backdrop),
-                WriteDescriptorSet::sampler(1, backdrop_sampler),
-                WriteDescriptorSet::image_view(2, atlas),
-                WriteDescriptorSet::sampler(3, atlas_sampler),
-            ],
-            [],
-        )
-        .expect("failed to allocate UI descriptor set");
+        let color_atlas = color_atlas.unwrap_or_else(|| self.dummy_view.clone());
+        let color_atlas_sampler =
+            color_atlas_sampler.unwrap_or_else(|| self.default_sampler.clone());
 
         let viewport = Viewport {
             offset: [0.0, 0.0],
@@ -505,13 +619,6 @@ impl UiRenderer {
             .expect("bind_pipeline_graphics failed")
             .set_viewport(0, [viewport].into_iter().collect())
             .expect("set_viewport failed")
-            .bind_descriptor_sets(
-                PipelineBindPoint::Graphics,
-                self.pipeline.layout().clone(),
-                0,
-                descriptor_set,
-            )
-            .expect("bind_descriptor_sets failed")
             .push_constants(
                 self.pipeline.layout().clone(),
                 0,
@@ -526,7 +633,56 @@ impl UiRenderer {
             .bind_index_buffer(index_buffer)
             .expect("bind_index_buffer failed");
 
+        // The image slot (binding 4/5) is the only descriptor that varies
+        // across draws; cache one set per distinct texture and rebind only
+        // when it changes.
+        let mut set_cache: HashMap<Option<TextureId>, Arc<DescriptorSet>> = HashMap::new();
+        let mut bound_key: Option<Option<TextureId>> = None;
+
         for draw in &mesh.draws {
+            let key = draw.texture;
+            if bound_key != Some(key) {
+                let set = set_cache
+                    .entry(key)
+                    .or_insert_with(|| {
+                        let (image_view, image_sampler) = match key {
+                            Some(id) => registry
+                                .get(id)
+                                .map(|(v, s)| (v.clone(), s.clone()))
+                                .unwrap_or_else(|| {
+                                    (self.dummy_view.clone(), self.default_sampler.clone())
+                                }),
+                            None => (self.dummy_view.clone(), self.default_sampler.clone()),
+                        };
+                        DescriptorSet::new(
+                            self.descriptor_set_allocator.clone(),
+                            self.set_layout.clone(),
+                            [
+                                WriteDescriptorSet::image_view(0, backdrop.clone()),
+                                WriteDescriptorSet::sampler(1, backdrop_sampler.clone()),
+                                WriteDescriptorSet::image_view(2, atlas.clone()),
+                                WriteDescriptorSet::sampler(3, atlas_sampler.clone()),
+                                WriteDescriptorSet::image_view(4, image_view),
+                                WriteDescriptorSet::sampler(5, image_sampler),
+                                WriteDescriptorSet::image_view(6, color_atlas.clone()),
+                                WriteDescriptorSet::sampler(7, color_atlas_sampler.clone()),
+                            ],
+                            [],
+                        )
+                        .expect("failed to allocate UI descriptor set")
+                    })
+                    .clone();
+                builder
+                    .bind_descriptor_sets(
+                        PipelineBindPoint::Graphics,
+                        self.pipeline.layout().clone(),
+                        0,
+                        set,
+                    )
+                    .expect("bind_descriptor_sets failed");
+                bound_key = Some(key);
+            }
+
             let scissor = match draw.clip {
                 Some(rect) => Scissor {
                     offset: [rect.min.x.max(0.0) as u32, rect.min.y.max(0.0) as u32],
@@ -626,39 +782,28 @@ fn single_sampled_image_set_layout(device: &Arc<Device>) -> Arc<DescriptorSetLay
     .expect("failed to create descriptor set layout")
 }
 
-/// Layout with two sampled image + sampler pairs — backdrop and glyph
-/// atlas. Used by the UI pipeline.
+/// Layout with four sampled image + sampler pairs — backdrop, R8 glyph
+/// atlas, user image (`MODE_IMAGE`), and RGBA color-glyph atlas. Used by
+/// the UI pipeline.
 fn ui_set_layout(device: &Arc<Device>) -> Arc<DescriptorSetLayout> {
     use std::collections::BTreeMap;
+    let sampled = || DescriptorSetLayoutBinding {
+        stages: ShaderStages::FRAGMENT,
+        ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::SampledImage)
+    };
+    let sampler = || DescriptorSetLayoutBinding {
+        stages: ShaderStages::FRAGMENT,
+        ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::Sampler)
+    };
     let bindings = BTreeMap::from([
-        (
-            0,
-            DescriptorSetLayoutBinding {
-                stages: ShaderStages::FRAGMENT,
-                ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::SampledImage)
-            },
-        ),
-        (
-            1,
-            DescriptorSetLayoutBinding {
-                stages: ShaderStages::FRAGMENT,
-                ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::Sampler)
-            },
-        ),
-        (
-            2,
-            DescriptorSetLayoutBinding {
-                stages: ShaderStages::FRAGMENT,
-                ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::SampledImage)
-            },
-        ),
-        (
-            3,
-            DescriptorSetLayoutBinding {
-                stages: ShaderStages::FRAGMENT,
-                ..DescriptorSetLayoutBinding::descriptor_type(DescriptorType::Sampler)
-            },
-        ),
+        (0, sampled()),
+        (1, sampler()),
+        (2, sampled()),
+        (3, sampler()),
+        (4, sampled()),
+        (5, sampler()),
+        (6, sampled()),
+        (7, sampler()),
     ]);
     DescriptorSetLayout::new(
         device.clone(),
@@ -668,6 +813,105 @@ fn ui_set_layout(device: &Arc<Device>) -> Arc<DescriptorSetLayout> {
         },
     )
     .expect("failed to create UI descriptor set layout")
+}
+
+/// A 1×1 RGBA image used as a placeholder at the image / color-atlas
+/// descriptor slots. Its contents are never sampled (the shader only reads
+/// these slots in `MODE_IMAGE` / `MODE_COLOR_GLYPH`), so it's left
+/// uninitialised — vulkano transitions it to a readable layout on bind.
+fn make_dummy_rgba(memory_allocator: &Arc<StandardMemoryAllocator>) -> Arc<ImageView> {
+    let image = Image::new(
+        memory_allocator.clone(),
+        ImageCreateInfo {
+            image_type: ImageType::Dim2d,
+            format: Format::R8G8B8A8_UNORM,
+            extent: [1, 1, 1],
+            usage: ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST,
+            ..Default::default()
+        },
+        AllocationCreateInfo::default(),
+    )
+    .expect("failed to allocate dummy image");
+    ImageView::new_default(image).expect("failed to create dummy image view")
+}
+
+/// Upload a tightly-packed `R8G8B8A8_UNORM` pixel buffer to a fresh sampled
+/// image and return its view, ready to hand to
+/// [`TextureRegistry::register`]. Blocks until the copy completes. Intended
+/// for one-off static textures (thumbnails, icons); engine-owned dynamic
+/// images should be registered directly with [`TextureRegistry::register`].
+///
+/// `rgba` must be exactly `width * height * 4` bytes.
+pub fn upload_rgba_texture(
+    device: Arc<Device>,
+    queue: Arc<Queue>,
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> Arc<ImageView> {
+    assert_eq!(
+        rgba.len() as u64,
+        width as u64 * height as u64 * 4,
+        "rgba length must equal width * height * 4"
+    );
+
+    let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+    let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
+        device.clone(),
+        Default::default(),
+    ));
+
+    let staging = Buffer::from_iter(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::TRANSFER_SRC,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
+        },
+        rgba.iter().copied(),
+    )
+    .expect("failed to allocate texture staging buffer");
+
+    let image = Image::new(
+        memory_allocator,
+        ImageCreateInfo {
+            image_type: ImageType::Dim2d,
+            format: Format::R8G8B8A8_UNORM,
+            extent: [width, height, 1],
+            usage: ImageUsage::SAMPLED | ImageUsage::TRANSFER_DST,
+            ..Default::default()
+        },
+        AllocationCreateInfo::default(),
+    )
+    .expect("failed to allocate texture image");
+
+    let mut builder = AutoCommandBufferBuilder::primary(
+        command_buffer_allocator,
+        queue.queue_family_index(),
+        CommandBufferUsage::OneTimeSubmit,
+    )
+    .expect("failed to allocate upload command buffer");
+    builder
+        .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
+            staging,
+            image.clone(),
+        ))
+        .expect("failed to record texture upload");
+    let command_buffer = builder.build().expect("failed to build upload command buffer");
+
+    vulkano::sync::now(device)
+        .then_execute(queue, command_buffer)
+        .expect("failed to submit texture upload")
+        .then_signal_fence_and_flush()
+        .expect("failed to flush texture upload")
+        .wait(None)
+        .expect("texture upload fence wait failed");
+
+    ImageView::new_default(image).expect("failed to create texture image view")
 }
 
 fn spv_bytes_to_words(bytes: &[u8]) -> Vec<u32> {

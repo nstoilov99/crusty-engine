@@ -31,6 +31,9 @@ struct CachedGlyph {
     top: i32,
     width: u32,
     height: u32,
+    /// True when the glyph lives in the RGBA color page (emoji) rather than
+    /// the R8 mask page.
+    color: bool,
 }
 
 /// A fully shaped layout, kept across frames so repeated labels don't
@@ -160,12 +163,22 @@ impl TextRenderer {
             if quad_size.x <= 0.0 || quad_size.y <= 0.0 {
                 continue;
             }
-            paint.push(PaintCmd::Glyph {
-                rect: Rect::from_min_size(quad_pos, quad_size),
-                uv_min: cached.atlas.uv_min,
-                uv_max: cached.atlas.uv_max,
-                color,
-            });
+            let rect = Rect::from_min_size(quad_pos, quad_size);
+            if cached.color {
+                paint.push(PaintCmd::ColorGlyph {
+                    rect,
+                    uv_min: cached.atlas.uv_min,
+                    uv_max: cached.atlas.uv_max,
+                    alpha: color.a,
+                });
+            } else {
+                paint.push(PaintCmd::Glyph {
+                    rect,
+                    uv_min: cached.atlas.uv_min,
+                    uv_max: cached.atlas.uv_max,
+                    color,
+                });
+            }
         }
     }
 
@@ -190,27 +203,34 @@ impl TextRenderer {
             return None;
         }
 
-        // We only handle alpha-mask content. Color glyphs (emoji) and
-        // subpixel-RGB glyphs are skipped for Phase 2; the atlas is R8.
-        let bytes: Vec<u8> = match image.content {
-            SwashContent::Mask => image.data.clone(),
+        // Mask / subpixel glyphs go to the R8 page; color glyphs (emoji) to
+        // the RGBA page (Phase 10).
+        let is_color = matches!(image.content, SwashContent::Color);
+        let atlas_rect = match image.content {
+            SwashContent::Mask => {
+                self.atlas
+                    .insert(image.placement.width, image.placement.height, image.data.clone())
+            }
             SwashContent::SubpixelMask => {
                 // SubpixelMask stores 3 sub-channels per pixel; collapse to
                 // luminance by averaging.
-                image
+                let bytes: Vec<u8> = image
                     .data
                     .chunks_exact(3)
                     .map(|c| ((c[0] as u32 + c[1] as u32 + c[2] as u32) / 3) as u8)
-                    .collect()
+                    .collect();
+                self.atlas
+                    .insert(image.placement.width, image.placement.height, bytes)
             }
             SwashContent::Color => {
-                self.cache.insert(hash, None);
-                return None;
+                // swash hands us straight-alpha RGBA, 4 bytes/pixel.
+                self.atlas.insert_rgba(
+                    image.placement.width,
+                    image.placement.height,
+                    image.data.clone(),
+                )
             }
         };
-
-
-        let atlas_rect = self.atlas.insert(image.placement.width, image.placement.height, bytes);
         let Some(atlas_rect) = atlas_rect else {
             // Atlas full — don't poison the cache; future frames may evict
             // and have room. For now leave as None so we don't infinitely
@@ -225,6 +245,7 @@ impl TextRenderer {
             top: image.placement.top,
             width: image.placement.width,
             height: image.placement.height,
+            color: is_color,
         };
         self.cache.insert(hash, Some(cached));
         Some(cached)

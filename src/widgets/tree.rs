@@ -125,29 +125,26 @@ impl<'a, T: PartialEq + Copy> TreeNode<'a, T> {
             )));
         }
 
-        // Chevron
-        let chev_char = if is_open { '\u{25BC}' } else { '\u{25B6}' };
-        let chev_str = chev_char.to_string();
-        let chev_text_size =
-            ui.text_mut().measure(&chev_str, style.fonts.body, None);
-        let chev_x = chevron_rect.min.x + (chevron_w - chev_text_size.x) * 0.5;
-        let chev_y = chevron_rect.min.y + (row_h - chev_text_size.y) * 0.5;
+        // Chevron — two strokes, not a glyph: stays crisp, monochrome, and
+        // tinted by `chev_color` (a glyph chevron risks an emoji substitution
+        // for arrow codepoints).
         let chev_color = if is_selected {
             Color::rgba(0.10, 0.10, 0.12, 0.95)
         } else {
-            style.palette.text
+            style.palette.text_dim
         };
-        {
-            let Ui { ctx, text, .. } = ui;
-            text.add_text(
-                &mut ctx.paint,
-                &chev_str,
-                style.fonts.body,
-                Pos2::new(chev_x, chev_y),
-                chev_color,
-                None,
-            );
-        }
+        let center = Pos2::new(
+            chevron_rect.min.x + chevron_w * 0.5,
+            chevron_rect.min.y + row_h * 0.5,
+        );
+        crate::widgets::paint_chevron(
+            &mut ui.ctx_mut().paint,
+            center,
+            style.fonts.body * 0.30,
+            (style.fonts.body * 0.12).max(1.5),
+            is_open,
+            chev_color,
+        );
 
         // Label
         let label_x = chevron_rect.max.x + gap;

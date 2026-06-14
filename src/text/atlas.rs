@@ -48,6 +48,13 @@ pub struct GlyphAtlas {
     extent: [u32; 2],
     allocator: AtlasAllocator,
     pending: Vec<PendingUpload>,
+
+    // Second page: RGBA8, for color glyphs (emoji). Allocated lazily on the
+    // first color glyph so non-emoji UIs pay nothing.
+    rgba_image: Option<Arc<Image>>,
+    rgba_view: Option<Arc<ImageView>>,
+    rgba_allocator: Option<AtlasAllocator>,
+    rgba_pending: Vec<PendingUpload>,
 }
 
 struct PendingUpload {
@@ -101,6 +108,10 @@ impl GlyphAtlas {
             extent,
             allocator,
             pending: Vec::new(),
+            rgba_image: None,
+            rgba_view: None,
+            rgba_allocator: None,
+            rgba_pending: Vec::new(),
         }
     }
 
@@ -108,9 +119,15 @@ impl GlyphAtlas {
         &self.view
     }
 
-    /// Whether any glyph bitmaps are queued for upload this frame.
+    /// The RGBA color-glyph page view, if it has been allocated. `None`
+    /// until the first color glyph is inserted.
+    pub fn rgba_view(&self) -> Option<&Arc<ImageView>> {
+        self.rgba_view.as_ref()
+    }
+
+    /// Whether any glyph bitmaps (mask or color) are queued for upload.
     pub fn has_pending(&self) -> bool {
-        !self.pending.is_empty()
+        !self.pending.is_empty() || !self.rgba_pending.is_empty()
     }
 
     pub fn sampler(&self) -> &Arc<Sampler> {
@@ -147,54 +164,82 @@ impl GlyphAtlas {
         })
     }
 
-    /// Copy every queued upload into the atlas image. Call once per frame,
+    /// Allocate an RGBA region of `(w, h)` pixels and queue `bytes`
+    /// (`w * h * 4` straight-alpha RGBA) to be copied into the color page.
+    /// Lazily creates the page on first use. Returns `None` if full.
+    pub fn insert_rgba(&mut self, w: u32, h: u32, bytes: Vec<u8>) -> Option<AtlasRect> {
+        debug_assert_eq!(bytes.len(), (w * h * 4) as usize, "rgba bitmap size mismatch");
+        self.ensure_rgba_page();
+        let allocator = self.rgba_allocator.as_mut()?;
+        let alloc_size = EtagereSize::new(w.max(1) as i32, h.max(1) as i32);
+        let allocation = allocator.allocate(alloc_size)?;
+        let r = allocation.rectangle;
+        let px_x = r.min.x as u32;
+        let px_y = r.min.y as u32;
+        self.rgba_pending.push(PendingUpload {
+            x: px_x,
+            y: px_y,
+            w,
+            h,
+            bytes,
+        });
+        let inv_w = 1.0 / self.extent[0] as f32;
+        let inv_h = 1.0 / self.extent[1] as f32;
+        Some(AtlasRect {
+            uv_min: Pos2::new(px_x as f32 * inv_w, px_y as f32 * inv_h),
+            uv_max: Pos2::new((px_x + w) as f32 * inv_w, (px_y + h) as f32 * inv_h),
+            px_x,
+            px_y,
+            px_w: w,
+            px_h: h,
+        })
+    }
+
+    fn ensure_rgba_page(&mut self) {
+        if self.rgba_image.is_some() {
+            return;
+        }
+        let image = Image::new(
+            self.memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: Format::R8G8B8A8_UNORM,
+                extent: [self.extent[0], self.extent[1], 1],
+                usage: ImageUsage::TRANSFER_DST | ImageUsage::SAMPLED,
+                ..Default::default()
+            },
+            AllocationCreateInfo::default(),
+        )
+        .expect("failed to allocate rgba glyph atlas image");
+        let view = ImageView::new_default(image.clone()).expect("failed to create rgba atlas view");
+        self.rgba_image = Some(image);
+        self.rgba_view = Some(view);
+        self.rgba_allocator = Some(AtlasAllocator::new(EtagereSize::new(
+            self.extent[0] as i32,
+            self.extent[1] as i32,
+        )));
+    }
+
+    /// Copy every queued upload into the atlas images. Call once per frame,
     /// before any render pass that samples the atlas.
     pub fn flush_uploads(
         &mut self,
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
-        if self.pending.is_empty() {
-            return;
-        }
-        // One staging buffer per upload — small (a glyph bitmap is at most
-        // a few kB), allocations are cheap; coalescing into a single
-        // staging buffer is a future optimisation.
-        for upload in self.pending.drain(..) {
-            let staging = Buffer::from_iter(
-                self.memory_allocator.clone(),
-                BufferCreateInfo {
-                    usage: BufferUsage::TRANSFER_SRC,
-                    ..Default::default()
-                },
-                AllocationCreateInfo {
-                    memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                        | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                    ..Default::default()
-                },
-                upload.bytes.into_iter(),
-            )
-            .expect("failed to allocate glyph staging buffer");
-
-            let region = BufferImageCopy {
-                buffer_offset: 0,
-                buffer_row_length: 0,
-                buffer_image_height: 0,
-                image_subresource: ImageSubresourceLayers {
-                    aspects: self.image.format().aspects(),
-                    mip_level: 0,
-                    array_layers: 0..1,
-                },
-                image_offset: [upload.x, upload.y, 0],
-                image_extent: [upload.w, upload.h, 1],
-                ..Default::default()
-            };
-            let copy_info = CopyBufferToImageInfo {
-                regions: smallvec::smallvec![region],
-                ..CopyBufferToImageInfo::buffer_image(staging, self.image.clone())
-            };
-            builder
-                .copy_buffer_to_image(copy_info)
-                .expect("copy_buffer_to_image failed");
+        let r8_image = self.image.clone();
+        flush_page(
+            &self.memory_allocator,
+            builder,
+            &mut self.pending,
+            r8_image,
+        );
+        if let Some(rgba_image) = self.rgba_image.clone() {
+            flush_page(
+                &self.memory_allocator,
+                builder,
+                &mut self.rgba_pending,
+                rgba_image,
+            );
         }
     }
 
@@ -205,5 +250,55 @@ impl GlyphAtlas {
     /// Bytes per row, accounting for tight packing (R8 = 1 byte/pixel).
     pub fn row_pitch(&self) -> DeviceSize {
         self.extent[0] as DeviceSize
+    }
+}
+
+/// Drain `pending` into `image` via per-upload staging buffers. Shared by
+/// the R8 and RGBA pages — the copy is format-agnostic (byte ranges).
+fn flush_page(
+    memory_allocator: &Arc<StandardMemoryAllocator>,
+    builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    pending: &mut Vec<PendingUpload>,
+    image: Arc<Image>,
+) {
+    if pending.is_empty() {
+        return;
+    }
+    for upload in pending.drain(..) {
+        let staging = Buffer::from_iter(
+            memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::TRANSFER_SRC,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            upload.bytes.into_iter(),
+        )
+        .expect("failed to allocate glyph staging buffer");
+
+        let region = BufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: 0,
+            buffer_image_height: 0,
+            image_subresource: ImageSubresourceLayers {
+                aspects: image.format().aspects(),
+                mip_level: 0,
+                array_layers: 0..1,
+            },
+            image_offset: [upload.x, upload.y, 0],
+            image_extent: [upload.w, upload.h, 1],
+            ..Default::default()
+        };
+        let copy_info = CopyBufferToImageInfo {
+            regions: smallvec::smallvec![region],
+            ..CopyBufferToImageInfo::buffer_image(staging, image.clone())
+        };
+        builder
+            .copy_buffer_to_image(copy_info)
+            .expect("copy_buffer_to_image failed");
     }
 }

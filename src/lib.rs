@@ -28,12 +28,12 @@ pub mod prelude {
     pub use crate::input::{Event, Key, MouseButton, RawInput};
     pub use crate::layer::Order;
     pub use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
-    pub use crate::paint::{PaintCmd, RectShape};
+    pub use crate::paint::{PaintCmd, RectShape, TextureFilter, TextureId};
     pub use crate::response::Response;
     pub use crate::dock::{DockArea, DockNode, SplitDirection};
     pub use crate::style::Style;
     pub use crate::widgets::{
-        Area, Button, Checkbox, CollapsingHeader, ComboBox, Label, ProgressBar,
-        Radio, ScrollArea, SelectableValue, Slider, TextEdit, TreeNode, Window,
+        Area, Button, Checkbox, CollapsingHeader, ComboBox, Image, ImageButton, Label,
+        ProgressBar, Radio, ScrollArea, SelectableValue, Slider, TextEdit, TreeNode, Window,
     };
 }

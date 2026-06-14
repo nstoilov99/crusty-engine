@@ -8,6 +8,7 @@ mod checkbox;
 mod collapsing;
 mod combo_box;
 mod context_menu;
+mod image;
 mod label;
 mod progress;
 mod radio;
@@ -25,6 +26,7 @@ pub use checkbox::Checkbox;
 pub use collapsing::CollapsingHeader;
 pub use combo_box::ComboBox;
 pub use context_menu::context_menu_for;
+pub use image::{Image, ImageButton};
 pub use label::Label;
 pub use progress::ProgressBar;
 pub use radio::Radio;
@@ -39,8 +41,39 @@ pub use window::{Window, WindowResponse};
 use std::ops::RangeInclusive;
 
 use crate::context::Ui;
-use crate::math::Rect;
+use crate::math::{Color, Pos2, Rect, Vec2};
+use crate::paint::{PaintCmd, TextureId};
 use crate::response::Response;
+
+/// Append a disclosure chevron centered at `center`. `half` is the
+/// half-extent of the glyph; `width` the stroke width. Drawn as two strokes
+/// (a down "v" when `open`, a right ">" when closed) so it never depends on
+/// a font's arrow glyph — which some fonts substitute with a color emoji.
+pub(crate) fn paint_chevron(
+    paint: &mut Vec<PaintCmd>,
+    center: Pos2,
+    half: f32,
+    width: f32,
+    open: bool,
+    color: Color,
+) {
+    let (cx, cy) = (center.x, center.y);
+    let (a, mid, b) = if open {
+        (
+            Pos2::new(cx - half, cy - half * 0.5),
+            Pos2::new(cx, cy + half * 0.5),
+            Pos2::new(cx + half, cy - half * 0.5),
+        )
+    } else {
+        (
+            Pos2::new(cx - half * 0.5, cy - half),
+            Pos2::new(cx + half * 0.5, cy),
+            Pos2::new(cx - half * 0.5, cy + half),
+        )
+    };
+    paint.push(PaintCmd::Line { from: a, to: mid, width, color });
+    paint.push(PaintCmd::Line { from: mid, to: b, width, color });
+}
 
 impl Ui<'_> {
     pub fn label(&mut self, text: impl Into<String>) -> Response {
@@ -70,6 +103,14 @@ impl Ui<'_> {
 
     pub fn progress_bar(&mut self, progress: f32) -> Response {
         ProgressBar::new(progress).show(self)
+    }
+
+    pub fn image(&mut self, texture: TextureId, size: Vec2) -> Response {
+        Image::new(texture, size).show(self)
+    }
+
+    pub fn image_button(&mut self, texture: TextureId, size: Vec2) -> Response {
+        ImageButton::new(texture, size).show(self)
     }
 
     pub fn text_edit(&mut self, value: &mut String) -> Response {

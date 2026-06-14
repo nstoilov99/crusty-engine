@@ -337,23 +337,18 @@ impl<'open> Window<'open> {
         {
             let Ui { ctx, text, .. } = ui;
             if self.collapsible {
-                let chev = if collapsed { "\u{25B6}" } else { "\u{25BC}" };
-                let chev_size = text.measure(chev, style.fonts.small, None);
                 let chev_color = if chev_hovered {
                     style.palette.accent
                 } else {
                     style.palette.text_dim
                 };
-                text.add_text(
+                crate::widgets::paint_chevron(
                     &mut ctx.paint,
-                    chev,
-                    style.fonts.small,
-                    Pos2::new(
-                        chev_rect.center().x - chev_size.x * 0.5,
-                        chev_rect.center().y - chev_size.y * 0.5,
-                    ),
+                    chev_rect.center(),
+                    style.fonts.small * 0.32,
+                    (style.fonts.small * 0.13).max(1.5),
+                    !collapsed,
                     chev_color,
-                    None,
                 );
             }
             let title_size = text.measure(&self.title, style.fonts.body, None);

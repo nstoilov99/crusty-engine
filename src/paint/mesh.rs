@@ -1,11 +1,14 @@
 use bytemuck::{Pod, Zeroable};
 
 use crate::math::Rect;
+use crate::paint::TextureId;
 
 /// One vertex of a tessellated UI mesh. Layout must match `ui.wgsl`.
 ///
 /// The fragment shader's interpretation of `params.w` (mode):
-/// `0 = solid`, `1 = rrect fill/stroke`, `2 = shadow`, `3 = glow`.
+/// `0 = solid`, `1 = rrect fill/stroke`, `2 = shadow`, `3 = glow`,
+/// `4 = glyph (R8 atlas)`, `5 = image (user texture)`,
+/// `6 = color glyph (RGBA atlas)`.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct Vertex {
@@ -49,6 +52,9 @@ pub struct DrawRange {
     pub index_count: u32,
     /// `None` means "no scissor — use the full framebuffer".
     pub clip: Option<Rect>,
+    /// User texture bound for `MODE_IMAGE` draws in this range. `None`
+    /// binds a dummy image; non-image modes ignore it.
+    pub texture: Option<TextureId>,
 }
 
 impl Mesh {

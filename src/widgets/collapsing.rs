@@ -96,32 +96,25 @@ impl CollapsingHeader {
             )));
         }
 
-        // Chevron: switch between right-pointing triangle (closed) and
-        // down-pointing triangle (open). Driven by the raw bool — no
-        // animation lag.
-        let chev_char = if is_open { '\u{25BC}' } else { '\u{25B6}' };
-        let chev_str = chev_char.to_string();
-        let chev_text_size =
-            ui.text_mut().measure(&chev_str, style.fonts.body, None);
-        let chev_x = header_rect.min.x + (chevron_size - chev_text_size.x) * 0.5;
-        let chev_y = header_rect.min.y + (row_h - chev_text_size.y) * 0.5;
-        // Chevron color flips instantly with hover too.
+        // Disclosure chevron: down "v" when open, right ">" when closed.
+        // Driven by the raw bool — no animation lag.
         let chev_color = if hovered {
             style.palette.accent
         } else {
             style.palette.text_dim
         };
-        {
-            let Ui { ctx, text, .. } = ui;
-            text.add_text(
-                &mut ctx.paint,
-                &chev_str,
-                style.fonts.body,
-                Pos2::new(chev_x, chev_y),
-                chev_color,
-                None,
-            );
-        }
+        let center = Pos2::new(
+            header_rect.min.x + chevron_size * 0.5,
+            header_rect.min.y + row_h * 0.5,
+        );
+        crate::widgets::paint_chevron(
+            &mut ui.ctx_mut().paint,
+            center,
+            style.fonts.body * 0.30,
+            (style.fonts.body * 0.12).max(1.5),
+            is_open,
+            chev_color,
+        );
 
         let label_x = header_rect.min.x + chevron_size + gap;
         let label_y = header_rect.min.y + (row_h - label_size.y) * 0.5;
