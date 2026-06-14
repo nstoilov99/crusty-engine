@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 /// `Color::from_srgb_u8`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Color {
     pub r: f32,
     pub g: f32,

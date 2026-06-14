@@ -2,6 +2,7 @@ use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -115,6 +116,7 @@ impl From<Vec2> for [f32; 2] {
 /// yields a `Vec2`; adding a `Vec2` to a `Pos2` yields a `Pos2`.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pos2 {
     pub x: f32,
     pub y: f32,

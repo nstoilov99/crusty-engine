@@ -667,11 +667,65 @@ fn default_dock_tree() -> DockNode {
     )
 }
 
+/// Where the demo persists its dock layout + UI memory between runs.
+const LAYOUT_PATH: &str = "crusty_layout.json";
+
+/// Borrowed view written to disk — serializes the dock tree alongside the
+/// `Context`'s `Memory` (window positions, scroll offsets, animation state)
+/// so a relaunch restores both the panel arrangement and the UI state.
+#[derive(serde::Serialize)]
+struct LayoutRef<'a> {
+    dock: &'a DockNode,
+    memory: &'a crusty_gui::context::Memory,
+}
+
+/// Owned counterpart read back from disk.
+#[derive(serde::Deserialize)]
+struct LayoutOwned {
+    dock: DockNode,
+    memory: crusty_gui::context::Memory,
+}
+
+impl App {
+    /// Restore the dock tree + UI memory from `LAYOUT_PATH` if it exists and
+    /// parses. A missing or stale file just leaves the defaults in place.
+    fn load_layout(&mut self) {
+        let Ok(text) = std::fs::read_to_string(LAYOUT_PATH) else {
+            return;
+        };
+        match serde_json::from_str::<LayoutOwned>(&text) {
+            Ok(layout) => {
+                self.dock_tree = layout.dock;
+                self.ctx.memory = layout.memory;
+                log::info!("restored dock layout from {LAYOUT_PATH}");
+            }
+            Err(e) => log::warn!("ignoring unreadable {LAYOUT_PATH}: {e}"),
+        }
+    }
+
+    /// Write the current dock tree + UI memory to `LAYOUT_PATH`.
+    fn save_layout(&self) {
+        let layout = LayoutRef {
+            dock: &self.dock_tree,
+            memory: &self.ctx.memory,
+        };
+        match serde_json::to_string_pretty(&layout) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(LAYOUT_PATH, json) {
+                    log::warn!("failed writing {LAYOUT_PATH}: {e}");
+                }
+            }
+            Err(e) => log::warn!("failed serializing layout: {e}"),
+        }
+    }
+}
+
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.renderer.is_none() {
             self.renderer = Some(Renderer::new(event_loop));
             self.start = Some(Instant::now());
+            self.load_layout();
         }
     }
 
@@ -686,7 +740,10 @@ impl ApplicationHandler for App {
         };
 
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                self.save_layout();
+                event_loop.exit();
+            }
             WindowEvent::Resized(_) => {
                 renderer.needs_swapchain_rebuild = true;
                 renderer.window.request_redraw();

@@ -69,3 +69,24 @@ impl DockNode {
         })
     }
 }
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dock_tree_json_round_trip() {
+        let tree = DockNode::split_h(
+            0.25,
+            DockNode::leaf("Hierarchy"),
+            DockNode::tabs(vec!["Console".into(), "Profiler".into()]),
+        );
+        let json = serde_json::to_string(&tree).unwrap();
+        let back: DockNode = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            serde_json::to_string(&back).unwrap(),
+            json,
+            "tree should survive a JSON round trip unchanged"
+        );
+    }
+}

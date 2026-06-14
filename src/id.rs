@@ -9,6 +9,7 @@ use ahash::AHasher;
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id(pub u64);
 
 impl Id {

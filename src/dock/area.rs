@@ -542,10 +542,13 @@ fn render_drag_ghost(ctx: &mut Context, text: &mut TextRenderer, drag: &DragStat
     // sit under the cursor.
     let pos = Pos2::new(drag.pointer_now.x + 8.0, drag.pointer_now.y - size.y * 0.5);
     let rect = Rect::from_min_size(pos, size);
-    let mut fill = style.palette.accent;
-    fill.a = 0.85;
-    let shape = RectShape::fill(rect, style.rounding.small, fill)
-        .with_stroke(1.0, style.palette.stroke);
+    // A faint, translucent chip so it reads as a floating drag preview
+    // rather than a solid button: dim panel fill + a soft accent outline.
+    let mut fill = style.palette.surface;
+    fill.a = 0.55;
+    let mut stroke = style.palette.accent;
+    stroke.a = 0.7;
+    let shape = RectShape::fill(rect, style.rounding.small, fill).with_stroke(1.0, stroke);
     ctx.paint.push(PaintCmd::Rrect(shape));
     let text_pos = Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y);
     text.add_text(
@@ -553,7 +556,7 @@ fn render_drag_ghost(ctx: &mut Context, text: &mut TextRenderer, drag: &DragStat
         &drag.tab_id,
         style.fonts.body,
         text_pos,
-        Color::rgba(0.05, 0.05, 0.07, 0.95),
+        style.palette.text.with_alpha(0.85),
         None,
     );
 }

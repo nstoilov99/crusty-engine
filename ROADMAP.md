@@ -71,9 +71,9 @@ Cursor-based top-down/left-right is too weak for the inspector and profiler.
 
 ## Phase 12 — Docking completion
 
-- [ ] Tab drag-out / drag-in
-- [ ] 5-way drop zones with overlay preview
-- [ ] serde serialization of dock tree **and** `Memory` (egui_dock parity)
+- [x] Tab drag-out / drag-in
+- [x] 5-way drop zones with overlay preview
+- [x] serde serialization of dock tree **and** `Memory` (egui_dock parity)
 
 ## Phase 13 — Editor-grade interaction
 

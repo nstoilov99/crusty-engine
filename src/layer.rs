@@ -9,6 +9,7 @@
 /// Coarse z-class. Areas in a higher order always render above (and take
 /// pointer priority over) areas in a lower one, regardless of `z`.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Order {
     /// Root panels and docked UI.
     Background,

@@ -18,9 +18,10 @@ required-features = ["demo"]
 default = ["vulkano-renderer", "winit-window", "demo"]
 vulkano-renderer = ["dep:vulkano"]
 winit-window = ["dep:winit", "dep:raw-window-handle"]
-serde = ["dep:serde"]
-# Enables the bundled demo binary; pulls in env_logger.
-demo = ["vulkano-renderer", "winit-window", "dep:env_logger"]
+serde = ["dep:serde", "dep:serde_json"]
+# Enables the bundled demo binary; pulls in env_logger. Also turns on
+# `serde` so the demo can persist its dock layout + UI memory to disk.
+demo = ["vulkano-renderer", "winit-window", "dep:env_logger", "serde"]
 
 [dependencies]
 ahash = "0.8"
@@ -37,6 +38,7 @@ vulkano = { version = "0.35", optional = true }
 winit = { version = "0.30", optional = true }
 raw-window-handle = { version = "0.6", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 env_logger = { version = "0.11", optional = true }
 
 [build-dependencies]

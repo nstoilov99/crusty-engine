@@ -25,6 +25,7 @@ struct DataEntry {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WidgetMemory {
     /// Rect the widget occupied last time it was called. Used for hit
     /// testing in the *current* frame.
@@ -71,6 +72,7 @@ impl Default for WidgetMemory {
 /// `pos`/`size` describe the rect the area occupied last frame and drive
 /// pointer-priority hit testing for the *current* frame.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AreaState {
     pub pos: Pos2,
     pub size: Vec2,
@@ -91,29 +93,70 @@ impl AreaState {
 }
 
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Memory {
+    /// Stored as a sequence of `(Id, _)` pairs rather than a JSON object so
+    /// it survives formats (like JSON) that only allow string map keys.
+    #[cfg_attr(feature = "serde", serde(with = "id_map_serde"))]
     widgets: HashMap<Id, WidgetMemory, BuildHasherDefault<AHasher>>,
+    #[cfg_attr(feature = "serde", serde(with = "id_map_serde"))]
     areas: HashMap<Id, AreaState, BuildHasherDefault<AHasher>>,
     /// Typed any-map: each `(Id, TypeId)` slot holds one boxed value so
     /// widgets (built-in or user) can persist arbitrary typed state —
     /// `Grid`/`Table` column widths, selection ranges, etc. — without
-    /// fighting over the fixed `WidgetMemory` scratch fields.
+    /// fighting over the fixed `WidgetMemory` scratch fields. Holds
+    /// `Box<dyn Any>` so it cannot be serialized; skipped on persist.
+    #[cfg_attr(feature = "serde", serde(skip))]
     data: HashMap<(Id, TypeId), DataEntry, BuildHasherDefault<AHasher>>,
     /// Next value handed out by [`bring_area_to_front`](Self::bring_area_to_front).
+    #[cfg_attr(feature = "serde", serde(skip))]
     next_area_z: u64,
     /// Whichever widget the user is currently pressing the primary
     /// pointer button on. Set when a press starts over a widget, cleared
     /// when the button is released. Used so a press that drifts off the
     /// widget still counts as "this widget is being pressed".
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub active_widget: Option<Id>,
     /// Widget that has keyboard focus (typed text + keys route here).
     /// Cleared at the start of any frame with a pointer press; the
     /// just-clicked widget gets to re-claim it.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub focused_widget: Option<Id>,
     /// Set by a popup child (e.g. `SelectableValue` inside a `ComboBox`
     /// dropdown) to ask its parent popup to close on the current frame.
     /// Cleared at the start of every frame.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub popup_close_requested: bool,
+}
+
+/// Serde adapter: persist a `HashMap<Id, V>` as a `Vec<(Id, V)>` so it works
+/// with formats (JSON) that require string-typed map keys.
+#[cfg(feature = "serde")]
+mod id_map_serde {
+    use super::{AHasher, BuildHasherDefault, HashMap, Id};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S, V>(
+        map: &HashMap<Id, V, BuildHasherDefault<AHasher>>,
+        s: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        V: Serialize,
+    {
+        s.collect_seq(map.iter().map(|(k, v)| (*k, v)))
+    }
+
+    pub fn deserialize<'de, D, V>(
+        d: D,
+    ) -> Result<HashMap<Id, V, BuildHasherDefault<AHasher>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        V: Deserialize<'de>,
+    {
+        let pairs: Vec<(Id, V)> = Vec::deserialize(d)?;
+        Ok(pairs.into_iter().collect())
+    }
 }
 
 impl Memory {
@@ -367,5 +410,42 @@ mod tests {
             mem.end_frame(2);
         }
         assert_eq!(mem.data_get::<u32>(id), None);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn serde_round_trip_persists_widgets_and_areas() {
+        use crate::layer::Order;
+
+        let mut mem = Memory::default();
+        let wid = Id::ROOT.with("button");
+        let w = mem.get_or_default(wid);
+        w.last_rect = Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(30.0, 12.0));
+        w.hover_anim = 0.75;
+        w.bool_state = true;
+
+        let aid = Id::ROOT.with("window");
+        let area = mem.area_entry(aid, Pos2::new(40.0, 50.0), Order::Middle);
+        area.size = Vec2::new(200.0, 120.0);
+
+        // The typed any-map is intentionally not serialized.
+        mem.data_insert::<u32>(wid, 99);
+
+        let json = serde_json::to_string(&mem).unwrap();
+        let back: Memory = serde_json::from_str(&json).unwrap();
+
+        let rw = back.get(wid).expect("widget restored");
+        assert_eq!(rw.hover_anim, 0.75);
+        assert!(rw.bool_state);
+        assert_eq!(rw.last_rect.min, Pos2::new(1.0, 2.0));
+
+        let ra = back.area(aid).expect("area restored");
+        assert_eq!(ra.pos, Pos2::new(40.0, 50.0));
+        assert_eq!(ra.size, Vec2::new(200.0, 120.0));
+        assert_eq!(ra.order, Order::Middle);
+
+        // Skipped fields come back at their defaults.
+        assert_eq!(back.data_get::<u32>(wid), None);
+        assert_eq!(back.active_widget, None);
     }
 }

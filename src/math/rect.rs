@@ -2,6 +2,7 @@ use super::{Pos2, Vec2};
 
 /// Axis-aligned rectangle in screen-space (logical pixels).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     pub min: Pos2,
     pub max: Pos2,
