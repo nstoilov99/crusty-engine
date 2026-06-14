@@ -23,7 +23,7 @@ pub mod window;
 pub mod backend;
 
 pub mod prelude {
-    pub use crate::context::{Context, Direction, Ui, UiOptions};
+    pub use crate::context::{Align, Context, Direction, Ui, UiOptions};
     pub use crate::id::Id;
     pub use crate::input::{Event, Key, MouseButton, RawInput};
     pub use crate::layer::Order;
@@ -33,7 +33,8 @@ pub mod prelude {
     pub use crate::dock::{DockArea, DockNode, SplitDirection};
     pub use crate::style::Style;
     pub use crate::widgets::{
-        Area, Button, Checkbox, CollapsingHeader, ComboBox, Image, ImageButton, Label,
-        ProgressBar, Radio, ScrollArea, SelectableValue, Slider, TextEdit, TreeNode, Window,
+        Area, Button, Checkbox, CollapsingHeader, Column, ComboBox, Grid, GridUi, Image,
+        ImageButton, Label, ProgressBar, Radio, ScrollArea, SelectableValue, Slider, SortDir,
+        Table, TableBody, TableOutput, TableRow, TextEdit, TreeNode, Window,
     };
 }

@@ -8,6 +8,7 @@ mod checkbox;
 mod collapsing;
 mod combo_box;
 mod context_menu;
+mod grid;
 mod image;
 mod label;
 mod progress;
@@ -15,6 +16,7 @@ mod radio;
 mod scroll_area;
 mod selectable;
 mod slider;
+mod table;
 mod text_edit;
 mod tooltip;
 mod tree;
@@ -26,6 +28,7 @@ pub use checkbox::Checkbox;
 pub use collapsing::CollapsingHeader;
 pub use combo_box::ComboBox;
 pub use context_menu::context_menu_for;
+pub use grid::{Grid, GridUi};
 pub use image::{Image, ImageButton};
 pub use label::Label;
 pub use progress::ProgressBar;
@@ -33,6 +36,7 @@ pub use radio::Radio;
 pub use scroll_area::ScrollArea;
 pub use selectable::SelectableValue;
 pub use slider::Slider;
+pub use table::{Column, SortDir, Table, TableBody, TableOutput, TableRow};
 pub use text_edit::TextEdit;
 pub use tooltip::show_tooltip_for;
 pub use tree::TreeNode;
@@ -131,6 +135,22 @@ impl Ui<'_> {
         body: impl FnOnce(&mut Ui) -> R,
     ) -> R {
         ScrollArea::new(max_height).show(self, body)
+    }
+
+    pub fn grid<R>(
+        &mut self,
+        id_source: impl Into<String>,
+        body: impl FnOnce(&mut GridUi) -> R,
+    ) -> R {
+        Grid::new(id_source).show(self, body)
+    }
+
+    pub fn table(
+        &mut self,
+        builder: Table,
+        body: impl FnOnce(&mut crate::widgets::TableBody),
+    ) -> TableOutput {
+        builder.show(self, body)
     }
 
     pub fn selectable_value<T: PartialEq + Copy>(

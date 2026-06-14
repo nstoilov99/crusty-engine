@@ -34,7 +34,7 @@ impl Label {
         let color = self.color.unwrap_or(style.palette.text);
 
         let id = ui.alloc_id(&self.text);
-        let max_width = Some(ui.available().width());
+        let max_width = Some(ui.available_size().x);
         let measured = ui.text_mut().measure(&self.text, size, max_width);
         let rect = ui.allocate(measured);
 

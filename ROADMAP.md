@@ -60,11 +60,11 @@ The viewport, asset thumbnails, and previews render engine images.
 
 Cursor-based top-down/left-right is too weak for the inspector and profiler.
 
-- [ ] Nested `horizontal()` / `vertical()` with alignment & justify
-- [ ] `Grid` (label/value rows — inspector)
-- [ ] `Table` with resizable, sortable, virtualized columns (profiler)
-- [ ] Wrapping text, `available_size` negotiation, min/max constraints
-- [ ] Typed per-widget memory store (egui `IdTypeMap` parity): replace the
+- [x] Nested `horizontal()` / `vertical()` with alignment & justify
+- [x] `Grid` (label/value rows — inspector)
+- [x] `Table` with resizable, sortable, virtualized columns (profiler)
+- [x] Wrapping text, `available_size` negotiation, min/max constraints
+- [x] Typed per-widget memory store (egui `IdTypeMap` parity): replace the
       fixed `WidgetMemory` scratch fields with an `Id`+`TypeId` keyed any-map
       so widgets (and external/user widgets) persist their own typed state —
       table column widths, text selection ranges, etc.

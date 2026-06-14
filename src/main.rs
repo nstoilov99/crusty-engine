@@ -659,6 +659,7 @@ fn default_dock_tree() -> DockNode {
             ),
             DockNode::tabs(vec![
                 "Console".into(),
+                "Profiler".into(),
                 "Errors".into(),
                 "Warnings".into(),
             ]),
@@ -956,17 +957,28 @@ impl ApplicationHandler for App {
                                 ui.add_space(st.spacing.padding);
 
                                 ui.collapsing("Entity", |ui| {
-                                    Label::new("Name")
-                                        .size(st.fonts.small)
-                                        .color(st.palette.text_dim)
-                                        .show(ui);
-                                    ui.text_edit(entity_name);
-                                    ui.add_space(st.spacing.item);
-                                    Label::new("Source path")
-                                        .size(st.fonts.small)
-                                        .color(st.palette.text_dim)
-                                        .show(ui);
-                                    ui.text_edit(asset_path);
+                                    ui.grid("entity_props", |g| {
+                                        g.cell(|ui| {
+                                            Label::new("Name")
+                                                .size(st.fonts.small)
+                                                .color(st.palette.text_dim)
+                                                .show(ui);
+                                        });
+                                        g.cell(|ui| {
+                                            ui.text_edit(entity_name);
+                                        });
+                                        g.end_row();
+                                        g.cell(|ui| {
+                                            Label::new("Source path")
+                                                .size(st.fonts.small)
+                                                .color(st.palette.text_dim)
+                                                .show(ui);
+                                        });
+                                        g.cell(|ui| {
+                                            ui.text_edit(asset_path);
+                                        });
+                                        g.end_row();
+                                    });
                                 });
                                 ui.add_space(st.spacing.padding);
 
@@ -1076,6 +1088,72 @@ impl ApplicationHandler for App {
                                         .show(ui);
                                 }
                             });
+                        }
+                        "Profiler" => {
+                            let st = ui.style();
+                            Label::new("Frame breakdown (drag a header border to resize, click to sort)")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.padding);
+
+                            // 200 synthetic samples to exercise virtualization.
+                            let mut rows: Vec<(usize, &str, f32)> = (0..200)
+                                .map(|i| {
+                                    let systems = [
+                                        "render", "physics", "audio", "scripting", "ui",
+                                        "animation", "networking", "streaming",
+                                    ];
+                                    let name = systems[i % systems.len()];
+                                    let ms = 0.05 + ((i * 37 % 100) as f32) * 0.04;
+                                    (i, name, ms)
+                                })
+                                .collect();
+
+                            ui.table(
+                                Table::new("profiler")
+                                    .row_height(20.0)
+                                    .max_height(220.0)
+                                    .column(Column::new("#", 48.0).sortable(true))
+                                    .column(
+                                        Column::new("System", 140.0)
+                                            .resizable(true)
+                                            .sortable(true),
+                                    )
+                                    .column(Column::new("ms", 80.0).sortable(true)),
+                                |body| {
+                                    match body.sort() {
+                                        Some((0, dir)) => rows.sort_by(|a, b| {
+                                            let o = a.0.cmp(&b.0);
+                                            if dir == SortDir::Ascending { o } else { o.reverse() }
+                                        }),
+                                        Some((1, dir)) => rows.sort_by(|a, b| {
+                                            let o = a.1.cmp(b.1);
+                                            if dir == SortDir::Ascending { o } else { o.reverse() }
+                                        }),
+                                        Some((2, dir)) => rows.sort_by(|a, b| {
+                                            let o = a
+                                                .2
+                                                .partial_cmp(&b.2)
+                                                .unwrap_or(std::cmp::Ordering::Equal);
+                                            if dir == SortDir::Ascending { o } else { o.reverse() }
+                                        }),
+                                        _ => {}
+                                    }
+                                    body.rows(rows.len(), |i, row| {
+                                        let (idx, name, ms) = rows[i];
+                                        row.cell(|ui| {
+                                            ui.label(format!("{idx}"));
+                                        });
+                                        row.cell(|ui| {
+                                            ui.label(name);
+                                        });
+                                        row.cell(|ui| {
+                                            ui.label(format!("{ms:.2}"));
+                                        });
+                                    });
+                                },
+                            );
                         }
                         "Errors" => {
                             ui.label("No errors.");

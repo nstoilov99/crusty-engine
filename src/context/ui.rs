@@ -17,6 +17,17 @@ pub enum Direction {
     LeftToRight,
 }
 
+/// Position of a group within its available cross/main extent.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Align {
+    /// Flush to the start (left / top).
+    Min,
+    /// Centered in the available extent.
+    Center,
+    /// Flush to the end (right / bottom).
+    Max,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct UiOptions {
     /// Padding inside the available rect before the cursor starts.
@@ -125,6 +136,15 @@ impl<'a> Ui<'a> {
     pub fn available(&self) -> Rect {
         self.available
     }
+    /// Space remaining from the cursor to the far edge of the available
+    /// rect, clamped to non-negative. Widgets negotiate their size against
+    /// this (e.g. a slider fills the leftover width, text wraps to it).
+    pub fn available_size(&self) -> Vec2 {
+        Vec2::new(
+            (self.available.max.x - self.cursor.x).max(0.0),
+            (self.available.max.y - self.cursor.y).max(0.0),
+        )
+    }
     pub fn cursor(&self) -> Pos2 {
         self.cursor
     }
@@ -175,6 +195,33 @@ impl<'a> Ui<'a> {
         self.used
     }
 
+    /// Move the cursor to an absolute position. Low-level escape hatch for
+    /// container widgets (grids, tables) that place children explicitly
+    /// rather than flowing them from the parent cursor.
+    pub fn set_cursor(&mut self, pos: Pos2) {
+        self.cursor = pos;
+    }
+
+    /// Run `f` in a fresh child layout occupying `rect`, namespaced under
+    /// `root_id`, and report what it actually used. Does **not** touch this
+    /// Ui's cursor or `used` box — the caller decides how the child's
+    /// footprint affects the parent layout (e.g. a grid sums cell widths).
+    /// The child inherits this Ui's floating-area binding for hit testing.
+    pub fn run_at<R>(
+        &mut self,
+        rect: Rect,
+        direction: Direction,
+        root_id: Id,
+        opts: UiOptions,
+        f: impl FnOnce(&mut Ui) -> R,
+    ) -> (R, Rect) {
+        let mut child =
+            Ui::with_root(&mut *self.ctx, &mut *self.text, rect, direction, opts, root_id);
+        child.area = self.area;
+        let result = f(&mut child);
+        (result, child.used_rect())
+    }
+
     /// Run `f` in a nested left-to-right layout starting at the current
     /// cursor. The cursor advances in the parent direction by the bounding
     /// box of whatever the children produced.
@@ -212,6 +259,58 @@ impl<'a> Ui<'a> {
         let child_size = child_used.size();
         if child_size.x > 0.0 && child_size.y > 0.0 {
             let _ = self.allocate(child_size);
+        }
+
+        result
+    }
+
+    /// Run `f` as a left-to-right group positioned horizontally within the
+    /// available width according to `align`. Useful for right-aligned
+    /// toolbars or centered titles.
+    ///
+    /// Alignment shifts the *cursor* (not the emitted paint), so hit-test
+    /// rects stay consistent with what's drawn. The group's width is only
+    /// known after it runs, so — like [`Grid`](crate::widgets::Grid) — the
+    /// measured width is persisted and applied next frame: the first frame a
+    /// group appears it renders left-aligned, then snaps to its alignment.
+    pub fn horizontal_aligned<R>(&mut self, align: Align, f: impl FnOnce(&mut Ui) -> R) -> R {
+        let id = self.alloc_id("h_aligned");
+        let prev_w = self.ctx.memory.data_get::<f32>(id).copied().unwrap_or(0.0);
+
+        let avail_w = self.available_size().x;
+        let dx = match align {
+            Align::Min => 0.0,
+            Align::Center => ((avail_w - prev_w) * 0.5).max(0.0),
+            Align::Max => (avail_w - prev_w).max(0.0),
+        };
+
+        let origin = self.cursor;
+        let saved_direction = self.direction;
+        let saved_used = self.used;
+
+        let start = Pos2::new(origin.x + dx, origin.y);
+        self.cursor = start;
+        self.direction = Direction::LeftToRight;
+        self.used = Rect::from_min_size(start, Vec2::ZERO);
+
+        let result = f(self);
+        let group = self.used;
+
+        self.direction = saved_direction;
+        self.used = saved_used;
+        self.cursor = origin;
+
+        let size = group.size();
+        self.ctx.memory.data_insert::<f32>(id, size.x);
+
+        if size.x > 0.0 && size.y > 0.0 {
+            self.used = self.used.union(group);
+            match saved_direction {
+                Direction::TopDown => self.cursor.y = origin.y + size.y + self.spacing,
+                Direction::LeftToRight => {
+                    self.cursor.x = origin.x + dx + size.x + self.spacing
+                }
+            }
         }
 
         result

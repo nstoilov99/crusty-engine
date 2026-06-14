@@ -6,6 +6,7 @@
 //! garbage-collected once per frame: entries not touched by the current
 //! frame's UI calls get dropped after a grace period.
 
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::hash::BuildHasherDefault;
 
@@ -14,6 +15,14 @@ use ahash::AHasher;
 use crate::id::Id;
 use crate::layer::Order;
 use crate::math::{Pos2, Rect, Vec2};
+
+/// One slot in the typed data store: a boxed `T` plus the same GC
+/// bookkeeping the fixed [`WidgetMemory`] entries use.
+struct DataEntry {
+    value: Box<dyn Any>,
+    seen_this_frame: bool,
+    frames_unseen: u8,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct WidgetMemory {
@@ -85,6 +94,11 @@ impl AreaState {
 pub struct Memory {
     widgets: HashMap<Id, WidgetMemory, BuildHasherDefault<AHasher>>,
     areas: HashMap<Id, AreaState, BuildHasherDefault<AHasher>>,
+    /// Typed any-map: each `(Id, TypeId)` slot holds one boxed value so
+    /// widgets (built-in or user) can persist arbitrary typed state —
+    /// `Grid`/`Table` column widths, selection ranges, etc. — without
+    /// fighting over the fixed `WidgetMemory` scratch fields.
+    data: HashMap<(Id, TypeId), DataEntry, BuildHasherDefault<AHasher>>,
     /// Next value handed out by [`bring_area_to_front`](Self::bring_area_to_front).
     next_area_z: u64,
     /// Whichever widget the user is currently pressing the primary
@@ -109,6 +123,68 @@ impl Memory {
 
     pub fn get_or_default(&mut self, id: Id) -> &mut WidgetMemory {
         self.widgets.entry(id).or_default()
+    }
+
+    /// Read typed state of type `T` previously stored under `id`. Returns
+    /// `None` if nothing of that type is stored. Read-only access does not
+    /// extend the entry's GC lifetime — persistent widgets should touch
+    /// their state through [`data_get_or_insert_with`](Self::data_get_or_insert_with)
+    /// each frame.
+    pub fn data_get<T: 'static>(&self, id: Id) -> Option<&T> {
+        self.data
+            .get(&(id, TypeId::of::<T>()))
+            .and_then(|e| e.value.downcast_ref::<T>())
+    }
+
+    /// Mutable typed access; marks the slot alive for this frame. `None` if
+    /// nothing of type `T` is stored under `id`.
+    pub fn data_get_mut<T: 'static>(&mut self, id: Id) -> Option<&mut T> {
+        let entry = self.data.get_mut(&(id, TypeId::of::<T>()))?;
+        entry.seen_this_frame = true;
+        entry.value.downcast_mut::<T>()
+    }
+
+    /// Fetch the `T` stored under `id`, inserting `default()` first if
+    /// absent. Marks the slot alive for this frame. This is the primary
+    /// accessor widgets use to persist typed state across frames.
+    pub fn data_get_or_insert_with<T: 'static>(
+        &mut self,
+        id: Id,
+        default: impl FnOnce() -> T,
+    ) -> &mut T {
+        let entry = self
+            .data
+            .entry((id, TypeId::of::<T>()))
+            .or_insert_with(|| DataEntry {
+                value: Box::new(default()),
+                seen_this_frame: true,
+                frames_unseen: 0,
+            });
+        entry.seen_this_frame = true;
+        entry
+            .value
+            .downcast_mut::<T>()
+            .expect("data slot type mismatch (Id + TypeId collision)")
+    }
+
+    /// Overwrite (or insert) the `T` stored under `id`. Marks it alive.
+    pub fn data_insert<T: 'static>(&mut self, id: Id, value: T) {
+        self.data.insert(
+            (id, TypeId::of::<T>()),
+            DataEntry {
+                value: Box::new(value),
+                seen_this_frame: true,
+                frames_unseen: 0,
+            },
+        );
+    }
+
+    /// Drop the `T` stored under `id`, returning it if present.
+    pub fn data_remove<T: 'static>(&mut self, id: Id) -> Option<T> {
+        self.data
+            .remove(&(id, TypeId::of::<T>()))
+            .and_then(|e| e.value.downcast::<T>().ok())
+            .map(|b| *b)
     }
 
     pub fn area(&self, id: Id) -> Option<&AreaState> {
@@ -205,6 +281,9 @@ impl Memory {
         for area in self.areas.values_mut() {
             area.seen_this_frame = false;
         }
+        for entry in self.data.values_mut() {
+            entry.seen_this_frame = false;
+        }
     }
 
     /// Run at the end of each frame, after all widget code has run.
@@ -221,5 +300,72 @@ impl Memory {
                 entry.frames_unseen <= keep_for
             }
         });
+        self.data.retain(|_, entry| {
+            if entry.seen_this_frame {
+                entry.frames_unseen = 0;
+                true
+            } else {
+                entry.frames_unseen = entry.frames_unseen.saturating_add(1);
+                entry.frames_unseen <= keep_for
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typed_store_round_trip() {
+        let mut mem = Memory::default();
+        let id = Id::ROOT.with("widget");
+        mem.data_insert::<u32>(id, 7);
+        assert_eq!(mem.data_get::<u32>(id), Some(&7));
+        *mem.data_get_mut::<u32>(id).unwrap() += 1;
+        assert_eq!(mem.data_get::<u32>(id), Some(&8));
+        assert_eq!(mem.data_remove::<u32>(id), Some(8));
+        assert_eq!(mem.data_get::<u32>(id), None);
+    }
+
+    #[test]
+    fn typed_store_type_isolation() {
+        let mut mem = Memory::default();
+        let id = Id::ROOT.with("widget");
+        mem.data_insert::<u32>(id, 1);
+        mem.data_insert::<f32>(id, 2.5);
+        assert_eq!(mem.data_get::<u32>(id), Some(&1));
+        assert_eq!(mem.data_get::<f32>(id), Some(&2.5));
+    }
+
+    #[test]
+    fn typed_store_get_or_insert() {
+        let mut mem = Memory::default();
+        let id = Id::ROOT.with("widget");
+        assert_eq!(*mem.data_get_or_insert_with::<u32>(id, || 5), 5);
+        // Second call ignores the default and returns the stored value.
+        assert_eq!(*mem.data_get_or_insert_with::<u32>(id, || 99), 5);
+    }
+
+    #[test]
+    fn typed_store_gc_evicts_untouched() {
+        let mut mem = Memory::default();
+        let id = Id::ROOT.with("widget");
+        mem.data_insert::<u32>(id, 1);
+
+        // Touched each frame → survives.
+        for _ in 0..4 {
+            mem.begin_frame();
+            assert!(mem.data_get_mut::<u32>(id).is_some());
+            mem.end_frame(2);
+        }
+        assert_eq!(mem.data_get::<u32>(id), Some(&1));
+
+        // Untouched for longer than the grace window → evicted.
+        for _ in 0..4 {
+            mem.begin_frame();
+            mem.end_frame(2);
+        }
+        assert_eq!(mem.data_get::<u32>(id), None);
     }
 }

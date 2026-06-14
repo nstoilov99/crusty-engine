@@ -9,7 +9,7 @@ mod memory;
 mod ui;
 
 pub use memory::{AreaState, Memory, WidgetMemory};
-pub use ui::{Direction, Ui, UiOptions};
+pub use ui::{Align, Direction, Ui, UiOptions};
 
 use crate::id::Id;
 use crate::input::{Event, Key, Modifiers, MouseButton, RawInput};

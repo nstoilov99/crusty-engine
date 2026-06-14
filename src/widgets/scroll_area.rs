@@ -62,8 +62,12 @@ impl ScrollArea {
 
         let inner_root = id.with("inner");
         let (result, used_h) = {
+            // A small horizontal inset so widgets flush against the start of
+            // the row (a left-edge button's hover glow, a stroke) aren't
+            // clipped by the viewport's left edge. Vertical padding stays 0
+            // so content still aligns with the scroll offset.
             let inner_opts = UiOptions {
-                padding: Vec2::ZERO,
+                padding: Vec2::new(8.0, 0.0),
                 spacing: style.spacing.item,
             };
             let parent_area = ui.area();
