@@ -68,6 +68,68 @@ impl DockNode {
             second: Box::new(second),
         })
     }
+
+    /// Append every tab id in the tree to `out`, in left-to-right traversal
+    /// order. Lets a host build a "Window" menu of what's currently docked.
+    pub fn collect_tabs(&self, out: &mut Vec<TabId>) {
+        match self {
+            DockNode::Leaf(leaf) => out.extend(leaf.tabs.iter().cloned()),
+            DockNode::Split(split) => {
+                split.first.collect_tabs(out);
+                split.second.collect_tabs(out);
+            }
+        }
+    }
+
+    /// True if `tab` appears anywhere in the tree.
+    pub fn contains_tab(&self, tab: &str) -> bool {
+        match self {
+            DockNode::Leaf(leaf) => leaf.tabs.iter().any(|t| t == tab),
+            DockNode::Split(split) => {
+                split.first.contains_tab(tab) || split.second.contains_tab(tab)
+            }
+        }
+    }
+
+    /// Re-open a previously-closed panel by adding it as the active tab of the
+    /// least-crowded leaf (fewest tabs), so reopened panels spread out instead
+    /// of piling into one narrow column. No-op if it's already present. If the
+    /// tree is a single empty leaf, the tab becomes its sole content.
+    pub fn add_tab(&mut self, tab: impl Into<TabId>) {
+        let tab = tab.into();
+        if self.contains_tab(&tab) {
+            return;
+        }
+        match self.smallest_leaf_mut() {
+            Some(leaf) => {
+                leaf.tabs.push(tab);
+                leaf.active = leaf.tabs.len() - 1;
+            }
+            None => *self = DockNode::leaf(tab),
+        }
+    }
+
+    /// The leaf with the fewest tabs (ties broken left-to-right), or `None` if
+    /// the tree somehow has no leaves.
+    fn smallest_leaf_mut(&mut self) -> Option<&mut Leaf> {
+        match self {
+            DockNode::Leaf(leaf) => Some(leaf),
+            DockNode::Split(split) => {
+                let a = split.first.smallest_leaf_mut();
+                let b = split.second.smallest_leaf_mut();
+                match (a, b) {
+                    (Some(a), Some(b)) => {
+                        if b.tabs.len() < a.tabs.len() {
+                            Some(b)
+                        } else {
+                            Some(a)
+                        }
+                    }
+                    (a, b) => a.or(b),
+                }
+            }
+        }
+    }
 }
 
 #[cfg(all(test, feature = "serde"))]

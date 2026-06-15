@@ -90,10 +90,21 @@ Cursor-based top-down/left-right is too weak for the inspector and profiler.
 
 ## Phase 15 — Multi-window
 
-- [ ] Multi-viewport: independent `Context`-per-window (or shared context
+- [x] Multi-viewport: independent `Context`-per-window (or shared context
       with per-window output) — mesh editor's secondary window
-- [ ] Promote the demo's winit/swapchain glue into the real `src/window/`
+- [x] Promote the demo's winit/swapchain glue into the real `src/window/`
       module
+- [x] Detachable panels: tear a dock panel out into a **real secondary OS
+      window** (spawn a `WindowRenderer` hosting the panel with its own
+      `Context`, instead of an in-app floating `Area`), and **re-dock** it
+      back via drag & drop. Fuses Phase 12 (tab drag-out/drag-in + 5-way
+      drop zones) with Phase 15's multi-window. Drag a tab off the window
+      edge to detach; drag the torn-off window's title strip back over the
+      main dock to re-dock. Cross-window drag is solved with manual window
+      moves (`set_outer_position`) so the held button + release stay on the
+      panel window, and the global cursor (`inner_position` + local) is
+      translated into the main window's client space to drive the dock's
+      `external_drag` drop zones.
 
 ## Phase 16 — Swap & hardening
 

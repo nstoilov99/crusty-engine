@@ -56,14 +56,64 @@ enum DropZone {
     West,
 }
 
+/// An incoming tab being dragged from *outside* this dock — e.g. a panel
+/// that was torn off into its own OS window and is now being dragged back
+/// over the main window. The host translates the global cursor into this
+/// dock's local space and feeds it here so the normal 5-way drop zones
+/// light up; on `released` over a zone the tab is re-inserted into the tree.
+#[derive(Clone)]
+pub struct ExternalDrag {
+    pub tab_id: TabId,
+    /// Cursor position in this dock's local coordinate space.
+    pub pointer: Pos2,
+    /// True on the frame the external drag is released (dropped).
+    pub released: bool,
+    /// Force a re-dock on release regardless of where the pointer is (used
+    /// when a floating window is *closed* and we must put its tab back rather
+    /// than lose it). Normal drags require releasing on a compass target.
+    pub force: bool,
+}
+
+/// A tab that was just dragged out of the dock (off the window edge). The
+/// host should spawn an OS window hosting this panel near `pointer`.
+#[derive(Clone)]
+pub struct DetachedTab {
+    pub tab: TabId,
+    /// Last in-window cursor position before the tab left the window.
+    pub pointer: Pos2,
+}
+
+/// What [`DockArea::show`] reports back to the host after a frame.
+#[derive(Default)]
+pub struct DockResponse {
+    /// A tab was torn off the window edge this frame (already removed from
+    /// the tree). Spawn an OS window for it.
+    pub detached: Option<DetachedTab>,
+    /// An [`ExternalDrag`] was committed into the tree this frame. The host
+    /// can close the source OS window.
+    pub docked: bool,
+}
+
 pub struct DockArea<'a> {
     root: &'a mut DockNode,
     state: &'a mut DockState,
+    external: Option<ExternalDrag>,
 }
 
 impl<'a> DockArea<'a> {
     pub fn new(root: &'a mut DockNode, state: &'a mut DockState) -> Self {
-        Self { root, state }
+        Self {
+            root,
+            state,
+            external: None,
+        }
+    }
+
+    /// Feed an external tab drag (from another OS window) so its drop zones
+    /// render and a release can re-dock it. See [`ExternalDrag`].
+    pub fn external_drag(mut self, ext: Option<ExternalDrag>) -> Self {
+        self.external = ext;
+        self
     }
 
     pub fn show<F>(
@@ -72,9 +122,11 @@ impl<'a> DockArea<'a> {
         text: &mut TextRenderer,
         rect: Rect,
         mut f: F,
-    ) where
+    ) -> DockResponse
+    where
         F: FnMut(&mut Ui, &str),
     {
+        let mut response = DockResponse::default();
         // ── Pre-recursion: refresh drag state from input.
         let pointer_now = ctx.input.pointer_pos;
         if let Some(drag) = self.state.drag.as_mut() {
@@ -106,18 +158,86 @@ impl<'a> DockArea<'a> {
             }
         }
 
-        // ── Resolve drop / cancel on release.
+        // ── External drag (a torn-off panel dragged back over us): light
+        //    up drop zones at the translated cursor and re-dock on release.
+        if let Some(ext) = &self.external {
+            if let Some((anchor, leaf_rect)) = locate_leaf(self.root, rect, ext.pointer) {
+                // Unreal-style: dropping anywhere over a leaf docks it (Center =
+                // add as tab); the compass edges refine that into a split. The
+                // old "must hit a compass button" rule made re-docking fiddly.
+                let zone = compute_drop_zone_compass(leaf_rect, ext.pointer)
+                    .unwrap_or(DropZone::Center);
+                let candidate = DropCandidate {
+                    target_anchor: anchor,
+                    target_rect: leaf_rect,
+                    zone: Some(zone),
+                    via_tab_bar: false,
+                };
+                render_drop_overlay(ctx, &candidate);
+                render_external_ghost(ctx, text, &ext.tab_id, ext.pointer);
+                if ext.released {
+                    insert_at(self.root, &candidate.target_anchor, &ext.tab_id, zone);
+                    response.docked = true;
+                }
+            } else if ext.released && ext.force {
+                // Forced re-dock (window closed) but not over any leaf: drop it
+                // onto the empty-tree root so the tab is never lost.
+                if matches!(self.root, DockNode::Leaf(l) if l.tabs.is_empty()) {
+                    *self.root = DockNode::leaf(ext.tab_id.as_str());
+                    response.docked = true;
+                }
+            }
+        }
+
+        // ── Resolve drop on release.
         let pointer_released = ctx.input.pointer_released;
         if pointer_released {
             if let Some(drag) = self.state.drag.take() {
                 if drag.activated {
-                    if let Some(candidate) = &drag.candidate {
-                        if candidate.zone.is_some() {
+                    match &drag.candidate {
+                        // Released over a leaf → dock there (rearrange in-tree).
+                        Some(candidate) if candidate.zone.is_some() => {
                             apply_drop(self.root, &drag.tab_id, candidate);
+                        }
+                        // Released over its own single-tab leaf → no-op (the
+                        // candidate is None for a self-only leaf; locate_leaf
+                        // still finds a leaf, so we don't tear off).
+                        _ if locate_leaf(self.root, rect, drag.pointer_now).is_some() => {}
+                        // Released over empty space (or off the window) → tear
+                        // the tab off into its own OS window. The window
+                        // materializes only now, on drop — never mid-drag.
+                        _ => {
+                            if remove_tab(self.root, &drag.tab_id) {
+                                response.detached = Some(DetachedTab {
+                                    tab: drag.tab_id,
+                                    pointer: drag.pointer_now,
+                                });
+                            }
                         }
                     }
                 }
             }
+        }
+
+        response
+    }
+}
+
+/// Walk the layout (mirroring `show_node`'s split math) to find the leaf
+/// whose rect contains `p`, returning an anchor tab id and the leaf rect.
+fn locate_leaf(node: &DockNode, rect: Rect, p: Pos2) -> Option<(TabId, Rect)> {
+    if !rect.contains(p) {
+        return None;
+    }
+    match node {
+        DockNode::Leaf(leaf) => {
+            let anchor = leaf.tabs.first().cloned()?;
+            Some((anchor, rect))
+        }
+        DockNode::Split(split) => {
+            let (rect_a, rect_b, _) = compute_split(rect, split.direction, split.ratio);
+            locate_leaf(&split.first, rect_a, p)
+                .or_else(|| locate_leaf(&split.second, rect_b, p))
         }
     }
 }
@@ -186,7 +306,11 @@ fn show_leaf<F>(
     );
     ctx.paint.push(PaintCmd::Rrect(bar_bg));
 
+    // Clip the tabs to their bar so a leaf with more tabs than fit its width
+    // can't bleed sideways over the adjacent panel.
+    ctx.paint.push(PaintCmd::PushClip(tab_bar_rect));
     draw_tabs(ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state);
+    ctx.paint.push(PaintCmd::PopClip);
 
     // Record drop candidate if a drag is in flight and the pointer is
     // over this leaf. We always set the candidate when over a panel so
@@ -211,7 +335,16 @@ fn show_leaf<F>(
                         let (zone, via_tab_bar) = if in_tab_bar {
                             (Some(DropZone::Center), true)
                         } else {
-                            (compute_drop_zone_compass(rect, p), false)
+                            // Over the leaf body: edges split, everywhere else
+                            // adds as a tab (Center). Matches the external-drag
+                            // and Unreal behaviour — drop anywhere to dock.
+                            (
+                                Some(
+                                    compute_drop_zone_compass(rect, p)
+                                        .unwrap_or(DropZone::Center),
+                                ),
+                                false,
+                            )
                         };
                         drag.candidate = Some(DropCandidate {
                             target_anchor: anchor,
@@ -560,6 +693,32 @@ fn render_drag_ghost(ctx: &mut Context, text: &mut TextRenderer, drag: &DragStat
     text.add_text(
         &mut ctx.paint,
         &drag.tab_id,
+        style.fonts.body,
+        text_pos,
+        style.palette.text.with_alpha(0.85),
+        None,
+    );
+}
+
+/// Same floating chip as [`render_drag_ghost`], but for an external tab
+/// dragged in from another window (we only have the id + cursor pos).
+fn render_external_ghost(ctx: &mut Context, text: &mut TextRenderer, tab_id: &str, pointer: Pos2) {
+    let style = ctx.style;
+    let label_size = text.measure(tab_id, style.fonts.body, None);
+    let pad = Vec2::new(10.0, 6.0);
+    let size = Vec2::new(label_size.x + pad.x * 2.0, label_size.y + pad.y * 2.0);
+    let pos = Pos2::new(pointer.x + 8.0, pointer.y - size.y * 0.5);
+    let rect = Rect::from_min_size(pos, size);
+    let mut fill = style.palette.surface;
+    fill.a = 0.55;
+    let mut stroke = style.palette.accent;
+    stroke.a = 0.7;
+    let shape = RectShape::fill(rect, style.rounding.small, fill).with_stroke(1.0, stroke);
+    ctx.paint.push(PaintCmd::Rrect(shape));
+    let text_pos = Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y);
+    text.add_text(
+        &mut ctx.paint,
+        tab_id,
         style.fonts.body,
         text_pos,
         style.palette.text.with_alpha(0.85),

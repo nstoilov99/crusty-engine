@@ -9,539 +9,18 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crusty_gui::backend::vulkano::{
-    BlurRenderer, OffscreenTargets, TextureRegistry, UiRenderer, upload_rgba_texture,
-};
-use crusty_gui::dock::{DockArea, DockNode, DockState};
-use crusty_gui::paint::{Mesh, Tessellator};
+use crusty_gui::backend::vulkano::upload_rgba_texture;
+use crusty_gui::dock::{DockArea, DockNode, DockState, ExternalDrag};
 use crusty_gui::prelude::*;
 use crusty_gui::style::Style;
-use crusty_gui::text::TextRenderer;
 use crusty_gui::widgets::Window as GuiWindow;
-
-use vulkano::VulkanLibrary;
-use vulkano::command_buffer::allocator::{
-    StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo,
-};
-use vulkano::command_buffer::{
-    AutoCommandBufferBuilder, CommandBufferUsage, RenderPassBeginInfo, SubpassBeginInfo,
-    SubpassContents,
-};
-use vulkano::device::physical::PhysicalDeviceType;
-use vulkano::device::{
-    Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags,
-};
-use vulkano::image::ImageUsage;
-use vulkano::image::view::ImageView;
-use vulkano::instance::{Instance, InstanceCreateFlags, InstanceCreateInfo};
-use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass};
-use vulkano::swapchain::{
-    PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
-    acquire_next_image,
-};
-use vulkano::sync::{self, GpuFuture};
-use vulkano::{Validated, VulkanError};
+use crusty_gui::window::{GpuContext, WindowRenderer};
 
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{Window, WindowAttributes, WindowId};
-
-struct Renderer {
-    window: Arc<Window>,
-    device: Arc<Device>,
-    queue: Arc<Queue>,
-    swapchain: Arc<Swapchain>,
-    render_pass: Arc<RenderPass>,
-    framebuffers: Vec<Arc<Framebuffer>>,
-    cmd_alloc: Arc<StandardCommandBufferAllocator>,
-    previous_frame_end: Option<Box<dyn GpuFuture>>,
-    needs_swapchain_rebuild: bool,
-    offscreen: OffscreenTargets,
-    ui: UiRenderer,
-    blur: BlurRenderer,
-    text: TextRenderer,
-    registry: TextureRegistry,
-    demo_texture: TextureId,
-    tessellator: Tessellator,
-    scene_mesh: Mesh,
-    ui_mesh: Mesh,
-    tess_us: f32,
-    gpu_name: String,
-}
-
-impl Renderer {
-    fn new(event_loop: &ActiveEventLoop) -> Self {
-        let library = VulkanLibrary::new().expect("no local vulkan library / loader");
-        let required_extensions = Surface::required_extensions(event_loop)
-            .expect("could not query required winit surface extensions");
-
-        let instance = Instance::new(
-            library,
-            InstanceCreateInfo {
-                flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
-                enabled_extensions: required_extensions,
-                ..Default::default()
-            },
-        )
-        .expect("failed to create Vulkan instance");
-
-        let window = Arc::new(
-            event_loop
-                .create_window(
-                    WindowAttributes::default()
-                        .with_title("crusty-gui — Phase 8 (combo + tooltip + ctx menu)")
-                        .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 800.0)),
-                )
-                .expect("failed to create window"),
-        );
-
-        let surface = Surface::from_window(instance.clone(), window.clone())
-            .expect("failed to create vulkan surface from window");
-
-        let device_extensions = DeviceExtensions {
-            khr_swapchain: true,
-            ..DeviceExtensions::empty()
-        };
-
-        let (physical, queue_family_index) = instance
-            .enumerate_physical_devices()
-            .expect("could not enumerate physical devices")
-            .filter(|p| p.supported_extensions().contains(&device_extensions))
-            .filter_map(|p| {
-                p.queue_family_properties()
-                    .iter()
-                    .enumerate()
-                    .position(|(i, q)| {
-                        q.queue_flags.intersects(QueueFlags::GRAPHICS)
-                            && p.surface_support(i as u32, &surface).unwrap_or(false)
-                    })
-                    .map(|i| (p, i as u32))
-            })
-            .min_by_key(|(p, _)| match p.properties().device_type {
-                PhysicalDeviceType::DiscreteGpu => 0,
-                PhysicalDeviceType::IntegratedGpu => 1,
-                PhysicalDeviceType::VirtualGpu => 2,
-                PhysicalDeviceType::Cpu => 3,
-                _ => 4,
-            })
-            .expect("no graphics-capable device with present support");
-
-        log::info!(
-            "using physical device: {} ({:?})",
-            physical.properties().device_name,
-            physical.properties().device_type
-        );
-
-        let (device, mut queues) = Device::new(
-            physical.clone(),
-            DeviceCreateInfo {
-                enabled_extensions: device_extensions,
-                queue_create_infos: vec![QueueCreateInfo {
-                    queue_family_index,
-                    ..Default::default()
-                }],
-                ..Default::default()
-            },
-        )
-        .expect("failed to create logical device");
-
-        let queue = queues.next().expect("no queue available");
-
-        let (swapchain, images) = {
-            let surface_caps = device
-                .physical_device()
-                .surface_capabilities(&surface, Default::default())
-                .expect("failed to get surface capabilities");
-
-            let image_format = device
-                .physical_device()
-                .surface_formats(&surface, Default::default())
-                .expect("failed to get surface formats")[0]
-                .0;
-
-            let inner_size: [u32; 2] = window.inner_size().into();
-
-            // Prefer Mailbox (low-latency vsync: always presents the newest
-            // queued frame, no tearing) so dragging stays smooth on high-
-            // refresh displays. Fall back to Fifo, which is always available.
-            let present_modes: Vec<PresentMode> = device
-                .physical_device()
-                .surface_present_modes(&surface, Default::default())
-                .unwrap_or_default();
-            let present_mode = if present_modes.contains(&PresentMode::Mailbox) {
-                PresentMode::Mailbox
-            } else {
-                PresentMode::Fifo
-            };
-            // Mailbox needs a spare image to swap to; triple-buffer it.
-            let mut min_image_count = if present_mode == PresentMode::Mailbox {
-                surface_caps.min_image_count.max(3)
-            } else {
-                surface_caps.min_image_count.max(2)
-            };
-            if let Some(max) = surface_caps.max_image_count {
-                min_image_count = min_image_count.min(max);
-            }
-
-            Swapchain::new(
-                device.clone(),
-                surface.clone(),
-                SwapchainCreateInfo {
-                    min_image_count,
-                    image_format,
-                    image_extent: inner_size,
-                    image_usage: ImageUsage::COLOR_ATTACHMENT,
-                    composite_alpha: surface_caps
-                        .supported_composite_alpha
-                        .into_iter()
-                        .next()
-                        .expect("no supported composite alpha"),
-                    present_mode,
-                    ..Default::default()
-                },
-            )
-            .expect("failed to create swapchain")
-        };
-
-        let render_pass = vulkano::single_pass_renderpass!(
-            device.clone(),
-            attachments: {
-                color: {
-                    format: swapchain.image_format(),
-                    samples: 1,
-                    load_op: Clear,
-                    store_op: Store,
-                },
-            },
-            pass: {
-                color: [color],
-                depth_stencil: {},
-            },
-        )
-        .expect("failed to create render pass");
-
-        let framebuffers = build_framebuffers(&images, &render_pass);
-
-        let cmd_alloc = Arc::new(StandardCommandBufferAllocator::new(
-            device.clone(),
-            StandardCommandBufferAllocatorCreateInfo::default(),
-        ));
-
-        let previous_frame_end = Some(sync::now(device.clone()).boxed());
-
-        let surface_format = swapchain.image_format();
-        let inner_size: [u32; 2] = window.inner_size().into();
-        let offscreen = OffscreenTargets::new(device.clone(), surface_format, inner_size);
-
-        let ui = UiRenderer::new(
-            device.clone(),
-            Subpass::from(render_pass.clone(), 0).expect("render pass has subpass 0"),
-        );
-        let blur = BlurRenderer::new(
-            device.clone(),
-            Subpass::from(offscreen.render_pass().clone(), 0)
-                .expect("offscreen render pass has subpass 0"),
-        );
-        let text = TextRenderer::new(device.clone(), [1024, 1024]);
-
-        // A simple checkerboard texture so the Viewport panel has something
-        // real to display through the Phase 10 texture path.
-        let mut registry = TextureRegistry::new(device.clone());
-        let demo_texture = {
-            const N: u32 = 64;
-            let mut pixels = Vec::with_capacity((N * N * 4) as usize);
-            for y in 0..N {
-                for x in 0..N {
-                    let on = ((x / 8) + (y / 8)) % 2 == 0;
-                    let (r, g, b) = if on { (90, 130, 200) } else { (30, 40, 60) };
-                    pixels.extend_from_slice(&[r, g, b, 255]);
-                }
-            }
-            let view = upload_rgba_texture(device.clone(), queue.clone(), N, N, &pixels);
-            registry.register(view, TextureFilter::Nearest)
-        };
-
-        let gpu_name = device.physical_device().properties().device_name.clone();
-
-        Self {
-            window,
-            device,
-            queue,
-            swapchain,
-            render_pass,
-            framebuffers,
-            cmd_alloc,
-            previous_frame_end,
-            needs_swapchain_rebuild: false,
-            offscreen,
-            ui,
-            blur,
-            text,
-            registry,
-            demo_texture,
-            tessellator: Tessellator::new(),
-            scene_mesh: Mesh::default(),
-            ui_mesh: Mesh::default(),
-            tess_us: 0.0,
-            gpu_name,
-        }
-    }
-
-    fn recreate_swapchain(&mut self) {
-        let inner_size: [u32; 2] = self.window.inner_size().into();
-        if inner_size[0] == 0 || inner_size[1] == 0 {
-            return;
-        }
-        let (new_sc, new_images) = self
-            .swapchain
-            .recreate(SwapchainCreateInfo {
-                image_extent: inner_size,
-                ..self.swapchain.create_info()
-            })
-            .expect("failed to recreate swapchain");
-        self.swapchain = new_sc;
-        self.framebuffers = build_framebuffers(&new_images, &self.render_pass);
-        self.offscreen.recreate(inner_size);
-        self.needs_swapchain_rebuild = false;
-    }
-
-    /// Run a UI pass against the inner [`TextRenderer`]. The closure
-    /// receives a `&mut Ui` covering `rect`; widget paint commands land
-    /// on `ctx.paint` directly.
-    fn run_ui<R>(
-        &mut self,
-        ctx: &mut Context,
-        rect: Rect,
-        f: impl FnOnce(&mut Ui) -> R,
-    ) -> R {
-        ctx.run_root(&mut self.text, rect, f)
-    }
-
-    fn render(&mut self, scene_paint: &[PaintCmd], ui_paint: &[PaintCmd]) {
-        let inner_size: [u32; 2] = self.window.inner_size().into();
-        if inner_size[0] == 0 || inner_size[1] == 0 {
-            return;
-        }
-
-        if self.needs_swapchain_rebuild {
-            self.recreate_swapchain();
-        }
-
-        // The glyph atlas is a single image shared across frames. If new
-        // glyphs were queued this frame (e.g. a theme/font change), we must
-        // finish any in-flight frames still sampling it before overwriting
-        // its pixels — vulkano can't synchronise a write to a resource a
-        // live submission is still reading. This stalls only on the rare
-        // frames that actually upload new glyphs.
-        if self.text.atlas().has_pending() {
-            // Safe: we own every queue submission on this device and are
-            // about to rebuild the frame, so nothing else is recording.
-            let _ = unsafe { self.device.wait_idle() };
-            self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
-        }
-
-        self.previous_frame_end.as_mut().unwrap().cleanup_finished();
-
-        let (image_index, suboptimal, acquire_future) =
-            match acquire_next_image(self.swapchain.clone(), None).map_err(Validated::unwrap) {
-                Ok(r) => r,
-                Err(VulkanError::OutOfDate) => {
-                    self.needs_swapchain_rebuild = true;
-                    return;
-                }
-                Err(e) => panic!("acquire_next_image failed: {e}"),
-            };
-
-        if suboptimal {
-            self.needs_swapchain_rebuild = true;
-        }
-
-        let mut builder = AutoCommandBufferBuilder::primary(
-            self.cmd_alloc.clone(),
-            self.queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )
-        .expect("failed to allocate command buffer");
-
-        // Flush any glyph bitmaps queued by widget code.
-        self.text.atlas_mut().flush_uploads(&mut builder);
-
-        let tess_start = Instant::now();
-        self.tessellator.reset(&mut self.scene_mesh);
-        self.tessellator.tessellate(scene_paint, &mut self.scene_mesh);
-        self.tessellator.reset(&mut self.ui_mesh);
-        self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
-        let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
-        self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
-
-        let screen_size = [inner_size[0] as f32, inner_size[1] as f32];
-        let bg_clear = [0.04_f32, 0.05, 0.08, 1.0];
-        let zero_clear = [0.0_f32, 0.0, 0.0, 1.0];
-
-        // ── Pass 1: scene → offscreen scene image.
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some(bg_clear.into())],
-                    ..RenderPassBeginInfo::framebuffer(self.offscreen.scene_fbo().clone())
-                },
-                SubpassBeginInfo {
-                    contents: SubpassContents::Inline,
-                    ..Default::default()
-                },
-            )
-            .expect("begin scene render pass failed");
-        self.ui.draw(
-            &mut builder,
-            &self.scene_mesh,
-            screen_size,
-            self.offscreen.dummy_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.text.atlas().view().clone(),
-            self.text.atlas().sampler().clone(),
-            self.text.atlas().rgba_view().cloned(),
-            Some(self.text.atlas().sampler().clone()),
-            &self.registry,
-        );
-        builder
-            .end_render_pass(Default::default())
-            .expect("end scene render pass failed");
-
-        // ── Pass 2: blur scene → blur_a.
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some(zero_clear.into())],
-                    ..RenderPassBeginInfo::framebuffer(self.offscreen.blur_a_fbo().clone())
-                },
-                SubpassBeginInfo {
-                    contents: SubpassContents::Inline,
-                    ..Default::default()
-                },
-            )
-            .expect("begin blur-a render pass failed");
-        self.blur.record_pass(
-            &mut builder,
-            self.offscreen.scene_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.offscreen.extent(),
-            1.5,
-        );
-        builder
-            .end_render_pass(Default::default())
-            .expect("end blur-a render pass failed");
-
-        // ── Pass 3: blur blur_a → blur_b.
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some(zero_clear.into())],
-                    ..RenderPassBeginInfo::framebuffer(self.offscreen.blur_b_fbo().clone())
-                },
-                SubpassBeginInfo {
-                    contents: SubpassContents::Inline,
-                    ..Default::default()
-                },
-            )
-            .expect("begin blur-b render pass failed");
-        self.blur.record_pass(
-            &mut builder,
-            self.offscreen.blur_a_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.offscreen.extent(),
-            3.5,
-        );
-        builder
-            .end_render_pass(Default::default())
-            .expect("end blur-b render pass failed");
-
-        // ── Pass 4: present. Blit scene as background, then UI.
-        builder
-            .begin_render_pass(
-                RenderPassBeginInfo {
-                    clear_values: vec![Some(bg_clear.into())],
-                    ..RenderPassBeginInfo::framebuffer(
-                        self.framebuffers[image_index as usize].clone(),
-                    )
-                },
-                SubpassBeginInfo {
-                    contents: SubpassContents::Inline,
-                    ..Default::default()
-                },
-            )
-            .expect("begin present render pass failed");
-        self.blur.record_pass(
-            &mut builder,
-            self.offscreen.scene_view().clone(),
-            self.offscreen.sampler().clone(),
-            inner_size,
-            0.0,
-        );
-        self.ui.draw(
-            &mut builder,
-            &self.ui_mesh,
-            screen_size,
-            self.offscreen.blur_b_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.text.atlas().view().clone(),
-            self.text.atlas().sampler().clone(),
-            self.text.atlas().rgba_view().cloned(),
-            Some(self.text.atlas().sampler().clone()),
-            &self.registry,
-        );
-        builder
-            .end_render_pass(Default::default())
-            .expect("end present render pass failed");
-
-        let command_buffer = builder.build().expect("failed to build command buffer");
-
-        let future = self
-            .previous_frame_end
-            .take()
-            .unwrap()
-            .join(acquire_future)
-            .then_execute(self.queue.clone(), command_buffer)
-            .expect("failed to chain command buffer execution")
-            .then_swapchain_present(
-                self.queue.clone(),
-                SwapchainPresentInfo::swapchain_image_index(self.swapchain.clone(), image_index),
-            )
-            .then_signal_fence_and_flush();
-
-        match future.map_err(Validated::unwrap) {
-            Ok(f) => self.previous_frame_end = Some(f.boxed()),
-            Err(VulkanError::OutOfDate) => {
-                self.needs_swapchain_rebuild = true;
-                self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
-            }
-            Err(e) => {
-                log::error!("present failed: {e}");
-                self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
-            }
-        }
-    }
-}
-
-fn build_framebuffers(
-    images: &[Arc<vulkano::image::Image>],
-    render_pass: &Arc<RenderPass>,
-) -> Vec<Arc<Framebuffer>> {
-    images
-        .iter()
-        .map(|image| {
-            let view = ImageView::new_default(image.clone()).expect("image view");
-            Framebuffer::new(
-                render_pass.clone(),
-                FramebufferCreateInfo {
-                    attachments: vec![view],
-                    ..Default::default()
-                },
-            )
-            .expect("framebuffer")
-        })
-        .collect()
-}
+use winit::window::{WindowAttributes, WindowId};
 
 /// Background scene. Empty in Phase 6.5 — the editor layout fills the
 /// whole window so any backdrop content just shows through translucent
@@ -574,6 +53,15 @@ const LIGHT_IDS: [&str; 8] = [
     "light_4", "light_5", "light_6", "light_7",
 ];
 
+/// Every panel `render_panel` knows how to draw. The Window menu lists these
+/// so a panel that was closed (or torn off) can always be re-opened.
+const ALL_PANELS: [&str; 7] = [
+    "Hierarchy", "Viewport", "Inspector", "Console", "Profiler", "Errors", "Warnings",
+];
+
+/// Height of the main window's top menu bar strip.
+const MENU_BAR_H: f32 = 32.0;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Theme {
     EditorDark,
@@ -589,15 +77,11 @@ impl Theme {
     }
 }
 
-struct App {
-    renderer: Option<Renderer>,
-    ctx: Context,
-    start: Option<Instant>,
-    last_frame_time: f64,
-    pointer_pos: Option<Pos2>,
-    pending_events: Vec<Event>,
-    modifiers: Modifiers,
-    // Demo state — persisted across frames in App, mutated through widgets.
+/// All the demo's panel-level state, bundled so the same panel content can be
+/// rendered from two places: the main window's dock and a popped-out OS
+/// window. `render_panel` reads/writes this; the request flags at the bottom
+/// are set during a frame and consumed by the caller afterward.
+struct EditorState {
     click_count: u32,
     volume: f32,
     brightness: f32,
@@ -605,29 +89,19 @@ struct App {
     auto_save: bool,
     quality: Quality,
     theme: Theme,
-    dock_tree: DockNode,
-    dock_state: DockState,
     entity_name: String,
     asset_path: String,
     selected_entity: &'static str,
-    settings_window_open: bool,
-    about_modal_open: bool,
-    window_slider: f32,
-    ui_us: f32,
-    /// Asset name dropped onto the Inspector's material slot (Phase 13 DnD).
     inspector_slot: Option<String>,
+    // Request flags: a panel sets these, the frame loop consumes them.
+    settings_open: bool,
+    about_open: bool,
+    open_mesh_requested: bool,
 }
 
-impl Default for App {
+impl Default for EditorState {
     fn default() -> Self {
         Self {
-            renderer: None,
-            ctx: Context::default(),
-            start: None,
-            last_frame_time: 0.0,
-            pointer_pos: None,
-            pending_events: Vec::new(),
-            modifiers: Modifiers::empty(),
             click_count: 0,
             volume: 0.6,
             brightness: 0.8,
@@ -635,16 +109,128 @@ impl Default for App {
             auto_save: false,
             quality: Quality::Medium,
             theme: Theme::EditorDark,
-            dock_tree: default_dock_tree(),
-            dock_state: DockState::default(),
             entity_name: "PlayerCamera".to_string(),
             asset_path: "assets/scenes/demo.scene".to_string(),
             selected_entity: "",
-            settings_window_open: true,
-            about_modal_open: false,
+            inspector_slot: None,
+            settings_open: true,
+            about_open: false,
+            open_mesh_requested: false,
+        }
+    }
+}
+
+/// Per-frame, read-only figures a panel may display. Not persisted.
+struct PanelStats {
+    frame_time_ms: f32,
+    ui_us: f32,
+    tess_us: f32,
+    gpu_name: String,
+    demo_texture: TextureId,
+    mesh_already_open: bool,
+}
+
+/// Height of the draggable title strip on a torn-off panel window.
+const PANEL_TITLE_H: f32 = 26.0;
+/// Horizontal cursor offset into the title strip kept under the pointer while
+/// a torn-off window follows it.
+const PANEL_GRAB_X: f32 = 60.0;
+
+/// A dock panel torn off into its own OS window. Renders the panel's real
+/// content via `render_panel`, and carries a manual title-bar drag so the
+/// user can fling it back over the main window to re-dock it.
+struct PanelWindow {
+    renderer: WindowRenderer,
+    ctx: Context,
+    tab: String,
+    demo_texture: TextureId,
+    pointer_pos: Option<Pos2>,
+    pending_events: Vec<Event>,
+    start: Instant,
+    last_frame_time: f64,
+    /// True while the user holds the title bar to move/re-dock the window.
+    dragging: bool,
+    /// Cursor offset (window-local) captured when the title drag began.
+    drag_grab: Vec2,
+    /// True once a re-dock drag has parked this window off-screen, so its solid
+    /// body stops covering the main window's drop indicators.
+    parked: bool,
+    /// Latest true screen-space cursor seen during the drag, used to restore the
+    /// window onto the screen if the drop is cancelled (dropped over nothing).
+    last_global: Pos2,
+}
+
+/// A torn-off panel being dragged back over the main window, expressed in
+/// the main window's client-space coordinates so the dock can hit-test it.
+struct RedockDrag {
+    tab: String,
+    pointer: Pos2,
+    released: bool,
+    /// Re-dock unconditionally on release (window closed) rather than only
+    /// over a compass target.
+    force: bool,
+}
+
+struct App {
+    gpu: Option<GpuContext>,
+    main_window: Option<WindowRenderer>,
+    /// Phase 15: a secondary "Mesh Editor" window, opened on demand, driven
+    /// by its own independent [`Context`].
+    mesh_window: Option<WindowRenderer>,
+    mesh_ctx: Context,
+    mesh_pointer_pos: Option<Pos2>,
+    mesh_pending_events: Vec<Event>,
+    mesh_start: Option<Instant>,
+    mesh_last_frame_time: f64,
+    mesh_spin: f32,
+    demo_texture: Option<TextureId>,
+    gpu_name: String,
+    ctx: Context,
+    start: Option<Instant>,
+    last_frame_time: f64,
+    pointer_pos: Option<Pos2>,
+    pending_events: Vec<Event>,
+    modifiers: Modifiers,
+    /// All panel-level demo state, shared between the dock and popped-out
+    /// panel windows.
+    editor: EditorState,
+    dock_tree: DockNode,
+    dock_state: DockState,
+    window_slider: f32,
+    ui_us: f32,
+    /// Panels torn off into their own OS windows.
+    panel_windows: Vec<PanelWindow>,
+    /// A panel window currently being dragged back over the main window.
+    pending_redock: Option<RedockDrag>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            gpu: None,
+            main_window: None,
+            mesh_window: None,
+            mesh_ctx: Context::default(),
+            mesh_pointer_pos: None,
+            mesh_pending_events: Vec::new(),
+            mesh_start: None,
+            mesh_last_frame_time: 0.0,
+            mesh_spin: 0.0,
+            demo_texture: None,
+            gpu_name: String::new(),
+            ctx: Context::default(),
+            start: None,
+            last_frame_time: 0.0,
+            pointer_pos: None,
+            pending_events: Vec::new(),
+            modifiers: Modifiers::empty(),
+            editor: EditorState::default(),
+            dock_tree: default_dock_tree(),
+            dock_state: DockState::default(),
             window_slider: 0.4,
             ui_us: 0.0,
-            inspector_slot: None,
+            panel_windows: Vec::new(),
+            pending_redock: None,
         }
     }
 }
@@ -727,8 +313,15 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.renderer.is_none() {
-            self.renderer = Some(Renderer::new(event_loop));
+        if self.main_window.is_none() {
+            let attrs = WindowAttributes::default()
+                .with_title("crusty-gui — Phase 15 (multi-window)")
+                .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 800.0));
+            let (gpu, mut window) = WindowRenderer::create_primary(event_loop, attrs);
+            self.gpu_name = gpu.gpu_name.clone();
+            self.demo_texture = Some(build_demo_texture(&gpu, &mut window));
+            self.gpu = Some(gpu);
+            self.main_window = Some(window);
             self.start = Some(Instant::now());
             self.load_layout();
         }
@@ -737,12 +330,30 @@ impl ApplicationHandler for App {
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
+        window_id: WindowId,
         event: WindowEvent,
     ) {
-        let Some(renderer) = self.renderer.as_mut() else {
+        let mesh_id = self.mesh_window.as_ref().map(|w| w.window().id());
+        if Some(window_id) == mesh_id {
+            self.mesh_event(event_loop, event);
             return;
-        };
+        }
+        if let Some(idx) = self
+            .panel_windows
+            .iter()
+            .position(|p| p.renderer.window().id() == window_id)
+        {
+            self.panel_event(idx, event);
+            return;
+        }
+        let main_id = self.main_window.as_ref().map(|w| w.window().id());
+        if Some(window_id) != main_id {
+            return;
+        }
+
+        if self.main_window.is_none() {
+            return;
+        }
 
         match event {
             WindowEvent::CloseRequested => {
@@ -750,8 +361,10 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(_) => {
-                renderer.needs_swapchain_rebuild = true;
-                renderer.window.request_redraw();
+                if let Some(renderer) = self.main_window.as_mut() {
+                    renderer.request_rebuild();
+                    renderer.window().request_redraw();
+                }
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Pos2::new(position.x as f32, position.y as f32);
@@ -763,13 +376,13 @@ impl ApplicationHandler for App {
                 self.pending_events.push(Event::PointerGone);
             }
             WindowEvent::MouseInput { state, button, .. } => {
+                let pressed = matches!(state, winit::event::ElementState::Pressed);
                 let our_button = match button {
                     winit::event::MouseButton::Left => MouseButton::Primary,
                     winit::event::MouseButton::Right => MouseButton::Secondary,
                     winit::event::MouseButton::Middle => MouseButton::Middle,
                     _ => MouseButton::Other(0),
                 };
-                let pressed = matches!(state, winit::event::ElementState::Pressed);
                 if let Some(pos) = self.pointer_pos {
                     self.pending_events.push(Event::PointerButton {
                         pos,
@@ -841,9 +454,12 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                renderer.text.new_frame();
-                let size = renderer.window.inner_size();
-                let pixels_per_point = renderer.window.scale_factor() as f32;
+                let Some(renderer) = self.main_window.as_mut() else {
+                    return;
+                };
+                renderer.text_mut().new_frame();
+                let size = renderer.window().inner_size();
+                let pixels_per_point = renderer.window().scale_factor() as f32;
                 let inner_size: [u32; 2] = size.into();
                 let time = self
                     .start
@@ -875,43 +491,594 @@ impl ApplicationHandler for App {
                 let ui_start = Instant::now();
                 self.ctx.begin_frame(input);
                 // Apply the active theme before any widget reads it.
-                self.ctx.style = self.theme.style();
+                self.ctx.style = self.editor.theme.style();
 
-                let mut click_delta: u32 = 0;
                 let dock_root = Rect::from_min_size(
-                    Pos2::new(4.0, 4.0),
+                    Pos2::new(4.0, MENU_BAR_H + 4.0),
                     Vec2::new(
                         (size.width as f32 - 8.0).max(64.0),
-                        (size.height as f32 - 8.0).max(64.0),
+                        (size.height as f32 - MENU_BAR_H - 8.0).max(64.0),
                     ),
                 );
-                let volume = &mut self.volume;
-                let brightness = &mut self.brightness;
-                let preview_enabled = &mut self.preview_enabled;
-                let auto_save = &mut self.auto_save;
-                let quality = &mut self.quality;
-                let theme = &mut self.theme;
-                let entity_name = &mut self.entity_name;
-                let asset_path = &mut self.asset_path;
-                let inspector_slot = &mut self.inspector_slot;
-                let selected_entity = &mut self.selected_entity;
-                let click_count = self.click_count;
-                let frame_time_ms = (dt * 1000.0) as f32;
-                // Isolated CPU costs (previous frame, smoothed): the
-                // immediate-mode UI pass and tessellation, in µs. These are
-                // the figures comparable to egui's reported CPU time.
-                let ui_us = self.ui_us;
-                let tess_us = renderer.tess_us;
-                let gpu_name = renderer.gpu_name.clone();
-                let demo_texture = renderer.demo_texture;
-                let mut settings_open = self.settings_window_open;
-                let mut about_open = self.about_modal_open;
 
-                DockArea::new(&mut self.dock_tree, &mut self.dock_state).show(
-                    &mut self.ctx,
-                    &mut renderer.text,
-                    dock_root,
-                    |ui, panel| match panel {
+                // Top menu bar. The Window menu lists every known panel with a
+                // check for the ones currently open (docked or floating); a
+                // click re-docks a closed panel so it can never be lost.
+                let mut open_flags = [false; ALL_PANELS.len()];
+                {
+                    let mut existing = Vec::new();
+                    self.dock_tree.collect_tabs(&mut existing);
+                    for (i, name) in ALL_PANELS.iter().enumerate() {
+                        open_flags[i] = existing.iter().any(|t| t == name)
+                            || self.panel_windows.iter().any(|p| &p.tab == name);
+                    }
+                }
+                let mut reopen_panel: Option<&'static str> = None;
+                let mut save_layout_requested = false;
+                let menu_rect = Rect::from_min_size(
+                    Pos2::ZERO,
+                    Vec2::new(size.width as f32, MENU_BAR_H),
+                );
+                {
+                    // Small padding so the bar hugs the top — the default
+                    // 12px from `run_root` would push it down into the dock.
+                    let menu_opts = UiOptions {
+                        padding: Vec2::new(8.0, 3.0),
+                        spacing: 8.0,
+                    };
+                    let mut ui = Ui::with_root(
+                        &mut self.ctx,
+                        renderer.text_mut(),
+                        menu_rect,
+                        Direction::TopDown,
+                        menu_opts,
+                        Id::ROOT.with("menubar"),
+                    );
+                    ui.menu_bar(|ui| {
+                        ui.menu_button("File", |ui| {
+                            if ui.menu_item("Save Layout") {
+                                save_layout_requested = true;
+                            }
+                        });
+                        ui.menu_button("Window", |ui| {
+                            for (i, name) in ALL_PANELS.iter().enumerate() {
+                                let mark = if open_flags[i] { "\u{2713} " } else { "    " };
+                                if ui.menu_item(format!("{mark}{name}")) && !open_flags[i] {
+                                    reopen_panel = Some(name);
+                                }
+                            }
+                        });
+                    });
+                }
+                let stats = PanelStats {
+                    frame_time_ms: (dt * 1000.0) as f32,
+                    ui_us: self.ui_us,
+                    tess_us: renderer.tess_us(),
+                    gpu_name: self.gpu_name.clone(),
+                    demo_texture: self.demo_texture.expect("demo texture registered"),
+                    mesh_already_open: self.mesh_window.is_some(),
+                };
+                let redock_ext = self.pending_redock.as_ref().map(|r| ExternalDrag {
+                    tab_id: r.tab.clone(),
+                    pointer: r.pointer,
+                    released: r.released,
+                    force: r.force,
+                });
+                let editor = &mut self.editor;
+
+                let dock_response = DockArea::new(&mut self.dock_tree, &mut self.dock_state)
+                    .external_drag(redock_ext)
+                    .show(
+                        &mut self.ctx,
+                        renderer.text_mut(),
+                        dock_root,
+                        |ui, panel| render_panel(ui, panel, editor, &stats),
+                    );
+                let detached = dock_response.detached;
+                let docked = dock_response.docked;
+
+                // ── Phase 9: floating windows (own layers, z-ordered,
+                // click-to-front; the modal blocks everything beneath).
+                let window_slider = &mut self.window_slider;
+                let editor = &mut self.editor;
+                self.ctx.run_root(renderer.text_mut(), screen_rect, |ui| {
+                    GuiWindow::new("Settings")
+                        .open(&mut editor.settings_open)
+                        .default_pos(Pos2::new(260.0, 140.0))
+                        .default_size(Vec2::new(320.0, 260.0))
+                        .show(ui, |ui| {
+                            ui.label("A floating window:");
+                            let st = ui.style();
+                            Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.item);
+                            ui.slider(window_slider, 0.0..=1.0);
+                            ui.progress_bar(*window_slider);
+                            ui.add_space(st.spacing.item);
+                            if ui.button("Open About (modal)").clicked() {
+                                editor.about_open = true;
+                            }
+                        });
+
+                    if editor.about_open {
+                        let mut close_clicked = false;
+                        GuiWindow::new("About crusty-gui")
+                            .open(&mut editor.about_open)
+                            .modal(true)
+                            .resizable(false)
+                            .collapsible(false)
+                            .close_on_click_outside(true)
+                            .default_pos(Pos2::new(
+                                screen_rect.center().x - 170.0,
+                                screen_rect.center().y - 110.0,
+                            ))
+                            .default_size(Vec2::new(340.0, 200.0))
+                            .show(ui, |ui| {
+                                ui.label("crusty-gui \u{2014} Phase 9");
+                                let st = ui.style();
+                                Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
+                                    .size(st.fonts.small)
+                                    .color(st.palette.text_dim)
+                                    .show(ui);
+                                ui.add_space(st.spacing.item);
+                                if ui.button("Close").clicked() {
+                                    close_clicked = true;
+                                }
+                            });
+                        if close_clicked {
+                            editor.about_open = false;
+                        }
+                    }
+
+                    // Phase 13: render & reap queued toasts on top of all UI.
+                    ui.show_toasts();
+                });
+
+                let output = self.ctx.end_frame();
+                let ui_us = ui_start.elapsed().as_secs_f32() * 1e6;
+                self.ui_us = self.ui_us * 0.9 + ui_us * 0.1;
+
+                let scene_paint = build_scene_paint(inner_size);
+                renderer.render(&scene_paint, &output.paint);
+                renderer.window().request_redraw();
+
+                // Phase 15: a Viewport button asked to spawn the second
+                // window. Do it now that the `renderer` borrow has ended and
+                // `event_loop` is live.
+                if self.editor.open_mesh_requested && self.mesh_window.is_none() {
+                    self.editor.open_mesh_requested = false;
+                    self.spawn_mesh_window(event_loop);
+                }
+
+                // Window menu: re-open a closed panel by docking it back in.
+                if let Some(name) = reopen_panel {
+                    self.dock_tree.add_tab(name);
+                }
+                if save_layout_requested {
+                    self.save_layout();
+                }
+
+                // A tab was dragged off the window edge: tear it off into its
+                // own OS window hosting the real panel content.
+                if let Some(d) = detached {
+                    self.spawn_panel_window(event_loop, d.tab, d.pointer);
+                }
+
+                // Resolve an in-flight re-dock once the panel window's title
+                // drag is released: if the dock accepted it, destroy the source
+                // window; otherwise un-park the window back onto the screen at
+                // the release point so it keeps living as its own float.
+                if self.pending_redock.as_ref().map(|r| r.released).unwrap_or(false) {
+                    if let Some(r) = self.pending_redock.take() {
+                        if docked {
+                            self.panel_windows.retain(|p| p.tab != r.tab);
+                        } else if let Some(pw) =
+                            self.panel_windows.iter_mut().find(|p| p.tab == r.tab)
+                        {
+                            let pos = pw.last_global - pw.drag_grab;
+                            let _ = pw.renderer.window().set_outer_position(
+                                PhysicalPosition::new(
+                                    pos.x.round() as i32,
+                                    pos.y.round() as i32,
+                                ),
+                            );
+                            pw.parked = false;
+                            pw.renderer.window().request_redraw();
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+impl App {
+    /// Open the secondary "Mesh Editor" window, sharing the device/queue from
+    /// the primary [`GpuContext`] but with its own swapchain and a fresh
+    /// independent [`Context`].
+    fn spawn_mesh_window(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return;
+        };
+        let attrs = WindowAttributes::default()
+            .with_title("crusty-gui — Mesh Editor")
+            .with_inner_size(winit::dpi::LogicalSize::new(560.0, 440.0));
+        let window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("failed to create mesh-editor window"),
+        );
+        let renderer = WindowRenderer::new(gpu, window);
+        renderer.window().request_redraw();
+        self.mesh_window = Some(renderer);
+        self.mesh_ctx = Context::default();
+        self.mesh_pointer_pos = None;
+        self.mesh_pending_events.clear();
+        self.mesh_start = Some(Instant::now());
+        self.mesh_last_frame_time = 0.0;
+    }
+
+    /// Drive the secondary window: its own input buffer, clock, and frame.
+    fn mesh_event(&mut self, _event_loop: &ActiveEventLoop, event: WindowEvent) {
+        let Some(renderer) = self.mesh_window.as_mut() else {
+            return;
+        };
+        match event {
+            WindowEvent::CloseRequested => {
+                // Close just this window; the app keeps running.
+                self.mesh_window = None;
+            }
+            WindowEvent::Resized(_) => {
+                renderer.request_rebuild();
+                renderer.window().request_redraw();
+            }
+            WindowEvent::RedrawRequested => {
+                renderer.text_mut().new_frame();
+                let size = renderer.window().inner_size();
+                let pixels_per_point = renderer.window().scale_factor() as f32;
+                let time = self
+                    .mesh_start
+                    .map(|t| t.elapsed().as_secs_f64())
+                    .unwrap_or_default();
+                let dt = if self.mesh_last_frame_time > 0.0 {
+                    (time - self.mesh_last_frame_time).max(0.001).min(0.1) as f32
+                } else {
+                    1.0 / 60.0
+                };
+                self.mesh_last_frame_time = time;
+                self.mesh_spin += dt;
+
+                let screen_rect = Rect::from_min_size(
+                    Pos2::ZERO,
+                    Vec2::new(size.width as f32, size.height as f32),
+                );
+                let input = RawInput {
+                    screen_rect,
+                    pixels_per_point,
+                    time,
+                    predicted_dt: dt,
+                    modifiers: self.modifiers,
+                    events: std::mem::take(&mut self.mesh_pending_events),
+                };
+                self.mesh_ctx.begin_frame(input);
+                self.mesh_ctx.style = self.editor.theme.style();
+
+                let spin = self.mesh_spin;
+                self.mesh_ctx.run_root(renderer.text_mut(), screen_rect, |ui| {
+                    let st = ui.style();
+                    ui.add_space(st.spacing.padding);
+                    ui.label("Mesh Editor");
+                    Label::new(
+                        "A second OS window with its own Context,\nswapchain, and glass pipeline — sharing\nthe same GPU device as the main window.",
+                    )
+                    .size(st.fonts.small)
+                    .color(st.palette.text_dim)
+                    .show(ui);
+                    ui.add_space(st.spacing.item);
+                    // A spinning triangle via the Phase 14 painter proves the
+                    // window animates off its own independent clock.
+                    let canvas = ui.allocate(Vec2::new(220.0, 220.0));
+                    let c = canvas.center();
+                    let accent = st.palette.accent;
+                    let surf = st.palette.surface;
+                    let mut p = ui.painter();
+                    p.rect_filled(canvas, 6.0, surf);
+                    let r = 78.0;
+                    let tau = std::f32::consts::TAU;
+                    let (a0, a1, a2) = (spin, spin + tau / 3.0, spin + 2.0 * tau / 3.0);
+                    p.triangle(
+                        Pos2::new(c.x + r * a0.cos(), c.y + r * a0.sin()),
+                        Pos2::new(c.x + r * a1.cos(), c.y + r * a1.sin()),
+                        Pos2::new(c.x + r * a2.cos(), c.y + r * a2.sin()),
+                        accent,
+                    );
+                });
+                let output = self.mesh_ctx.end_frame();
+                renderer.render(&[], &output.paint);
+                renderer.window().request_redraw();
+            }
+            other => apply_input_event(
+                other,
+                &mut self.mesh_pointer_pos,
+                &mut self.mesh_pending_events,
+                &mut self.modifiers,
+            ),
+        }
+    }
+
+    /// Tear a panel off into its own OS window near where it left the main
+    /// window. The window gets its own [`Context`] and a copy of the demo
+    /// texture registered on its own [`TextureRegistry`].
+    fn spawn_panel_window(&mut self, event_loop: &ActiveEventLoop, tab: String, at: Pos2) {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return;
+        };
+        // Materialize the OS window at the drop point, with its title strip
+        // under where the cursor let go. It's a normal focused window now — the
+        // drag is already over, so there's no capture trick to preserve.
+        let grab = Vec2::new(PANEL_GRAB_X, PANEL_TITLE_H * 0.5);
+        let attrs = WindowAttributes::default()
+            .with_title(format!("crusty-gui — {tab}"))
+            .with_inner_size(winit::dpi::LogicalSize::new(360.0, 420.0));
+        let window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("failed to create panel window"),
+        );
+        if let Some(main) = self.main_window.as_ref() {
+            if let Ok(origin) = main.window().inner_position() {
+                window.set_outer_position(PhysicalPosition::new(
+                    origin.x + (at.x - grab.x) as i32,
+                    origin.y + (at.y - grab.y) as i32,
+                ));
+            }
+        }
+        let mut renderer = WindowRenderer::new(gpu, window);
+        let demo_texture = build_demo_texture(gpu, &mut renderer);
+        renderer.window().request_redraw();
+        self.panel_windows.push(PanelWindow {
+            renderer,
+            ctx: Context::default(),
+            tab,
+            demo_texture,
+            pointer_pos: None,
+            pending_events: Vec::new(),
+            start: Instant::now(),
+            last_frame_time: 0.0,
+            dragging: false,
+            drag_grab: Vec2::ZERO,
+            parked: false,
+            last_global: Pos2::ZERO,
+        });
+    }
+
+    /// Drive a torn-off panel window: its own input, clock, title-bar drag,
+    /// and a frame rendering the real panel content.
+    fn panel_event(&mut self, idx: usize, event: WindowEvent) {
+        match event {
+            WindowEvent::CloseRequested => {
+                // Don't lose the panel: re-dock it into the main tree.
+                let pw = self.panel_windows.remove(idx);
+                self.redock_into_main(pw.tab);
+            }
+            WindowEvent::Resized(_) => {
+                let pw = &mut self.panel_windows[idx];
+                pw.renderer.request_rebuild();
+                pw.renderer.window().request_redraw();
+            }
+            WindowEvent::RedrawRequested => self.render_panel_window(idx),
+            WindowEvent::CursorMoved { position, .. }
+                if self.panel_windows[idx].dragging =>
+            {
+                self.drag_panel_window(idx, Pos2::new(position.x as f32, position.y as f32));
+            }
+            WindowEvent::MouseInput { state, button, .. }
+                if matches!(state, winit::event::ElementState::Released)
+                    && matches!(button, winit::event::MouseButton::Left)
+                    && self.panel_windows[idx].dragging =>
+            {
+                // Title drag released: ask the main window to commit the drop.
+                self.panel_windows[idx].dragging = false;
+                if let Some(r) = self.pending_redock.as_mut() {
+                    r.released = true;
+                }
+                if let Some(main) = self.main_window.as_ref() {
+                    main.window().request_redraw();
+                }
+            }
+            other => {
+                let pw = &mut self.panel_windows[idx];
+                apply_input_event(
+                    other,
+                    &mut pw.pointer_pos,
+                    &mut pw.pending_events,
+                    &mut self.modifiers,
+                );
+            }
+        }
+    }
+
+    /// While the title bar is held, park the floating window far off-screen so
+    /// its solid body stops covering the main window's drop indicators, then
+    /// report the cursor (in the main window's client space) so the dock lights
+    /// up the live drop zone. The OS keeps the pointer captured here even while
+    /// parked, so moves/release keep flowing in.
+    fn drag_panel_window(&mut self, idx: usize, local: Pos2) {
+        let win = self.panel_windows[idx].renderer.window().clone();
+        let Ok(inner) = win.inner_position() else {
+            return;
+        };
+        // Recover the true screen-space cursor from the (possibly parked)
+        // window origin plus the window-local cursor. Done before parking so
+        // the first move still reads the on-screen origin.
+        let global = Pos2::new(inner.x as f32 + local.x, inner.y as f32 + local.y);
+        self.panel_windows[idx].last_global = global;
+        if !self.panel_windows[idx].parked {
+            let _ = win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
+            self.panel_windows[idx].parked = true;
+        }
+        if let Some(main) = self.main_window.as_ref() {
+            if let Ok(morigin) = main.window().inner_position() {
+                let mlocal =
+                    Pos2::new(global.x - morigin.x as f32, global.y - morigin.y as f32);
+                let tab = self.panel_windows[idx].tab.clone();
+                self.pending_redock = Some(RedockDrag {
+                    tab,
+                    pointer: mlocal,
+                    released: false,
+                    force: false,
+                });
+                main.window().request_redraw();
+            }
+        }
+    }
+
+    /// Queue a tab to be re-inserted into the main dock on its next frame
+    /// (used when a panel window is closed). Drops near the top-left leaf.
+    fn redock_into_main(&mut self, tab: String) {
+        self.pending_redock = Some(RedockDrag {
+            tab,
+            pointer: Pos2::new(8.0, 8.0),
+            released: true,
+            force: true,
+        });
+        if let Some(main) = self.main_window.as_ref() {
+            main.window().request_redraw();
+        }
+    }
+
+    /// Render a single torn-off panel window: a draggable title strip plus
+    /// the panel's real content via [`render_panel`].
+    fn render_panel_window(&mut self, idx: usize) {
+        let pw = &mut self.panel_windows[idx];
+        pw.renderer.text_mut().new_frame();
+        let size = pw.renderer.window().inner_size();
+        let pixels_per_point = pw.renderer.window().scale_factor() as f32;
+        let time = pw.start.elapsed().as_secs_f64();
+        let dt = if pw.last_frame_time > 0.0 {
+            (time - pw.last_frame_time).max(0.001).min(0.1) as f32
+        } else {
+            1.0 / 60.0
+        };
+        pw.last_frame_time = time;
+        let screen_rect = Rect::from_min_size(
+            Pos2::ZERO,
+            Vec2::new(size.width as f32, size.height as f32),
+        );
+        let input = RawInput {
+            screen_rect,
+            pixels_per_point,
+            time,
+            predicted_dt: dt,
+            modifiers: self.modifiers,
+            events: std::mem::take(&mut pw.pending_events),
+        };
+        let stats = PanelStats {
+            frame_time_ms: (dt * 1000.0) as f32,
+            ui_us: self.ui_us,
+            tess_us: pw.renderer.tess_us(),
+            gpu_name: self.gpu_name.clone(),
+            demo_texture: pw.demo_texture,
+            mesh_already_open: self.mesh_window.is_some(),
+        };
+        let editor = &mut self.editor;
+        pw.ctx.begin_frame(input);
+        pw.ctx.style = editor.theme.style();
+        let tab = pw.tab.clone();
+        let width = size.width as f32;
+        let st = pw.ctx.style;
+
+        // Draggable title strip across the top.
+        let strip = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, PANEL_TITLE_H));
+        pw.ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+            strip,
+            st.rounding.small,
+            st.palette.surface_active,
+        )));
+        {
+            let pos = Pos2::new(strip.min.x + 8.0, strip.min.y + 5.0);
+            let label = format!("\u{2725} {tab}  (drag to re-dock)");
+            let mut tmp = Vec::new();
+            pw.renderer.text_mut().add_text(
+                &mut tmp,
+                &label,
+                st.fonts.small,
+                pos,
+                st.palette.text_dim,
+                None,
+            );
+            pw.ctx.paint.extend(tmp);
+        }
+
+        // Panel content fills a bounded rect *below* the strip — exactly like
+        // a dock leaf's body — so `ui.available()` (and the scroll areas that
+        // size themselves from it) get the right height instead of the whole
+        // window, which previously clipped most of the panel away.
+        let content_rect = Rect::from_min_max(
+            Pos2::new(0.0, PANEL_TITLE_H),
+            Pos2::new(width, size.height as f32),
+        );
+        let opts = UiOptions {
+            padding: Vec2::splat(st.spacing.padding),
+            spacing: st.spacing.item,
+        };
+        pw.ctx.paint.push(PaintCmd::PushClip(content_rect));
+        {
+            let root_id = Id::ROOT.with("panel").with(&tab);
+            let mut ui = Ui::with_root(
+                &mut pw.ctx,
+                pw.renderer.text_mut(),
+                content_rect,
+                Direction::TopDown,
+                opts,
+                root_id,
+            );
+            render_panel(&mut ui, &tab, editor, &stats);
+        }
+        pw.ctx.paint.push(PaintCmd::PopClip);
+        let output = pw.ctx.end_frame();
+        pw.renderer.render(&[], &output.paint);
+        pw.renderer.window().request_redraw();
+
+        // Begin a title-bar drag if the user pressed inside the strip.
+        if !pw.dragging && pw.ctx.input.pointer_pressed {
+            if let Some(p) = pw.ctx.input.pointer_pos {
+                if p.y <= PANEL_TITLE_H {
+                    pw.dragging = true;
+                    pw.drag_grab = Vec2::new(p.x, p.y);
+                }
+            }
+        }
+    }
+}
+
+/// Render one dock panel's content. Shared by the main window's dock and
+/// popped-out OS windows, so a torn-off panel shows its real UI.
+fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelStats) {
+    let volume = &mut ed.volume;
+    let brightness = &mut ed.brightness;
+    let preview_enabled = &mut ed.preview_enabled;
+    let auto_save = &mut ed.auto_save;
+    let quality = &mut ed.quality;
+    let theme = &mut ed.theme;
+    let entity_name = &mut ed.entity_name;
+    let asset_path = &mut ed.asset_path;
+    let inspector_slot = &mut ed.inspector_slot;
+    let selected_entity = &mut ed.selected_entity;
+    let click_count = &mut ed.click_count;
+    let settings_open = &mut ed.settings_open;
+    let about_open = &mut ed.about_open;
+    let open_mesh = &mut ed.open_mesh_requested;
+    let frame_time_ms = stats.frame_time_ms;
+    let ui_us = stats.ui_us;
+    let tess_us = stats.tess_us;
+    let gpu_name = &stats.gpu_name;
+    let demo_texture = stats.demo_texture;
+    let mesh_already_open = stats.mesh_already_open;
+    match panel {
                         "Hierarchy" => {
                             let avail = ui.available().height();
                             ui.scroll_area(avail, |ui| {
@@ -1128,10 +1295,19 @@ impl ApplicationHandler for App {
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
                             if ui.button("Open Settings window").clicked() {
-                                settings_open = true;
+                                *settings_open = true;
                             }
                             if ui.button("Open About (modal)").clicked() {
-                                about_open = true;
+                                *about_open = true;
+                            }
+                            // Phase 15: spawn an independent second window.
+                            let mesh_label = if mesh_already_open {
+                                "Mesh Editor window (open)"
+                            } else {
+                                "Open Mesh Editor window"
+                            };
+                            if ui.button(mesh_label).clicked() && !mesh_already_open {
+                                *open_mesh = true;
                             }
                             });
                         }
@@ -1284,13 +1460,13 @@ impl ApplicationHandler for App {
 
                                 let click_resp = ui.button("Click me");
                                 if click_resp.clicked() {
-                                    click_delta += 1;
+                                    *click_count += 1;
                                 }
                                 ui.tooltip_for(
                                     click_resp.rect,
                                     "Increments the click counter \u{2014} try right-clicking the Camera in Hierarchy for a context menu",
                                 );
-                                Label::new(format!("Buttons clicked: {}", click_count))
+                                Label::new(format!("Buttons clicked: {}", *click_count))
                                     .size(st.fonts.small)
                                     .color(st.palette.text_dim)
                                     .show(ui);
@@ -1412,81 +1588,120 @@ impl ApplicationHandler for App {
                                 .show(ui);
                         }
                         _ => {}
-                    },
-                );
-                self.click_count = self.click_count.saturating_add(click_delta);
+    }
+}
 
-                // ── Phase 9: floating windows (own layers, z-ordered,
-                // click-to-front; the modal blocks everything beneath).
-                let window_slider = &mut self.window_slider;
-                self.ctx.run_root(&mut renderer.text, screen_rect, |ui| {
-                    GuiWindow::new("Settings")
-                        .open(&mut settings_open)
-                        .default_pos(Pos2::new(260.0, 140.0))
-                        .default_size(Vec2::new(320.0, 260.0))
-                        .show(ui, |ui| {
-                            ui.label("A floating window:");
-                            let st = ui.style();
-                            Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_dim)
-                                .show(ui);
-                            ui.add_space(st.spacing.item);
-                            ui.slider(window_slider, 0.0..=1.0);
-                            ui.progress_bar(*window_slider);
-                            ui.add_space(st.spacing.item);
-                            if ui.button("Open About (modal)").clicked() {
-                                about_open = true;
-                            }
-                        });
-
-                    if about_open {
-                        let mut close_clicked = false;
-                        GuiWindow::new("About crusty-gui")
-                            .open(&mut about_open)
-                            .modal(true)
-                            .resizable(false)
-                            .collapsible(false)
-                            .close_on_click_outside(true)
-                            .default_pos(Pos2::new(
-                                screen_rect.center().x - 170.0,
-                                screen_rect.center().y - 110.0,
-                            ))
-                            .default_size(Vec2::new(340.0, 200.0))
-                            .show(ui, |ui| {
-                                ui.label("crusty-gui \u{2014} Phase 9");
-                                let st = ui.style();
-                                Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
-                                    .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
-                                    .show(ui);
-                                ui.add_space(st.spacing.item);
-                                if ui.button("Close").clicked() {
-                                    close_clicked = true;
-                                }
-                            });
-                        if close_clicked {
-                            about_open = false;
-                        }
-                    }
-
-                    // Phase 13: render & reap queued toasts on top of all UI.
-                    ui.show_toasts();
+/// Translate a winit input event into our [`Event`] stream for a window.
+/// Non-input events (close/resize/redraw) are handled by the caller and
+/// fall through here as no-ops.
+fn apply_input_event(
+    event: WindowEvent,
+    pointer_pos: &mut Option<Pos2>,
+    pending_events: &mut Vec<Event>,
+    modifiers: &mut Modifiers,
+) {
+    match event {
+        WindowEvent::CursorMoved { position, .. } => {
+            let pos = Pos2::new(position.x as f32, position.y as f32);
+            *pointer_pos = Some(pos);
+            pending_events.push(Event::PointerMoved(pos));
+        }
+        WindowEvent::CursorLeft { .. } => {
+            *pointer_pos = None;
+            pending_events.push(Event::PointerGone);
+        }
+        WindowEvent::MouseInput { state, button, .. } => {
+            let our_button = match button {
+                winit::event::MouseButton::Left => MouseButton::Primary,
+                winit::event::MouseButton::Right => MouseButton::Secondary,
+                winit::event::MouseButton::Middle => MouseButton::Middle,
+                _ => MouseButton::Other(0),
+            };
+            let pressed = matches!(state, winit::event::ElementState::Pressed);
+            if let Some(pos) = *pointer_pos {
+                pending_events.push(Event::PointerButton {
+                    pos,
+                    button: our_button,
+                    pressed,
+                    modifiers: *modifiers,
                 });
-                self.settings_window_open = settings_open;
-                self.about_modal_open = about_open;
-
-                let output = self.ctx.end_frame();
-                let ui_us = ui_start.elapsed().as_secs_f32() * 1e6;
-                self.ui_us = self.ui_us * 0.9 + ui_us * 0.1;
-
-                let scene_paint = build_scene_paint(inner_size);
-                renderer.render(&scene_paint, &output.paint);
-                renderer.window.request_redraw();
             }
-            _ => {}
+        }
+        WindowEvent::ModifiersChanged(mods) => {
+            let s = mods.state();
+            let mut m = Modifiers::empty();
+            m.set(Modifiers::SHIFT, s.shift_key());
+            m.set(Modifiers::CTRL, s.control_key());
+            m.set(Modifiers::ALT, s.alt_key());
+            m.set(Modifiers::META, s.super_key());
+            *modifiers = m;
+        }
+        WindowEvent::MouseWheel { delta, .. } => {
+            use winit::event::MouseScrollDelta;
+            let v = match delta {
+                MouseScrollDelta::LineDelta(x, y) => Vec2::new(x, y),
+                MouseScrollDelta::PixelDelta(p) => {
+                    Vec2::new((p.x as f32) / 20.0, (p.y as f32) / 20.0)
+                }
+            };
+            pending_events.push(Event::Scroll(v));
+        }
+        WindowEvent::KeyboardInput { event: key_event, .. } => {
+            use winit::event::ElementState;
+            use winit::keyboard::{Key as WKey, NamedKey};
+            let pressed = matches!(key_event.state, ElementState::Pressed);
+            let key = match &key_event.logical_key {
+                WKey::Named(named) => match named {
+                    NamedKey::Backspace => Key::Backspace,
+                    NamedKey::Enter => Key::Enter,
+                    NamedKey::Tab => Key::Tab,
+                    NamedKey::Escape => Key::Escape,
+                    NamedKey::Space => Key::Space,
+                    NamedKey::ArrowLeft => Key::ArrowLeft,
+                    NamedKey::ArrowRight => Key::ArrowRight,
+                    NamedKey::ArrowUp => Key::ArrowUp,
+                    NamedKey::ArrowDown => Key::ArrowDown,
+                    NamedKey::Home => Key::Home,
+                    NamedKey::End => Key::End,
+                    NamedKey::PageUp => Key::PageUp,
+                    NamedKey::PageDown => Key::PageDown,
+                    NamedKey::Delete => Key::Delete,
+                    NamedKey::Insert => Key::Insert,
+                    _ => Key::Unknown,
+                },
+                WKey::Character(s) => s.chars().next().map(Key::Char).unwrap_or(Key::Unknown),
+                _ => Key::Unknown,
+            };
+            pending_events.push(Event::Key {
+                key,
+                pressed,
+                repeat: key_event.repeat,
+                modifiers: *modifiers,
+            });
+            if pressed {
+                if let Some(text) = &key_event.text {
+                    pending_events.push(Event::Text(text.as_str().to_string()));
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Build the checkerboard demo texture and register it on `window`'s
+/// texture registry, returning its [`TextureId`].
+fn build_demo_texture(gpu: &GpuContext, window: &mut WindowRenderer) -> TextureId {
+    const N: u32 = 64;
+    let mut pixels = Vec::with_capacity((N * N * 4) as usize);
+    for y in 0..N {
+        for x in 0..N {
+            let on = ((x / 8) + (y / 8)) % 2 == 0;
+            let (r, g, b) = if on { (90, 130, 200) } else { (30, 40, 60) };
+            pixels.extend_from_slice(&[r, g, b, 255]);
         }
     }
+    let view = upload_rgba_texture(gpu.device.clone(), gpu.queue.clone(), N, N, &pixels);
+    window.registry_mut().register(view, TextureFilter::Nearest)
 }
 
 fn main() {
