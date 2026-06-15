@@ -127,6 +127,10 @@ pub struct Memory {
     /// Cleared at the start of every frame.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub popup_close_requested: bool,
+    /// Focusable widget ids in declaration order, rebuilt every frame.
+    /// Drives Tab / Shift-Tab focus traversal.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    focusable: Vec<Id>,
 }
 
 /// Serde adapter: persist a `HashMap<Id, V>` as a `Vec<(Id, V)>` so it works
@@ -162,6 +166,32 @@ mod id_map_serde {
 impl Memory {
     pub fn get(&self, id: Id) -> Option<&WidgetMemory> {
         self.widgets.get(&id)
+    }
+
+    /// Register `id` as focusable this frame (call once per frame, in
+    /// layout order). Order determines Tab / Shift-Tab traversal.
+    pub fn register_focusable(&mut self, id: Id) {
+        self.focusable.push(id);
+    }
+
+    /// Move keyboard focus to the next (or previous, when `backward`)
+    /// registered focusable widget, wrapping around. With nothing focused,
+    /// focuses the first (or last) entry.
+    pub fn focus_next(&mut self, backward: bool) {
+        let n = self.focusable.len();
+        if n == 0 {
+            return;
+        }
+        let cur = self
+            .focused_widget
+            .and_then(|f| self.focusable.iter().position(|&i| i == f));
+        let next = match cur {
+            Some(i) if backward => (i + n - 1) % n,
+            Some(i) => (i + 1) % n,
+            None if backward => n - 1,
+            None => 0,
+        };
+        self.focused_widget = Some(self.focusable[next]);
     }
 
     pub fn get_or_default(&mut self, id: Id) -> &mut WidgetMemory {
@@ -318,6 +348,7 @@ impl Memory {
     /// Run at the start of each frame, before any widget code runs.
     /// Marks every entry as not-yet-seen so we can detect dead widgets.
     pub fn begin_frame(&mut self) {
+        self.focusable.clear();
         for entry in self.widgets.values_mut() {
             entry.seen_this_frame = false;
         }

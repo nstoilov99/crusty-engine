@@ -8,7 +8,13 @@
 use crate::context::Context;
 use crate::id::Id;
 use crate::math::{Pos2, Rect, Vec2};
+use crate::paint::{PaintCmd, RectShape};
 use crate::text::TextRenderer;
+use std::any::TypeId;
+
+/// Pointer travel (px) before a press inside a drag source turns into an
+/// actual drag, so a click doesn't accidentally start dragging.
+const DRAG_THRESHOLD: f32 = 4.0;
 
 /// Direction the cursor advances when widgets allocate space.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -154,6 +160,120 @@ impl<'a> Ui<'a> {
     /// when other `ui.*` methods need `&mut`.
     pub fn style(&self) -> crate::style::Style {
         self.ctx.style
+    }
+
+    /// Drag source. When the user presses inside `rect` and moves past a
+    /// small threshold, begins carrying a type-erased `payload` (built
+    /// lazily so it's only constructed once a real drag starts) labelled
+    /// `label`. A translucent ghost follows the pointer until release.
+    /// Returns `true` while this source's drag is active so the caller can
+    /// dim the original.
+    pub fn dnd_drag_source<T: 'static>(
+        &mut self,
+        id: Id,
+        rect: Rect,
+        label: impl Into<String>,
+        payload: impl FnOnce() -> T,
+    ) -> bool {
+        if self.ctx.input.pointer_pressed && self.contains_pointer(rect) {
+            if let Some(p) = self.ctx.input.pointer_pos {
+                self.ctx.memory.active_widget = Some(id);
+                self.ctx.memory.data_insert::<Pos2>(id, p);
+            }
+        }
+
+        if self.ctx.memory.active_widget != Some(id) {
+            return false;
+        }
+
+        // Already carrying this payload — keep the ghost alive.
+        if self.ctx.dnd.is_dragging() {
+            if self.ctx.input.pointer_down {
+                self.render_dnd_ghost();
+                return true;
+            }
+            return false;
+        }
+
+        // Pressed but not yet activated: arm once the pointer travels far
+        // enough from the press origin.
+        if self.ctx.input.pointer_down {
+            if let (Some(p), Some(start)) = (
+                self.ctx.input.pointer_pos,
+                self.ctx.memory.data_get::<Pos2>(id).copied(),
+            ) {
+                let dx = p.x - start.x;
+                let dy = p.y - start.y;
+                if (dx * dx + dy * dy).sqrt() > DRAG_THRESHOLD {
+                    let value = payload();
+                    self.ctx.dnd.begin(
+                        Box::new(value),
+                        TypeId::of::<T>(),
+                        label.into(),
+                    );
+                    self.render_dnd_ghost();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Drop target. If a payload of type `T` is hovering `rect` and the
+    /// pointer is released this frame, takes it and returns the value,
+    /// ending the drag.
+    pub fn dnd_drop_target<T: 'static>(&mut self, rect: Rect) -> Option<T> {
+        if self.ctx.input.pointer_released
+            && self.ctx.dnd.holds::<T>()
+            && self.contains_pointer(rect)
+        {
+            self.ctx.dnd.take::<T>()
+        } else {
+            None
+        }
+    }
+
+    /// True when a payload of type `T` is in flight and currently over
+    /// `rect`. Use to highlight compatible slots mid-drag.
+    pub fn dnd_hovering<T: 'static>(&self, rect: Rect) -> bool {
+        self.ctx.dnd.is_dragging()
+            && self.ctx.dnd.holds::<T>()
+            && self.contains_pointer(rect)
+    }
+
+    /// Draw a faint labelled chip at the pointer into the overlay layer so
+    /// the drag preview floats above everything else.
+    fn render_dnd_ghost(&mut self) {
+        let Some(pos) = self.ctx.input.pointer_pos else {
+            return;
+        };
+        let Some(label) = self.ctx.dnd.label().map(str::to_owned) else {
+            return;
+        };
+        let style = self.ctx.style;
+        let label_size = self.text.measure(&label, style.fonts.body, None);
+        let pad = Vec2::new(10.0, 6.0);
+        let size = Vec2::new(label_size.x + pad.x * 2.0, label_size.y + pad.y * 2.0);
+        let origin = Pos2::new(pos.x + 8.0, pos.y - size.y * 0.5);
+        let rect = Rect::from_min_size(origin, size);
+
+        let mut fill = style.palette.surface;
+        fill.a = 0.7;
+        let mut stroke = style.palette.accent;
+        stroke.a = 0.85;
+        let shape =
+            RectShape::fill(rect, style.rounding.small, fill).with_stroke(1.0, stroke);
+        self.ctx.overlay_paint.push(PaintCmd::Rrect(shape));
+
+        let text_pos = Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y);
+        self.text.add_text(
+            &mut self.ctx.overlay_paint,
+            &label,
+            style.fonts.body,
+            text_pos,
+            style.palette.text.with_alpha(0.9),
+            None,
+        );
     }
 
     /// Allocate a fresh widget Id derived from the Ui's index counter and

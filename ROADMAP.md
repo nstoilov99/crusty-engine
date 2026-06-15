@@ -77,10 +77,10 @@ Cursor-based top-down/left-right is too weak for the inspector and profiler.
 
 ## Phase 13 — Editor-grade interaction
 
-- [ ] Drag & drop payload system (asset browser → inspector slots)
-- [ ] Clipboard (arboard) + full IME in TextEdit
-- [ ] Keyboard focus traversal (Tab / Shift-Tab), shortcuts API
-- [ ] Menu bar / nested menus, toasts
+- [x] Drag & drop payload system (asset browser → inspector slots)
+- [x] Clipboard (arboard) + full IME in TextEdit
+- [x] Keyboard focus traversal (Tab / Shift-Tab), shortcuts API
+- [x] Menu bar / nested menus, toasts
 
 ## Phase 14 — Painter API
 

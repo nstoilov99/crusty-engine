@@ -4,6 +4,7 @@
 //! grow over subsequent phases.
 
 pub mod animation;
+pub mod clipboard;
 pub mod math;
 pub mod id;
 pub mod input;
@@ -25,7 +26,7 @@ pub mod backend;
 pub mod prelude {
     pub use crate::context::{Align, Context, Direction, Ui, UiOptions};
     pub use crate::id::Id;
-    pub use crate::input::{Event, Key, MouseButton, RawInput};
+    pub use crate::input::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
     pub use crate::layer::Order;
     pub use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
     pub use crate::paint::{PaintCmd, RectShape, TextureFilter, TextureId};
@@ -35,6 +36,6 @@ pub mod prelude {
     pub use crate::widgets::{
         Area, Button, Checkbox, CollapsingHeader, Column, ComboBox, Grid, GridUi, Image,
         ImageButton, Label, ProgressBar, Radio, ScrollArea, SelectableValue, Slider, SortDir,
-        Table, TableBody, TableOutput, TableRow, TextEdit, TreeNode, Window,
+        Table, TableBody, TableOutput, TableRow, TextEdit, ToastKind, TreeNode, Window,
     };
 }

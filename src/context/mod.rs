@@ -5,9 +5,11 @@
 //! input state. Widgets read these and append paint commands during the
 //! frame.
 
+mod dnd;
 mod memory;
 mod ui;
 
+pub use dnd::DragDrop;
 pub use memory::{AreaState, Memory, WidgetMemory};
 pub use ui::{Align, Direction, Ui, UiOptions};
 
@@ -34,6 +36,8 @@ pub struct Context {
     /// Active style; read by widgets every frame. Swap freely between
     /// frames to retheme the UI.
     pub style: Style,
+    /// In-flight drag-and-drop payload (type-erased).
+    pub dnd: DragDrop,
 
     screen_rect: Rect,
     pixels_per_point: f32,
@@ -96,6 +100,16 @@ impl Context {
         debug_assert!(self.inside_frame, "end_frame called without begin_frame");
         if self.input.pointer_released {
             self.memory.active_widget = None;
+            // Any drop target had its chance during the frame; a release
+            // that reaches here means the drag ended over empty space.
+            self.dnd.clear();
+        }
+        // Tab / Shift-Tab moves keyboard focus among widgets that registered
+        // as focusable this frame. Handled here, after the whole UI has been
+        // built, so the focus order is complete; the change lands next frame.
+        if let Some(tab) = self.input.key_presses.iter().find(|k| k.key == Key::Tab) {
+            let backward = tab.modifiers.contains(Modifiers::SHIFT);
+            self.memory.focus_next(backward);
         }
         self.memory.end_frame(8);
         self.inside_frame = false;
@@ -296,5 +310,29 @@ impl InputState {
     /// frame. Convenience for widgets that don't care about modifiers.
     pub fn key_pressed(&self, key: Key) -> bool {
         self.key_presses.iter().any(|k| k.key == key)
+    }
+
+    /// True if `shortcut` (key + exact modifier set) was pressed this frame,
+    /// without consuming it. Use [`consume_shortcut`](Self::consume_shortcut)
+    /// when only one handler should fire.
+    pub fn shortcut_pressed(&self, shortcut: crate::input::Shortcut) -> bool {
+        self.key_presses
+            .iter()
+            .any(|k| k.key == shortcut.key && k.modifiers == shortcut.modifiers)
+    }
+
+    /// Like [`shortcut_pressed`](Self::shortcut_pressed) but removes the
+    /// matching press so later handlers in the same frame won't also see it.
+    pub fn consume_shortcut(&mut self, shortcut: crate::input::Shortcut) -> bool {
+        if let Some(pos) = self
+            .key_presses
+            .iter()
+            .position(|k| k.key == shortcut.key && k.modifiers == shortcut.modifiers)
+        {
+            self.key_presses.remove(pos);
+            true
+        } else {
+            false
+        }
     }
 }

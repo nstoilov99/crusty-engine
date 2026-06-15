@@ -6,4 +6,4 @@
 
 mod events;
 
-pub use events::{Event, Key, Modifiers, MouseButton, RawInput};
+pub use events::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};

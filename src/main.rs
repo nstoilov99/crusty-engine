@@ -596,6 +596,7 @@ struct App {
     last_frame_time: f64,
     pointer_pos: Option<Pos2>,
     pending_events: Vec<Event>,
+    modifiers: Modifiers,
     // Demo state — persisted across frames in App, mutated through widgets.
     click_count: u32,
     volume: f32,
@@ -613,6 +614,8 @@ struct App {
     about_modal_open: bool,
     window_slider: f32,
     ui_us: f32,
+    /// Asset name dropped onto the Inspector's material slot (Phase 13 DnD).
+    inspector_slot: Option<String>,
 }
 
 impl Default for App {
@@ -624,6 +627,7 @@ impl Default for App {
             last_frame_time: 0.0,
             pointer_pos: None,
             pending_events: Vec::new(),
+            modifiers: Modifiers::empty(),
             click_count: 0,
             volume: 0.6,
             brightness: 0.8,
@@ -640,6 +644,7 @@ impl Default for App {
             about_modal_open: false,
             window_slider: 0.4,
             ui_us: 0.0,
+            inspector_slot: None,
         }
     }
 }
@@ -770,9 +775,18 @@ impl ApplicationHandler for App {
                         pos,
                         button: our_button,
                         pressed,
-                        modifiers: Default::default(),
+                        modifiers: self.modifiers,
                     });
                 }
+            }
+            WindowEvent::ModifiersChanged(mods) => {
+                let s = mods.state();
+                let mut m = Modifiers::empty();
+                m.set(Modifiers::SHIFT, s.shift_key());
+                m.set(Modifiers::CTRL, s.control_key());
+                m.set(Modifiers::ALT, s.alt_key());
+                m.set(Modifiers::META, s.super_key());
+                self.modifiers = m;
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 use winit::event::MouseScrollDelta;
@@ -817,7 +831,7 @@ impl ApplicationHandler for App {
                     key,
                     pressed,
                     repeat: key_event.repeat,
-                    modifiers: Default::default(),
+                    modifiers: self.modifiers,
                 });
                 if pressed {
                     if let Some(text) = &key_event.text {
@@ -854,8 +868,8 @@ impl ApplicationHandler for App {
                     pixels_per_point,
                     time,
                     predicted_dt: dt,
+                    modifiers: self.modifiers,
                     events: std::mem::take(&mut self.pending_events),
-                    ..Default::default()
                 };
 
                 let ui_start = Instant::now();
@@ -879,6 +893,7 @@ impl ApplicationHandler for App {
                 let theme = &mut self.theme;
                 let entity_name = &mut self.entity_name;
                 let asset_path = &mut self.asset_path;
+                let inspector_slot = &mut self.inspector_slot;
                 let selected_entity = &mut self.selected_entity;
                 let click_count = self.click_count;
                 let frame_time_ms = (dt * 1000.0) as f32;
@@ -961,6 +976,69 @@ impl ApplicationHandler for App {
                         }
                         "Viewport" => {
                             let st = ui.style();
+                            // Phase 13: menu bar with nested submenu. Picks
+                            // raise toasts so the action is visible.
+                            ui.menu_bar(|ui| {
+                                ui.menu_button("File", |ui| {
+                                    if ui.menu_item("New Scene") {
+                                        ui.toast("Created a new scene");
+                                    }
+                                    if ui.menu_item("Save") {
+                                        ui.toast_success("Scene saved");
+                                    }
+                                    ui.submenu("Export", |ui| {
+                                        if ui.menu_item("glTF") {
+                                            ui.toast("Exported glTF");
+                                        }
+                                        if ui.menu_item("FBX") {
+                                            ui.toast("Exported FBX");
+                                        }
+                                    });
+                                    if ui.menu_item("Quit") {
+                                        ui.toast_error("Quit is just a demo here");
+                                    }
+                                });
+                                ui.menu_button("Edit", |ui| {
+                                    if ui.menu_item("Undo") {
+                                        ui.toast("Nothing to undo");
+                                    }
+                                    let _ = ui.menu_item("Redo");
+                                });
+                            });
+                            ui.add_space(st.spacing.padding);
+                            // Phase 13: a draggable asset chip (drag source).
+                            let chip_label = "metal.png";
+                            let chip = ui.allocate(Vec2::new(120.0, 24.0));
+                            let chip_id = ui.alloc_id("asset_metal");
+                            let dragging = ui.dnd_drag_source(
+                                chip_id,
+                                chip,
+                                chip_label,
+                                || chip_label.to_string(),
+                            );
+                            let chip_fill = if dragging {
+                                st.palette.surface_active
+                            } else {
+                                st.palette.surface_hover
+                            };
+                            ui.ctx_mut().paint.push(PaintCmd::Rrect(
+                                RectShape::fill(chip, st.rounding.small, chip_fill)
+                                    .with_stroke(1.0, st.palette.stroke),
+                            ));
+                            {
+                                let pos = Pos2::new(chip.min.x + 8.0, chip.min.y + 5.0);
+                                let mut tmp = Vec::new();
+                                ui.text_mut().add_text(
+                                    &mut tmp,
+                                    chip_label,
+                                    st.fonts.small,
+                                    pos,
+                                    st.palette.text,
+                                    None,
+                                );
+                                ui.ctx_mut().paint.extend(tmp);
+                            }
+                            ui.add_space(st.spacing.padding);
                             Label::new("Viewport")
                                 .color(st.palette.text_dim)
                                 .show(ui);
@@ -1011,6 +1089,54 @@ impl ApplicationHandler for App {
                                     ui.add_space(ui.style().spacing.padding);
                                     ui.radio_value(theme, Theme::Glassmorphism, "Glass");
                                 });
+                                ui.add_space(st.spacing.padding);
+
+                                // Phase 13: drop target for the Viewport's
+                                // draggable asset chip.
+                                Label::new("Material")
+                                    .size(st.fonts.small)
+                                    .color(st.palette.text_dim)
+                                    .show(ui);
+                                let slot = ui.allocate(Vec2::new(
+                                    ui.available().width(),
+                                    28.0,
+                                ));
+                                let hovering = ui.dnd_hovering::<String>(slot);
+                                if let Some(name) = ui.dnd_drop_target::<String>(slot) {
+                                    *inspector_slot = Some(name);
+                                }
+                                let slot_fill = if hovering {
+                                    let mut a = st.palette.accent;
+                                    a.a = 0.30;
+                                    a
+                                } else {
+                                    st.palette.surface
+                                };
+                                let slot_stroke = if hovering {
+                                    st.palette.accent
+                                } else {
+                                    st.palette.stroke
+                                };
+                                ui.ctx_mut().paint.push(PaintCmd::Rrect(
+                                    RectShape::fill(slot, st.rounding.small, slot_fill)
+                                        .with_stroke(1.0, slot_stroke),
+                                ));
+                                {
+                                    let slot_text = inspector_slot
+                                        .as_deref()
+                                        .unwrap_or("Drag an asset here");
+                                    let pos = Pos2::new(slot.min.x + 8.0, slot.min.y + 7.0);
+                                    let mut tmp = Vec::new();
+                                    ui.text_mut().add_text(
+                                        &mut tmp,
+                                        slot_text,
+                                        st.fonts.small,
+                                        pos,
+                                        st.palette.text,
+                                        None,
+                                    );
+                                    ui.ctx_mut().paint.extend(tmp);
+                                }
                                 ui.add_space(st.spacing.padding);
 
                                 ui.collapsing("Entity", |ui| {
@@ -1284,6 +1410,9 @@ impl ApplicationHandler for App {
                             about_open = false;
                         }
                     }
+
+                    // Phase 13: render & reap queued toasts on top of all UI.
+                    ui.show_toasts();
                 });
                 self.settings_window_open = settings_open;
                 self.about_modal_open = about_open;

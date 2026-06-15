@@ -56,6 +56,31 @@ bitflags! {
     }
 }
 
+/// A keyboard shortcut: a [`Key`] plus the exact modifier set that must be
+/// held. Match against a frame's input with
+/// [`InputState::consume_shortcut`](crate::context::InputState::consume_shortcut).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Shortcut {
+    pub modifiers: Modifiers,
+    pub key: Key,
+}
+
+impl Shortcut {
+    pub const fn new(modifiers: Modifiers, key: Key) -> Self {
+        Self { modifiers, key }
+    }
+
+    /// `Ctrl` + `key`.
+    pub const fn ctrl(key: Key) -> Self {
+        Self::new(Modifiers::CTRL, key)
+    }
+
+    /// `Ctrl` + `Shift` + `key`.
+    pub const fn ctrl_shift(key: Key) -> Self {
+        Self::new(Modifiers::CTRL.union(Modifiers::SHIFT), key)
+    }
+}
+
 /// Logical key codes. Mirrors the subset of `winit::keyboard::Key` that
 /// crusty-gui cares about; the host translates from `winit` into this.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
