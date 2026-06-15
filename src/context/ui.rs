@@ -70,6 +70,11 @@ pub struct Ui<'a> {
     /// Floating area this Ui belongs to (`None` = root UI). Drives
     /// occlusion-aware hit testing in [`contains_pointer`](Self::contains_pointer).
     area: Option<Id>,
+    /// Hit-test bound. Widget rects are intersected with this before testing
+    /// the pointer, so content that overflows its container (e.g. a dock
+    /// panel) can't be clicked outside the container's bounds. Defaults to
+    /// the Ui's full rect; scroll viewports and clipped containers narrow it.
+    clip: Rect,
 }
 
 impl<'a> Ui<'a> {
@@ -104,6 +109,7 @@ impl<'a> Ui<'a> {
             used: Rect::from_min_size(cursor, Vec2::ZERO),
             root_id,
             area: None,
+            clip: rect,
         }
     }
 
@@ -119,12 +125,25 @@ impl<'a> Ui<'a> {
         self.area
     }
 
+    /// The current hit-test bound. Widget rects are intersected with this in
+    /// [`contains_pointer`](Self::contains_pointer).
+    pub fn clip_rect(&self) -> Rect {
+        self.clip
+    }
+
+    /// Narrow (or replace) the hit-test bound. Containers that scissor their
+    /// content — scroll viewports, clipped panels — call this so overflowing
+    /// widgets can't be clicked outside the visible region.
+    pub fn set_clip(&mut self, clip: Rect) {
+        self.clip = clip;
+    }
+
     /// Occlusion-aware pointer test: true when the pointer is inside
     /// `rect` and no floating area above this Ui's layer (or a modal)
     /// owns the pointer. Widgets use this instead of raw
     /// `input.pointer_in`.
     pub fn contains_pointer(&self, rect: Rect) -> bool {
-        self.ctx.pointer_over(self.area, rect)
+        self.ctx.pointer_over(self.area, rect.intersect(self.clip))
     }
 
     pub fn ctx(&self) -> &Context {
@@ -160,6 +179,24 @@ impl<'a> Ui<'a> {
     /// when other `ui.*` methods need `&mut`.
     pub fn style(&self) -> crate::style::Style {
         self.ctx.style
+    }
+
+    /// A low-level [`Painter`](crate::paint::Painter) over this Ui's main
+    /// paint buffer, advertising the remaining available rect as its clip.
+    /// Use it for custom drawing (flamegraphs, gizmos, plots) that the
+    /// widget set doesn't cover. Does not advance the cursor — pair it with
+    /// [`allocate`](Self::allocate) when the drawing should occupy layout
+    /// space.
+    pub fn painter(&mut self) -> crate::paint::Painter<'_> {
+        let clip = self.clip;
+        crate::paint::Painter::new(&mut self.ctx.paint, &mut *self.text, clip)
+    }
+
+    /// Like [`painter`](Self::painter) but targets the overlay buffer, so the
+    /// drawing renders above the regular UI (tooltips, drag previews).
+    pub fn overlay_painter(&mut self) -> crate::paint::Painter<'_> {
+        let clip = self.clip;
+        crate::paint::Painter::new(&mut self.ctx.overlay_paint, &mut *self.text, clip)
     }
 
     /// Drag source. When the user presses inside `rect` and moves past a
@@ -338,6 +375,7 @@ impl<'a> Ui<'a> {
         let mut child =
             Ui::with_root(&mut *self.ctx, &mut *self.text, rect, direction, opts, root_id);
         child.area = self.area;
+        child.clip = self.clip;
         let result = f(&mut child);
         (result, child.used_rect())
     }

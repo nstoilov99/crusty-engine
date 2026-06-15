@@ -976,6 +976,8 @@ impl ApplicationHandler for App {
                         }
                         "Viewport" => {
                             let st = ui.style();
+                            let avail = ui.available().height();
+                            ui.scroll_area(avail, |ui| {
                             // Phase 13: menu bar with nested submenu. Picks
                             // raise toasts so the action is visible.
                             ui.menu_bar(|ui| {
@@ -1048,6 +1050,62 @@ impl ApplicationHandler for App {
                                 .color(st.palette.text_dim)
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
+                            // Phase 14: a custom-drawn canvas via the public
+                            // Painter — polyline sparkline, filled markers, a
+                            // bezier, and text-at-pos, none of which the
+                            // widget set covers.
+                            {
+                                let canvas =
+                                    ui.allocate(Vec2::new(220.0, 90.0));
+                                let accent = st.palette.accent;
+                                let dim = st.palette.text_dim;
+                                let surf = st.palette.surface;
+                                let mut p = ui.painter();
+                                p.rect_filled(canvas, 4.0, surf);
+                                // Sparkline across the canvas width.
+                                let n = 48;
+                                let pts: Vec<Pos2> = (0..n)
+                                    .map(|i| {
+                                        let t = i as f32 / (n - 1) as f32;
+                                        let x = canvas.min.x + 6.0
+                                            + t * (canvas.width() - 12.0);
+                                        let phase = t * std::f32::consts::TAU * 2.0;
+                                        let y = canvas.center().y
+                                            - phase.sin() * 22.0
+                                            - (t * 6.0).cos() * 6.0;
+                                        Pos2::new(x, y)
+                                    })
+                                    .collect();
+                                p.polyline(&pts, 1.5, accent);
+                                if let Some(last) = pts.last() {
+                                    p.circle_filled(*last, 3.5, accent);
+                                }
+                                // A bezier swoosh under the line.
+                                p.bezier_cubic(
+                                    Pos2::new(canvas.min.x + 6.0, canvas.max.y - 8.0),
+                                    Pos2::new(canvas.center().x - 30.0, canvas.max.y - 30.0),
+                                    Pos2::new(canvas.center().x + 30.0, canvas.max.y + 4.0),
+                                    Pos2::new(canvas.max.x - 6.0, canvas.max.y - 14.0),
+                                    1.0,
+                                    dim,
+                                );
+                                // A small play-triangle gizmo, top-left.
+                                let g = canvas.min;
+                                p.triangle(
+                                    Pos2::new(g.x + 8.0, g.y + 8.0),
+                                    Pos2::new(g.x + 8.0, g.y + 22.0),
+                                    Pos2::new(g.x + 20.0, g.y + 15.0),
+                                    accent,
+                                );
+                                p.text(
+                                    Pos2::new(canvas.min.x + 26.0, canvas.min.y + 8.0),
+                                    "painter()",
+                                    12.0,
+                                    dim,
+                                    None,
+                                );
+                            }
+                            ui.add_space(st.spacing.padding);
                             // Phase 10: a registered texture sampled through
                             // the new MODE_IMAGE path.
                             Image::new(demo_texture, Vec2::new(160.0, 160.0)).show(ui);
@@ -1075,6 +1133,7 @@ impl ApplicationHandler for App {
                             if ui.button("Open About (modal)").clicked() {
                                 about_open = true;
                             }
+                            });
                         }
                         "Inspector" => {
                             let st = ui.style();

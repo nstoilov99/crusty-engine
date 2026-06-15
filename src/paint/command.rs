@@ -23,6 +23,14 @@ pub enum PaintCmd {
         width: f32,
         color: Color,
     },
+    /// A solid-filled **convex** polygon, triangulated as a fan from the
+    /// first vertex. Points must wind consistently and describe a convex
+    /// outline (circles, triangles, sampled bezier fills, gizmo handles).
+    /// Concave shapes will render incorrectly — split them caller-side.
+    ConvexPolygon {
+        points: Vec<Pos2>,
+        color: Color,
+    },
     /// Textured quad sampling the glyph atlas as an alpha mask. The
     /// `TextRenderer` emits these for every shaped glyph.
     Glyph {

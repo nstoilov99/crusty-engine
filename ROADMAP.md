@@ -84,7 +84,7 @@ Cursor-based top-down/left-right is too weak for the inspector and profiler.
 
 ## Phase 14 — Painter API
 
-- [ ] Public low-level painter: lines, polygons, beziers, text-at-pos
+- [x] Public low-level painter: lines, polygons, beziers, text-at-pos
       (required for flamegraph, gizmo overlays, custom profiler drawing)
 - [ ] Plot helpers (later — raw painter unblocks everything first)
 

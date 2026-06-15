@@ -55,6 +55,9 @@ impl Tessellator {
                 } => {
                     self.push_line(mesh, *from, *to, *width, *color);
                 }
+                PaintCmd::ConvexPolygon { points, color } => {
+                    self.push_convex_polygon(mesh, points, *color);
+                }
                 PaintCmd::Glyph {
                     rect,
                     uv_min,
@@ -218,6 +221,32 @@ impl Tessellator {
         mesh.vertices.push(mk(from - n));
         mesh.indices
             .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+
+    /// Triangulate a convex polygon as a fan from `points[0]`. Drawn in
+    /// `MODE_SOLID` so position/uv are ignored and only the vertex color is
+    /// emitted.
+    fn push_convex_polygon(&mut self, mesh: &mut Mesh, points: &[Pos2], color: Color) {
+        if points.len() < 3 {
+            return;
+        }
+        let template = Vertex {
+            color: color.to_array(),
+            params: [0.0, 0.0, 0.0, MODE_SOLID],
+            ..Vertex::ZERO
+        };
+        let base = mesh.vertices.len() as u32;
+        for p in points {
+            mesh.vertices.push(Vertex {
+                pos: [p.x, p.y],
+                uv: [0.0, 0.0],
+                ..template
+            });
+        }
+        for i in 1..(points.len() as u32 - 1) {
+            mesh.indices
+                .extend_from_slice(&[base, base + i, base + i + 1]);
+        }
     }
 
     fn push_solid_rect(&mut self, mesh: &mut Mesh, rect: Rect, color: Color) {

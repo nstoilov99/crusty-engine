@@ -29,7 +29,7 @@ pub mod prelude {
     pub use crate::input::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
     pub use crate::layer::Order;
     pub use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
-    pub use crate::paint::{PaintCmd, RectShape, TextureFilter, TextureId};
+    pub use crate::paint::{Painter, PaintCmd, RectShape, TextureFilter, TextureId};
     pub use crate::response::Response;
     pub use crate::dock::{DockArea, DockNode, SplitDirection};
     pub use crate::style::Style;

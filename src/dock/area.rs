@@ -235,8 +235,14 @@ fn show_leaf<F>(
         padding: Vec2::splat(style.spacing.padding),
         spacing: style.spacing.item,
     };
+    // Scissor the body to the panel so content that overflows can neither
+    // draw over adjacent panels nor be clicked through them — the Ui's clip
+    // (set to `content_rect` by `with_root`) handles hit testing; this clip
+    // handles paint.
+    ctx.paint.push(PaintCmd::PushClip(content_rect));
     let mut ui = Ui::with_root(ctx, text, content_rect, Direction::TopDown, opts, leaf_root_id);
     f(&mut ui, &active_tab);
+    ctx.paint.push(PaintCmd::PopClip);
 }
 
 fn compute_split(rect: Rect, dir: SplitDirection, ratio: f32) -> (Rect, Rect, Rect) {

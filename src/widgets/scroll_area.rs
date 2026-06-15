@@ -81,6 +81,9 @@ impl ScrollArea {
                 inner_root,
             );
             inner.set_area(parent_area);
+            // Hit testing must respect the visible viewport, not the tall
+            // (scrolled) inner rect — otherwise off-screen rows stay clickable.
+            inner.set_clip(outer_rect);
             let result = body(&mut inner);
             let used = (inner.used_rect().height()).max(0.0);
             (result, used)
