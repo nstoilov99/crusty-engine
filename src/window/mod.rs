@@ -35,7 +35,7 @@ use vulkano::image::view::ImageView;
 use vulkano::instance::{Instance, InstanceCreateFlags, InstanceCreateInfo};
 use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpass};
 use vulkano::swapchain::{
-    PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
+    CompositeAlpha, PresentMode, Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo,
     acquire_next_image,
 };
 use vulkano::sync::{self, GpuFuture};
@@ -148,6 +148,11 @@ pub struct WindowRenderer {
     scene_mesh: Mesh,
     ui_mesh: Mesh,
     tess_us: f32,
+    /// Per-pixel-transparent presentation (the drag decorator). The swapchain
+    /// uses a premultiplied composite-alpha mode and `render` clears to a fully
+    /// transparent colour and skips the opaque scene-background blit, so empty
+    /// areas of the window show the desktop through DWM composition.
+    transparent: bool,
 }
 
 impl WindowRenderer {
@@ -181,7 +186,7 @@ impl WindowRenderer {
             .expect("failed to create vulkan surface from window");
 
         let gpu = GpuContext::new(instance, &surface);
-        let renderer = Self::build(&gpu, window, surface);
+        let renderer = Self::build(&gpu, window, surface, false);
         (gpu, renderer)
     }
 
@@ -189,10 +194,20 @@ impl WindowRenderer {
     pub fn new(gpu: &GpuContext, window: Arc<Window>) -> Self {
         let surface = Surface::from_window(gpu.instance.clone(), window.clone())
             .expect("failed to create vulkan surface from window");
-        Self::build(gpu, window, surface)
+        Self::build(gpu, window, surface, false)
     }
 
-    fn build(gpu: &GpuContext, window: Arc<Window>, surface: Arc<Surface>) -> Self {
+    /// Open a per-pixel-transparent window (used for the drag decorator). The
+    /// `window` must have been created with `WindowAttributes::with_transparent(true)`
+    /// so DWM composites its alpha; this renderer then presents with a
+    /// premultiplied composite-alpha swapchain and a transparent clear.
+    pub fn new_transparent(gpu: &GpuContext, window: Arc<Window>) -> Self {
+        let surface = Surface::from_window(gpu.instance.clone(), window.clone())
+            .expect("failed to create vulkan surface from window");
+        Self::build(gpu, window, surface, true)
+    }
+
+    fn build(gpu: &GpuContext, window: Arc<Window>, surface: Arc<Surface>, transparent: bool) -> Self {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
 
@@ -238,11 +253,10 @@ impl WindowRenderer {
                     image_format,
                     image_extent: inner_size,
                     image_usage: ImageUsage::COLOR_ATTACHMENT,
-                    composite_alpha: surface_caps
-                        .supported_composite_alpha
-                        .into_iter()
-                        .next()
-                        .expect("no supported composite alpha"),
+                    composite_alpha: pick_composite_alpha(
+                        surface_caps.supported_composite_alpha,
+                        transparent,
+                    ),
                     present_mode,
                     ..Default::default()
                 },
@@ -306,6 +320,7 @@ impl WindowRenderer {
             scene_mesh: Mesh::default(),
             ui_mesh: Mesh::default(),
             tess_us: 0.0,
+            transparent,
         }
     }
 
@@ -333,6 +348,15 @@ impl WindowRenderer {
     /// next [`WindowRenderer::render`].
     pub fn request_rebuild(&mut self) {
         self.needs_swapchain_rebuild = true;
+    }
+
+    /// Promote a transparent decorator window into a normal opaque one in place.
+    /// Subsequent frames clear to the solid glass background and blit the scene,
+    /// so every pixel has alpha 1 and the window reads fully opaque under DWM.
+    /// No swapchain recreation is needed: `PreMultiplied` composite over opaque
+    /// pixels is itself opaque.
+    pub fn make_opaque(&mut self) {
+        self.transparent = false;
     }
 
     fn recreate_swapchain(&mut self) {
@@ -409,7 +433,14 @@ impl WindowRenderer {
         self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
 
         let screen_size = [inner_size[0] as f32, inner_size[1] as f32];
-        let bg_clear = [0.04_f32, 0.05, 0.08, 1.0];
+        // Transparent (decorator) windows clear to fully transparent and skip
+        // the opaque scene blit so empty areas show the desktop; everything else
+        // clears to the dark glass background.
+        let bg_clear = if self.transparent {
+            [0.0_f32, 0.0, 0.0, 0.0]
+        } else {
+            [0.04_f32, 0.05, 0.08, 1.0]
+        };
         let zero_clear = [0.0_f32, 0.0, 0.0, 1.0];
 
         // ── Pass 1: scene → offscreen scene image.
@@ -489,7 +520,8 @@ impl WindowRenderer {
             .end_render_pass(Default::default())
             .expect("end blur-b render pass failed");
 
-        // ── Pass 4: present. Blit scene as background, then UI.
+        // ── Pass 4: present. Blit scene as background (opaque windows only),
+        // then UI. The decorator skips the blit so its background stays clear.
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
@@ -504,13 +536,15 @@ impl WindowRenderer {
                 },
             )
             .expect("begin present render pass failed");
-        self.blur.record_pass(
-            &mut builder,
-            self.offscreen.scene_view().clone(),
-            self.offscreen.sampler().clone(),
-            inner_size,
-            0.0,
-        );
+        if !self.transparent {
+            self.blur.record_pass(
+                &mut builder,
+                self.offscreen.scene_view().clone(),
+                self.offscreen.sampler().clone(),
+                inner_size,
+                0.0,
+            );
+        }
         self.ui.draw(
             &mut builder,
             &self.ui_mesh,
@@ -554,6 +588,43 @@ impl WindowRenderer {
             }
         }
     }
+}
+
+/// Choose a swapchain composite-alpha mode. Opaque windows take the first
+/// supported mode (historical behaviour). Transparent (decorator) windows need
+/// the desktop compositor to honour the swapchain's alpha, so we prefer a
+/// premultiplied mode — our `SrcAlpha`/`OneMinusSrcAlpha` blend over a
+/// `[0,0,0,0]` clear already produces premultiplied output — falling back to
+/// post-multiplied, then inherit, then whatever is available.
+fn pick_composite_alpha(
+    supported: vulkano::swapchain::CompositeAlphas,
+    transparent: bool,
+) -> CompositeAlpha {
+    let first = || {
+        supported
+            .into_iter()
+            .next()
+            .expect("no supported composite alpha")
+    };
+    if !transparent {
+        return first();
+    }
+    let supported_list: Vec<_> = supported.into_iter().collect();
+    eprintln!("[decorator] supported composite-alpha modes: {supported_list:?}");
+    for mode in [
+        CompositeAlpha::PreMultiplied,
+        CompositeAlpha::PostMultiplied,
+        CompositeAlpha::Inherit,
+    ] {
+        if supported.contains_enum(mode) {
+            eprintln!("[decorator] using composite-alpha mode: {mode:?}");
+            return mode;
+        }
+    }
+    eprintln!(
+        "[decorator] WARNING: no transparent composite-alpha mode supported; decorator will be opaque"
+    );
+    first()
 }
 
 fn build_framebuffers(

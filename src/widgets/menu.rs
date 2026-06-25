@@ -185,11 +185,22 @@ impl Ui<'_> {
             self.ctx_mut().memory.popup_close_requested = true;
         }
 
-        if hovered {
+        // The dropdown panel is itself painted with `surface_hover`, so a
+        // `surface_hover` row would be invisible. Use `surface_active` for
+        // hover and an accent wash while the button is pressed so the user
+        // gets clear hover *and* click feedback.
+        let highlight = if is_active {
+            Some(style.palette.accent.with_alpha(0.45))
+        } else if hovered {
+            Some(style.palette.surface_active)
+        } else {
+            None
+        };
+        if let Some(fill) = highlight {
             self.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
                 rect,
                 style.rounding.small,
-                style.palette.surface_hover,
+                fill,
             )));
         }
         let text_pos = Pos2::new(rect.min.x + 8.0, rect.min.y + 3.0);

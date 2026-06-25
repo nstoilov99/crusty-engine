@@ -109,6 +109,25 @@ impl DockNode {
         }
     }
 
+    /// Make `tab` the active (front) tab of whichever leaf holds it, so
+    /// re-opening an already-docked panel surfaces it instead of doing
+    /// nothing. Returns `true` if the tab was found.
+    pub fn activate_tab(&mut self, tab: &str) -> bool {
+        match self {
+            DockNode::Leaf(leaf) => {
+                if let Some(i) = leaf.tabs.iter().position(|t| t == tab) {
+                    leaf.active = i;
+                    true
+                } else {
+                    false
+                }
+            }
+            DockNode::Split(split) => {
+                split.first.activate_tab(tab) || split.second.activate_tab(tab)
+            }
+        }
+    }
+
     /// The leaf with the fewest tabs (ties broken left-to-right), or `None` if
     /// the tree somehow has no leaves.
     fn smallest_leaf_mut(&mut self) -> Option<&mut Leaf> {

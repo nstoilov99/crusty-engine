@@ -7,7 +7,7 @@ mod painter;
 mod tessellator;
 mod texture;
 
-pub use command::{PaintCmd, RectShape};
+pub use command::{PaintCmd, RectShape, scale_alpha};
 pub use mesh::{Mesh, Vertex};
 pub use painter::Painter;
 pub use tessellator::Tessellator;

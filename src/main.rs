@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crusty_gui::backend::vulkano::upload_rgba_texture;
-use crusty_gui::dock::{DockArea, DockNode, DockState, ExternalDrag};
+use crusty_gui::dock::{DECORATOR_SIZE, DockArea, DockNode, DockResponse, DockState, ExternalDrag};
 use crusty_gui::prelude::*;
 use crusty_gui::style::Style;
 use crusty_gui::widgets::Window as GuiWindow;
@@ -20,7 +20,7 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::window::{WindowAttributes, WindowId};
+use winit::window::{WindowAttributes, WindowId, WindowLevel};
 
 /// Background scene. Empty in Phase 6.5 — the editor layout fills the
 /// whole window so any backdrop content just shows through translucent
@@ -55,9 +55,15 @@ const LIGHT_IDS: [&str; 8] = [
 
 /// Every panel `render_panel` knows how to draw. The Window menu lists these
 /// so a panel that was closed (or torn off) can always be re-opened.
-const ALL_PANELS: [&str; 7] = [
+const ALL_PANELS: [&str; 10] = [
     "Hierarchy", "Viewport", "Inspector", "Console", "Profiler", "Errors", "Warnings",
+    "Texture", "Mesh", "Animation",
 ];
+
+/// Asset-editor panels — these open as their own standalone dock windows from
+/// the Assets menu, the way Unreal opens a texture/mesh/anim editor. They can
+/// then be docked into the main window or any other window like any tab.
+const ASSET_EDITORS: [&str; 3] = ["Texture", "Mesh", "Animation"];
 
 /// Height of the main window's top menu bar strip.
 const MENU_BAR_H: f32 = 32.0;
@@ -136,39 +142,129 @@ const PANEL_TITLE_H: f32 = 26.0;
 /// a torn-off window follows it.
 const PANEL_GRAB_X: f32 = 60.0;
 
-/// A dock panel torn off into its own OS window. Renders the panel's real
-/// content via `render_panel`, and carries a manual title-bar drag so the
-/// user can fling it back over the main window to re-dock it.
-struct PanelWindow {
+/// Gap between the cursor and the decorator ghost's top-left corner.
+///
+/// The ghost is a real, opaque, always-on-top window. If it sits *under* the
+/// cursor it intercepts the mouse messages the source window's implicit capture
+/// needs to drive the drag — so the drop is never seen (ghost stuck on top, tab
+/// half-detached). Making it click-through (`WS_EX_TRANSPARENT`) fixes that, but
+/// drags in `WS_EX_LAYERED`, which our Vulkan swapchain can't present to (blank
+/// white window). Offsetting the ghost down-right of the cursor keeps it out
+/// from under the pointer entirely: messages at the cursor hit the window
+/// beneath, capture survives, and the ghost stays opaque so it renders normally.
+const DECORATOR_CURSOR_GAP: f32 = 14.0;
+
+/// PROTOTYPE TOGGLE — Unreal-style "decorator window" tear-off.
+///
+/// When `true`, dragging a tab out spawns its real OS window *immediately* (a
+/// borderless, always-on-top "decorator" that follows the cursor); on drop it
+/// either docks into the target and is destroyed, or simply stays put as a
+/// normal float — so a window never pops on top at the end of the drag.
+///
+/// When `false`, the original windowless ghost is used: the tab is painted as a
+/// translucent card inside whichever window the cursor is over, and a real
+/// window is only spawned on release over empty space.
+///
+/// Flip this to compare the two interaction models side-by-side. (The decorator
+/// window is currently opaque — see-through transparency is a follow-up.)
+const DECORATOR_WINDOW: bool = true;
+
+/// A floating OS window that is itself a full dock container: it hosts its own
+/// [`DockNode`] tree rendered through the same [`DockArea`] as the main window,
+/// so it can hold multiple tabs, be split, accept tabs dropped in from other
+/// windows, and have its own tabs torn back out. A thin title strip at the top
+/// drags the *whole* window to re-dock it into another window.
+struct DockHost {
     renderer: WindowRenderer,
     ctx: Context,
-    tab: String,
+    /// This window's dock layout. Starts as a single-tab leaf when torn off.
+    tree: DockNode,
+    state: DockState,
     demo_texture: TextureId,
     pointer_pos: Option<Pos2>,
     pending_events: Vec<Event>,
     start: Instant,
     last_frame_time: f64,
-    /// True while the user holds the title bar to move/re-dock the window.
+    /// True while the user holds the title strip to move/re-dock the window.
     dragging: bool,
     /// Cursor offset (window-local) captured when the title drag began.
     drag_grab: Vec2,
     /// True once a re-dock drag has parked this window off-screen, so its solid
-    /// body stops covering the main window's drop indicators.
+    /// body stops covering the target window's drop indicators.
     parked: bool,
     /// Latest true screen-space cursor seen during the drag, used to restore the
     /// window onto the screen if the drop is cancelled (dropped over nothing).
     last_global: Pos2,
+    /// A tab being dragged in from *another* window this frame; passed straight
+    /// to this host's [`DockArea`] so its drop zones light up.
+    incoming: Option<ExternalDrag>,
+    /// True while *this* window holds the OS pointer capture for a tab tear-off
+    /// it just spawned (the press happened here, so its CursorMoved/release must
+    /// drive the resulting whole-window drag even though the dragged window is a
+    /// different, parked host).
+    driving_tearoff: bool,
+    /// True while this host is the live "decorator window" of an in-flight
+    /// tear-off (it follows the cursor and is skipped as a drop target). Cleared
+    /// when the drag resolves: either the window is destroyed (docked elsewhere)
+    /// or promoted to a normal float in place.
+    is_decorator: bool,
 }
 
-/// A torn-off panel being dragged back over the main window, expressed in
-/// the main window's client-space coordinates so the dock can hit-test it.
-struct RedockDrag {
-    tab: String,
-    pointer: Pos2,
-    released: bool,
-    /// Re-dock unconditionally on release (window closed) rather than only
-    /// over a compass target.
-    force: bool,
+impl DockHost {
+    /// A representative tab id for the whole window (used as the dragged tab
+    /// when the title strip re-docks this window into another).
+    fn rep_tab(&self) -> Option<String> {
+        let mut tabs = Vec::new();
+        self.tree.collect_tabs(&mut tabs);
+        tabs.first().cloned()
+    }
+
+    /// Every tab id this window currently hosts, in traversal order.
+    fn all_tabs(&self) -> Vec<String> {
+        let mut tabs = Vec::new();
+        self.tree.collect_tabs(&mut tabs);
+        tabs
+    }
+}
+
+/// A floating [`DockHost`] window being dragged by its title strip to re-dock
+/// into another window. While in flight the source window is parked off-screen
+/// and the cursor is fed to whichever target window sits under it.
+struct WindowDrag {
+    /// The window being dragged (its tabs move to the drop target).
+    source: WindowId,
+    /// Representative tab fed to the target's drop zones.
+    rep: String,
+    /// The source window's other tabs, transferred into the target on a
+    /// successful drop.
+    extra: Vec<String>,
+    /// Cursor offset (window-local) captured when the title drag began.
+    grab: Vec2,
+    /// Latest true screen-space cursor, used to un-park on a cancelled drop.
+    last_global: Pos2,
+}
+
+/// Where a [`WindowDrag`] is currently hovering — the window whose dock will
+/// receive the drop.
+#[derive(Clone, Copy, PartialEq)]
+enum DragTarget {
+    Main,
+    Host(WindowId),
+}
+
+/// A single tab torn off a dock and being dragged *without* yet having an OS
+/// window of its own (Unreal-style). It renders as a translucent decorator
+/// inside whatever window the cursor is over, lights up that window's drop
+/// zones, and only materialises into a floating [`DockHost`] when dropped over
+/// nothing. The window where the press happened holds the OS pointer capture
+/// and drives the move/release (see `*_driving_tearoff`).
+struct TabDrag {
+    tab_id: String,
+    /// Cursor offset for the decorator card, so it sits under the pointer the
+    /// same way a freshly-spawned floating window's title strip would.
+    grab: Vec2,
+    /// Latest true screen-space cursor.
+    last_global: Pos2,
 }
 
 struct App {
@@ -198,10 +294,30 @@ struct App {
     dock_state: DockState,
     window_slider: f32,
     ui_us: f32,
-    /// Panels torn off into their own OS windows.
-    panel_windows: Vec<PanelWindow>,
-    /// A panel window currently being dragged back over the main window.
-    pending_redock: Option<RedockDrag>,
+    /// Panels torn off into their own OS windows, each a full dock container.
+    panel_windows: Vec<DockHost>,
+    /// A floating window currently being dragged by its title strip to re-dock.
+    window_drag: Option<WindowDrag>,
+    /// A tab being dragged in from a floating window over the *main* window this
+    /// frame; fed to the main dock's `external_drag`.
+    main_incoming: Option<ExternalDrag>,
+    /// A windowless tab tear-off in flight (no OS window until it's dropped over
+    /// empty space). Mutually exclusive with `window_drag`.
+    tab_drag: Option<TabDrag>,
+    /// True while the *main* window holds the OS pointer capture for a tab
+    /// tear-off (the press was on a main-dock tab), so the main window's
+    /// CursorMoved/release drive the [`TabDrag`].
+    main_driving_tearoff: bool,
+    /// When [`DECORATOR_WINDOW`] is on, the id of the live decorator window
+    /// (a `panel_windows` entry with `is_decorator == true`) for the in-flight
+    /// tear-off. `None` when no decorator-window drag is active.
+    decorator_id: Option<WindowId>,
+    /// A pre-built, hidden transparent decorator window kept warm so a tear-off
+    /// can *show* it instead of building a fresh window (surface + swapchain +
+    /// shader pipelines) on the drag frame — that synchronous build is what made
+    /// tear-off stutter. Refilled after a docked drop (the window is reused) or
+    /// lazily on an idle main-window frame after a promote consumes it.
+    decorator_pool: Option<DockHost>,
 }
 
 impl Default for App {
@@ -230,7 +346,12 @@ impl Default for App {
             window_slider: 0.4,
             ui_us: 0.0,
             panel_windows: Vec::new(),
-            pending_redock: None,
+            window_drag: None,
+            main_incoming: None,
+            tab_drag: None,
+            main_driving_tearoff: false,
+            decorator_id: None,
+            decorator_pool: None,
         }
     }
 }
@@ -324,6 +445,11 @@ impl ApplicationHandler for App {
             self.main_window = Some(window);
             self.start = Some(Instant::now());
             self.load_layout();
+            // Pay the decorator window's build cost up front so the first
+            // tear-off just shows the warm spare instead of stuttering.
+            if DECORATOR_WINDOW {
+                self.warm_decorator_spare(event_loop);
+            }
         }
     }
 
@@ -343,7 +469,7 @@ impl ApplicationHandler for App {
             .iter()
             .position(|p| p.renderer.window().id() == window_id)
         {
-            self.panel_event(idx, event);
+            self.panel_event(event_loop, idx, event);
             return;
         }
         let main_id = self.main_window.as_ref().map(|w| w.window().id());
@@ -368,15 +494,51 @@ impl ApplicationHandler for App {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Pos2::new(position.x as f32, position.y as f32);
+                // Driving a tab tear-off: the main window holds the OS capture,
+                // so translate to screen space and pump the windowless tab drag
+                // (it follows the cursor as a translucent decorator and lights up
+                // drop zones in whatever window it hovers).
+                if self.main_driving_tearoff {
+                    if let Some(main) = self.main_window.as_ref() {
+                        if let Ok(o) = main.window().inner_position() {
+                            let global =
+                                Pos2::new(o.x as f32 + pos.x, o.y as f32 + pos.y);
+                            if let Some(td) = self.tab_drag.as_mut() {
+                                td.last_global = global;
+                            }
+                            self.route_tab_drag(event_loop, false);
+                        }
+                    }
+                }
                 self.pointer_pos = Some(pos);
                 self.pending_events.push(Event::PointerMoved(pos));
             }
             WindowEvent::CursorLeft { .. } => {
-                self.pointer_pos = None;
-                self.pending_events.push(Event::PointerGone);
+                // Keep the pointer alive while driving a tear-off: the captured
+                // cursor can leave the window's client area but the drag must
+                // keep tracking it.
+                if !self.main_driving_tearoff {
+                    self.pointer_pos = None;
+                    self.pending_events.push(Event::PointerGone);
+                }
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let pressed = matches!(state, winit::event::ElementState::Pressed);
+                // Releasing while driving a tear-off finishes the tab drag (dock
+                // into the hovered window, or float it over empty space). Handled
+                // before the normal path because the routing relies on the
+                // captured screen cursor, not the in-window pointer.
+                if !pressed
+                    && self.main_driving_tearoff
+                    && matches!(button, winit::event::MouseButton::Left)
+                {
+                    self.main_driving_tearoff = false;
+                    if self.tab_drag.is_some() {
+                        self.route_tab_drag(event_loop, true);
+                    }
+                    self.close_empty_hosts();
+                    return;
+                }
                 let our_button = match button {
                     winit::event::MouseButton::Left => MouseButton::Primary,
                     winit::event::MouseButton::Right => MouseButton::Secondary,
@@ -454,6 +616,15 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
+                // Re-warm the decorator spare on an idle frame (no drag in
+                // flight) if a previous promote consumed it, so the next
+                // tear-off is hitch-free. No-op when the pool is already full.
+                if DECORATOR_WINDOW
+                    && self.decorator_id.is_none()
+                    && self.tab_drag.is_none()
+                {
+                    self.warm_decorator_spare(event_loop);
+                }
                 let Some(renderer) = self.main_window.as_mut() else {
                     return;
                 };
@@ -510,10 +681,11 @@ impl ApplicationHandler for App {
                     self.dock_tree.collect_tabs(&mut existing);
                     for (i, name) in ALL_PANELS.iter().enumerate() {
                         open_flags[i] = existing.iter().any(|t| t == name)
-                            || self.panel_windows.iter().any(|p| &p.tab == name);
+                            || self.panel_windows.iter().any(|p| p.tree.contains_tab(name));
                     }
                 }
                 let mut reopen_panel: Option<&'static str> = None;
+                let mut open_asset: Option<&'static str> = None;
                 let mut save_layout_requested = false;
                 let menu_rect = Rect::from_min_size(
                     Pos2::ZERO,
@@ -548,6 +720,13 @@ impl ApplicationHandler for App {
                                 }
                             }
                         });
+                        ui.menu_button("Assets", |ui| {
+                            for name in ASSET_EDITORS {
+                                if ui.menu_item(format!("Open {name} Editor")) {
+                                    open_asset = Some(name);
+                                }
+                            }
+                        });
                     });
                 }
                 let stats = PanelStats {
@@ -558,12 +737,15 @@ impl ApplicationHandler for App {
                     demo_texture: self.demo_texture.expect("demo texture registered"),
                     mesh_already_open: self.mesh_window.is_some(),
                 };
-                let redock_ext = self.pending_redock.as_ref().map(|r| ExternalDrag {
-                    tab_id: r.tab.clone(),
-                    pointer: r.pointer,
-                    released: r.released,
-                    force: r.force,
-                });
+                // Peek (don't take) the incoming drag so the translucent
+                // decorator keeps rendering on frames with no cursor movement —
+                // routing clears/re-sets it on each move, and we clear it
+                // ourselves once a drop is resolved below.
+                let redock_ext = self.main_incoming.clone();
+                // If a drag was released over the main window this frame, we
+                // resolve it (success or cancel) after the dock renders.
+                let main_drop_released =
+                    redock_ext.as_ref().map(|e| e.released).unwrap_or(false);
                 let editor = &mut self.editor;
 
                 let dock_response = DockArea::new(&mut self.dock_tree, &mut self.dock_state)
@@ -656,36 +838,93 @@ impl ApplicationHandler for App {
                 if let Some(name) = reopen_panel {
                     self.dock_tree.add_tab(name);
                 }
+
+                // Assets menu: open an asset editor in its own standalone dock
+                // window, centred over the main window. It can then be docked in.
+                // If it's already open (in the main dock or any floating host),
+                // focus that instead of spawning a duplicate.
+                if let Some(name) = open_asset {
+                    if self.dock_tree.contains_tab(name) {
+                        // Already docked in the main window — surface its tab.
+                        self.dock_tree.activate_tab(name);
+                        if let Some(main) = self.main_window.as_ref() {
+                            main.window().request_redraw();
+                        }
+                    } else if let Some(host) = self
+                        .panel_windows
+                        .iter()
+                        .find(|p| p.tree.contains_tab(name))
+                    {
+                        // Already open as a float — raise and focus it.
+                        host.renderer.window().focus_window();
+                        host.renderer.window().request_redraw();
+                    } else {
+                        let g = self
+                            .main_window
+                            .as_ref()
+                            .and_then(|m| m.window().inner_position().ok())
+                            .map(|o| Pos2::new(o.x as f32 + 260.0, o.y as f32 + 200.0))
+                            .unwrap_or(Pos2::new(260.0, 200.0));
+                        self.spawn_dock_host(event_loop, name.to_string(), g);
+                    }
+                }
                 if save_layout_requested {
                     self.save_layout();
                 }
 
-                // A tab was dragged off the window edge: tear it off into its
-                // own OS window hosting the real panel content.
+                // A tab was torn off the main dock mid-drag: float it in its own
+                // window *now* and hand the still-held pointer to the whole-window
+                // drag machinery, so it follows the cursor and re-docks like
+                // dragging the real window (Unreal-style). The main window holds
+                // the OS capture (the press was on a main-dock tab), so it drives.
                 if let Some(d) = detached {
-                    self.spawn_panel_window(event_loop, d.tab, d.pointer);
+                    let g = self
+                        .main_window
+                        .as_ref()
+                        .and_then(|m| m.window().inner_position().ok())
+                        .map(|o| Pos2::new(o.x as f32 + d.pointer.x, o.y as f32 + d.pointer.y))
+                        .unwrap_or(d.pointer);
+                    self.begin_tearoff(event_loop, d.tab, g, DragTarget::Main);
                 }
 
-                // Resolve an in-flight re-dock once the panel window's title
-                // drag is released: if the dock accepted it, destroy the source
-                // window; otherwise un-park the window back onto the screen at
-                // the release point so it keeps living as its own float.
-                if self.pending_redock.as_ref().map(|r| r.released).unwrap_or(false) {
-                    if let Some(r) = self.pending_redock.take() {
+                // A drag was released over the main window this frame.
+                if main_drop_released {
+                    self.main_incoming = None;
+                    if let Some(td) = self.tab_drag.take() {
+                        // A tab drag: if the main dock didn't accept it (released
+                        // off a drop zone, e.g. on the menu bar), float it so it's
+                        // never lost; otherwise the tab now lives in the main dock.
+                        if !docked {
+                            if DECORATOR_WINDOW && self.decorator_id.is_some() {
+                                self.promote_decorator(event_loop);
+                            } else {
+                                self.spawn_dock_host(
+                                    event_loop,
+                                    td.tab_id,
+                                    td.last_global,
+                                );
+                            }
+                        } else {
+                            // Docked into the main window: drop the decorator ghost
+                            // and focus main so the next click registers immediately
+                            // instead of being eaten by the OS focus change.
+                            self.destroy_decorator();
+                            if let Some(main) = self.main_window.as_ref() {
+                                main.window().focus_window();
+                            }
+                        }
+                    } else if let Some(wd) = self.window_drag.take() {
+                        // A whole-window title-strip drag: if its dock accepted
+                        // the drop, move the source window's other tabs in too and
+                        // destroy it; otherwise un-park it so it keeps floating.
                         if docked {
-                            self.panel_windows.retain(|p| p.tab != r.tab);
-                        } else if let Some(pw) =
-                            self.panel_windows.iter_mut().find(|p| p.tab == r.tab)
-                        {
-                            let pos = pw.last_global - pw.drag_grab;
-                            let _ = pw.renderer.window().set_outer_position(
-                                PhysicalPosition::new(
-                                    pos.x.round() as i32,
-                                    pos.y.round() as i32,
-                                ),
-                            );
-                            pw.parked = false;
-                            pw.renderer.window().request_redraw();
+                            for t in &wd.extra {
+                                self.dock_tree.add_tab(t.as_str());
+                            }
+                            self.panel_windows
+                                .retain(|p| p.renderer.window().id() != wd.source);
+                        } else {
+                            self.unpark_source(&wd);
                         }
                     }
                 }
@@ -809,40 +1048,48 @@ impl App {
         }
     }
 
-    /// Tear a panel off into its own OS window near where it left the main
-    /// window. The window gets its own [`Context`] and a copy of the demo
-    /// texture registered on its own [`TextureRegistry`].
-    fn spawn_panel_window(&mut self, event_loop: &ActiveEventLoop, tab: String, at: Pos2) {
-        let Some(gpu) = self.gpu.as_ref() else {
-            return;
-        };
-        // Materialize the OS window at the drop point, with its title strip
-        // under where the cursor let go. It's a normal focused window now — the
-        // drag is already over, so there's no capture trick to preserve.
-        let grab = Vec2::new(PANEL_GRAB_X, PANEL_TITLE_H * 0.5);
+    /// Spawn a new floating [`DockHost`] window hosting a single-tab dock tree,
+    /// positioned so its title strip sits under `at_global` (true screen-space
+    /// coordinates). Used both for tearing a tab off a window and for opening a
+    /// standalone asset editor. Returns its id so the caller can track it.
+    ///
+    /// This spawns a normal, titled, opaque float. The translucent tear-off
+    /// decorator takes a different path ([`activate_decorator`] reusing a warm
+    /// spare), and a decorator that's dropped over empty space is upgraded into
+    /// a normal float *in place* ([`promote_decorator`]) rather than spawned.
+    fn spawn_dock_host(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        tab: String,
+        at_global: Pos2,
+    ) -> Option<WindowId> {
+        let gpu = self.gpu.as_ref()?;
+        // Position the window in its creation attributes so it appears in place
+        // instead of flashing at the OS default spot and jumping (spawn jitter).
+        // A real float is grabbed by its title strip at PANEL_GRAB_X.
+        let pos = PhysicalPosition::new(
+            (at_global.x - PANEL_GRAB_X).round() as i32,
+            (at_global.y - PANEL_TITLE_H * 0.5).round() as i32,
+        );
         let attrs = WindowAttributes::default()
             .with_title(format!("crusty-gui — {tab}"))
-            .with_inner_size(winit::dpi::LogicalSize::new(360.0, 420.0));
+            .with_inner_size(winit::dpi::LogicalSize::new(DECORATOR_SIZE.x, DECORATOR_SIZE.y))
+            .with_position(pos);
         let window = Arc::new(
             event_loop
                 .create_window(attrs)
-                .expect("failed to create panel window"),
+                .expect("failed to create dock-host window"),
         );
-        if let Some(main) = self.main_window.as_ref() {
-            if let Ok(origin) = main.window().inner_position() {
-                window.set_outer_position(PhysicalPosition::new(
-                    origin.x + (at.x - grab.x) as i32,
-                    origin.y + (at.y - grab.y) as i32,
-                ));
-            }
-        }
+        window.set_outer_position(pos);
+        let id = window.id();
         let mut renderer = WindowRenderer::new(gpu, window);
         let demo_texture = build_demo_texture(gpu, &mut renderer);
         renderer.window().request_redraw();
-        self.panel_windows.push(PanelWindow {
+        self.panel_windows.push(DockHost {
             renderer,
             ctx: Context::default(),
-            tab,
+            tree: DockNode::leaf(tab.as_str()),
+            state: DockState::default(),
             demo_texture,
             pointer_pos: None,
             pending_events: Vec::new(),
@@ -852,42 +1099,417 @@ impl App {
             drag_grab: Vec2::ZERO,
             parked: false,
             last_global: Pos2::ZERO,
+            incoming: None,
+            driving_tearoff: false,
+            is_decorator: false,
         });
+        Some(id)
     }
 
-    /// Drive a torn-off panel window: its own input, clock, title-bar drag,
-    /// and a frame rendering the real panel content.
-    fn panel_event(&mut self, idx: usize, event: WindowEvent) {
+    /// Build a transparent decorator window (Unreal-style cursor card) without
+    /// pushing it into `panel_windows`. Used both to warm the spare (hidden) and
+    /// as the fallback when a tear-off finds the pool empty. The expensive work
+    /// (surface, swapchain, shader pipelines, glyph atlas) happens here, so doing
+    /// it ahead of time is what removes the tear-off hitch.
+    fn build_decorator_host(
+        &self,
+        event_loop: &ActiveEventLoop,
+        pos: PhysicalPosition<i32>,
+        visible: bool,
+    ) -> Option<DockHost> {
+        let gpu = self.gpu.as_ref()?;
+        // See `spawn_dock_host` for why the decorator is borderless + transparent
+        // + always-on-top + inactive.
+        let attrs = WindowAttributes::default()
+            .with_title("crusty-gui")
+            .with_inner_size(winit::dpi::LogicalSize::new(DECORATOR_SIZE.x, DECORATOR_SIZE.y))
+            .with_position(pos)
+            .with_decorations(false)
+            .with_transparent(true)
+            .with_window_level(WindowLevel::AlwaysOnTop)
+            .with_active(false)
+            .with_visible(visible);
+        let window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("failed to create decorator window"),
+        );
+        let mut renderer = WindowRenderer::new_transparent(gpu, window);
+        let demo_texture = build_demo_texture(gpu, &mut renderer);
+        Some(DockHost {
+            renderer,
+            ctx: Context::default(),
+            tree: DockNode::leaf("panel"),
+            state: DockState::default(),
+            demo_texture,
+            pointer_pos: None,
+            pending_events: Vec::new(),
+            start: Instant::now(),
+            last_frame_time: 0.0,
+            dragging: false,
+            drag_grab: Vec2::ZERO,
+            parked: false,
+            last_global: Pos2::ZERO,
+            incoming: None,
+            driving_tearoff: false,
+            is_decorator: true,
+        })
+    }
+
+    /// Build the warm decorator spare if we don't already have one. Cheap no-op
+    /// when the pool is full; otherwise pays the window-build cost *now* (at
+    /// startup or on an idle frame) so a future tear-off doesn't have to.
+    fn warm_decorator_spare(&mut self, event_loop: &ActiveEventLoop) {
+        if self.decorator_pool.is_some() || self.gpu.is_none() {
+            return;
+        }
+        // Park the hidden spare off-screen; it's repositioned when activated.
+        let pos = PhysicalPosition::new(-30_000, -30_000);
+        self.decorator_pool = self.build_decorator_host(event_loop, pos, false);
+    }
+
+    /// Start a decorator drag by *showing* the warm spare (or building one if the
+    /// pool was empty) rather than spawning a fresh window on the drag frame.
+    /// Configures it for `tab`, positions it at the cursor, and returns its id.
+    fn activate_decorator(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        tab: &str,
+        at_global: Pos2,
+    ) -> Option<WindowId> {
+        let pos = PhysicalPosition::new(
+            (at_global.x + DECORATOR_CURSOR_GAP).round() as i32,
+            (at_global.y + DECORATOR_CURSOR_GAP).round() as i32,
+        );
+        let mut host = match self.decorator_pool.take() {
+            Some(h) => h,
+            None => self.build_decorator_host(event_loop, pos, true)?,
+        };
+        host.tree = DockNode::leaf(tab);
+        host.state = DockState::default();
+        host.is_decorator = true;
+        host.start = Instant::now();
+        host.last_frame_time = 0.0;
+        host.pending_events.clear();
+        host.incoming = None;
+        host.pointer_pos = None;
+        host.dragging = false;
+        host.parked = false;
+        host.driving_tearoff = false;
+        let win = host.renderer.window().clone();
+        let _ = win.set_outer_position(pos);
+        win.set_title(&format!("crusty-gui — {tab}"));
+        win.set_visible(true);
+        win.request_redraw();
+        let id = win.id();
+        self.panel_windows.push(host);
+        Some(id)
+    }
+
+    /// Reposition the live decorator window so it trails just down-right of the
+    /// screen-space cursor `global` (kept out from under the pointer so it can't
+    /// steal capture). No-op unless a decorator drag is active.
+    fn move_decorator(&self, global: Pos2, _grab: Vec2) {
+        if let Some(id) = self.decorator_id {
+            if let Some(h) = self
+                .panel_windows
+                .iter()
+                .find(|h| h.renderer.window().id() == id)
+            {
+                let _ = h.renderer.window().set_outer_position(PhysicalPosition::new(
+                    (global.x + DECORATOR_CURSOR_GAP).round() as i32,
+                    (global.y + DECORATOR_CURSOR_GAP).round() as i32,
+                ));
+                // Keep painting the ghost as it tracks the cursor. The drag is
+                // driven by the *source* window's events, so the ghost never
+                // gets input of its own — without an explicit redraw each move it
+                // would present a single (often pre-swapchain, blank/white) frame
+                // and then freeze.
+                h.renderer.window().request_redraw();
+            }
+        }
+    }
+
+    /// Resolve a decorator tear-off that ended over *no* drop target by
+    /// *upgrading the decorator window itself* into a normal titled float — no
+    /// new window is spawned, so there's no flash or jump.
+    ///
+    /// winit 0.30 lets us add OS chrome (`set_decorations`) and drop the
+    /// always-on-top level (`set_window_level`) at runtime, and our DWM-
+    /// transparent window reads fully opaque the moment we draw opaque pixels
+    /// (`WindowRenderer::make_opaque`), so the borderless see-through card
+    /// becomes an ordinary panel window in place.
+    fn promote_decorator(&mut self, _event_loop: &ActiveEventLoop) {
+        let Some(id) = self.decorator_id.take() else {
+            return;
+        };
+        let Some(host) = self
+            .panel_windows
+            .iter_mut()
+            .find(|h| h.renderer.window().id() == id)
+        else {
+            return;
+        };
+        // An empty husk (its only tab docked elsewhere) has nothing to promote.
+        if host.all_tabs().is_empty() {
+            self.panel_windows
+                .retain(|h| h.renderer.window().id() != id);
+            return;
+        }
+        host.is_decorator = false;
+        let win = host.renderer.window().clone();
+        win.set_decorations(true);
+        win.set_window_level(WindowLevel::Normal);
+        host.renderer.make_opaque();
+        host.renderer.request_rebuild();
+        win.request_redraw();
+    }
+
+    /// Retire the live decorator window — the dragged tab was docked into some
+    /// other window, so its card is no longer needed. Rather than destroying the
+    /// window (and rebuilding one next tear-off), hide it and return it to the
+    /// warm pool for reuse. Only the first goes back; any extra is dropped.
+    fn destroy_decorator(&mut self) {
+        let Some(id) = self.decorator_id.take() else {
+            return;
+        };
+        let Some(pos) = self
+            .panel_windows
+            .iter()
+            .position(|h| h.renderer.window().id() == id)
+        else {
+            return;
+        };
+        let host = self.panel_windows.remove(pos);
+        if self.decorator_pool.is_none() {
+            host.renderer.window().set_visible(false);
+            self.decorator_pool = Some(host);
+        }
+    }
+
+    /// Drop any floating host left empty by a lone-tab tear-off. Called once the
+    /// drag has resolved (the tab now lives in the drop target or a fresh float),
+    /// so the hidden husk window can be destroyed.
+    fn close_empty_hosts(&mut self) {
+        self.panel_windows.retain(|h| !h.all_tabs().is_empty());
+    }
+
+    /// Begin a windowless tab tear-off (Unreal-style): the tab is already out of
+    /// its old tree, so just start a [`TabDrag`] that follows the cursor as a
+    /// translucent decorator inside whatever window it's over. No OS window is
+    /// created here — that only happens if the tab is dropped over empty space.
+    /// `driver` is the window holding the OS pointer capture (where the press
+    /// happened); its `*_driving_tearoff` flag is set so its move/release events
+    /// pump this drag instead of its own title-strip logic.
+    fn begin_tearoff(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        tab: String,
+        at_global: Pos2,
+        driver: DragTarget,
+    ) {
+        let grab = Vec2::new(PANEL_GRAB_X, PANEL_TITLE_H * 0.5);
+        self.tab_drag = Some(TabDrag {
+            tab_id: tab.clone(),
+            grab,
+            last_global: at_global,
+        });
+        // Unreal-style: materialise the real window up front and let it follow
+        // the cursor, so dropping it never pops a fresh window on top.
+        if DECORATOR_WINDOW {
+            self.decorator_id = self.activate_decorator(event_loop, &tab, at_global);
+        }
+        match driver {
+            DragTarget::Main => self.main_driving_tearoff = true,
+            DragTarget::Host(id) => {
+                if let Some(h) = self
+                    .panel_windows
+                    .iter_mut()
+                    .find(|h| h.renderer.window().id() == id)
+                {
+                    h.driving_tearoff = true;
+                }
+            }
+        }
+        self.route_tab_drag(event_loop, false);
+    }
+
+    /// Feed the in-flight [`TabDrag`] to whichever window sits under its cursor:
+    /// set that window's `external_drag` so the translucent decorator + drop
+    /// zones render there. On `released` over a window the target's own frame
+    /// docks it; on `released` over nothing the tab finally materialises into a
+    /// new floating [`DockHost`] at the drop point.
+    fn route_tab_drag(&mut self, event_loop: &ActiveEventLoop, released: bool) {
+        let Some(td) = self.tab_drag.as_ref() else { return };
+        let tab = td.tab_id.clone();
+        let global = td.last_global;
+        let grab = td.grab;
+
+        // Decorator-window mode: the real window IS the ghost, so keep it under
+        // the cursor and tell targets to draw their compass but not a second
+        // painted card.
+        self.move_decorator(global, grab);
+        let ghost = self.decorator_id.is_none();
+
+        // Pick the target: floating hosts (on top) first, then the main window.
+        // Skip empty hosts — a lone-tab host being torn off is hidden and empty
+        // but still geometrically present, and must not catch its own drop.
+        // Skip the decorator window too: it sits under the cursor but must never
+        // catch its own drop.
+        let mut target: Option<DragTarget> = None;
+        for h in self.panel_windows.iter() {
+            if h.all_tabs().is_empty() || h.is_decorator {
+                continue;
+            }
+            if window_contains_global(h.renderer.window(), global) {
+                target = Some(DragTarget::Host(h.renderer.window().id()));
+                break;
+            }
+        }
+        if target.is_none() {
+            if let Some(main) = self.main_window.as_ref() {
+                if window_contains_global(main.window(), global) {
+                    target = Some(DragTarget::Main);
+                }
+            }
+        }
+
+        // Clear last frame's hover everywhere so stale drop zones vanish, and
+        // redraw any window we just cleared so it actually repaints without the
+        // decorator/compass left over from the previous position (otherwise it
+        // stays frozen showing the overlay until the next event reaches it).
+        if self.main_incoming.take().is_some() {
+            if let Some(main) = self.main_window.as_ref() {
+                main.window().request_redraw();
+            }
+        }
+        for h in self.panel_windows.iter_mut() {
+            if h.incoming.take().is_some() {
+                h.renderer.window().request_redraw();
+            }
+        }
+
+        match target {
+            Some(DragTarget::Main) => {
+                if let Some(main) = self.main_window.as_ref() {
+                    if let Ok(o) = main.window().inner_position() {
+                        let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
+                        self.main_incoming = Some(ExternalDrag {
+                            tab_id: tab,
+                            pointer: local,
+                            grab,
+                            released,
+                            force: false,
+                            ghost,
+                        });
+                        main.window().request_redraw();
+                    }
+                }
+            }
+            Some(DragTarget::Host(id)) => {
+                if let Some(h) =
+                    self.panel_windows.iter_mut().find(|h| h.renderer.window().id() == id)
+                {
+                    if let Ok(o) = h.renderer.window().inner_position() {
+                        let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
+                        h.incoming = Some(ExternalDrag {
+                            tab_id: tab,
+                            pointer: local,
+                            grab,
+                            released,
+                            force: false,
+                            ghost,
+                        });
+                        h.renderer.window().request_redraw();
+                    }
+                }
+            }
+            None => {
+                // Dropped over no window → float it.
+                if released {
+                    if DECORATOR_WINDOW && self.decorator_id.is_some() {
+                        // The decorator window is already here under the cursor:
+                        // just keep it as a normal float — nothing new spawns.
+                        self.tab_drag = None;
+                        self.promote_decorator(event_loop);
+                    } else if let Some(td) = self.tab_drag.take() {
+                        self.spawn_dock_host(event_loop, td.tab_id, td.last_global);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Drive a floating dock-host window: its own input, clock, whole-window
+    /// title-strip drag, and a frame rendering its dock tree.
+    fn panel_event(&mut self, event_loop: &ActiveEventLoop, idx: usize, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                // Don't lose the panel: re-dock it into the main tree.
-                let pw = self.panel_windows.remove(idx);
-                self.redock_into_main(pw.tab);
+                // Don't lose the panels: fold every tab back into the main dock.
+                let host = self.panel_windows.remove(idx);
+                for t in host.all_tabs() {
+                    self.dock_tree.add_tab(t.as_str());
+                }
+                if let Some(main) = self.main_window.as_ref() {
+                    main.window().request_redraw();
+                }
             }
             WindowEvent::Resized(_) => {
                 let pw = &mut self.panel_windows[idx];
                 pw.renderer.request_rebuild();
                 pw.renderer.window().request_redraw();
             }
-            WindowEvent::RedrawRequested => self.render_panel_window(idx),
+            WindowEvent::RedrawRequested => {
+                if self.panel_windows[idx].is_decorator {
+                    // The decorator is a transparent cursor card, not a real dock
+                    // host: draw only a small tab thumbnail so the transparent
+                    // margin around it actually shows (rendering the full dock
+                    // tree would fill every pixel and look opaque).
+                    self.render_decorator(idx);
+                } else {
+                    let (resp, drop_released) = self.render_dock_host(idx);
+                    self.resolve_host_frame(event_loop, idx, resp, drop_released);
+                }
+            }
             WindowEvent::CursorMoved { position, .. }
                 if self.panel_windows[idx].dragging =>
             {
                 self.drag_panel_window(idx, Pos2::new(position.x as f32, position.y as f32));
+            }
+            WindowEvent::CursorMoved { position, .. }
+                if self.panel_windows[idx].driving_tearoff =>
+            {
+                // This host tore a tab off and holds the OS capture; pump the
+                // windowless tab drag from here.
+                self.drive_tearoff_from_host(
+                    event_loop,
+                    idx,
+                    Pos2::new(position.x as f32, position.y as f32),
+                );
             }
             WindowEvent::MouseInput { state, button, .. }
                 if matches!(state, winit::event::ElementState::Released)
                     && matches!(button, winit::event::MouseButton::Left)
                     && self.panel_windows[idx].dragging =>
             {
-                // Title drag released: ask the main window to commit the drop.
+                // Title drag released: route the drop to whichever window the
+                // cursor is over (or cancel if over nothing).
                 self.panel_windows[idx].dragging = false;
-                if let Some(r) = self.pending_redock.as_mut() {
-                    r.released = true;
+                if self.window_drag.is_some() {
+                    self.route_window_drag(true);
                 }
-                if let Some(main) = self.main_window.as_ref() {
-                    main.window().request_redraw();
+            }
+            WindowEvent::MouseInput { state, button, .. }
+                if matches!(state, winit::event::ElementState::Released)
+                    && matches!(button, winit::event::MouseButton::Left)
+                    && self.panel_windows[idx].driving_tearoff =>
+            {
+                // Tear-off drag released from the host that owns the capture.
+                self.panel_windows[idx].driving_tearoff = false;
+                if self.tab_drag.is_some() {
+                    self.route_tab_drag(event_loop, true);
                 }
+                self.close_empty_hosts();
             }
             other => {
                 let pw = &mut self.panel_windows[idx];
@@ -901,59 +1523,181 @@ impl App {
         }
     }
 
-    /// While the title bar is held, park the floating window far off-screen so
-    /// its solid body stops covering the main window's drop indicators, then
-    /// report the cursor (in the main window's client space) so the dock lights
-    /// up the live drop zone. The OS keeps the pointer captured here even while
-    /// parked, so moves/release keep flowing in.
+    /// While the title strip is held, park the floating window far off-screen so
+    /// its solid body stops covering target windows' drop indicators, recover
+    /// the true screen cursor, and route it to whichever window sits underneath.
+    /// The OS keeps the pointer captured here even while parked, so moves and
+    /// the release keep flowing in.
     fn drag_panel_window(&mut self, idx: usize, local: Pos2) {
         let win = self.panel_windows[idx].renderer.window().clone();
         let Ok(inner) = win.inner_position() else {
             return;
         };
-        // Recover the true screen-space cursor from the (possibly parked)
-        // window origin plus the window-local cursor. Done before parking so
-        // the first move still reads the on-screen origin.
+        // Recover the true screen-space cursor from the (possibly parked) window
+        // origin plus the window-local cursor. Done before parking so the first
+        // move still reads the on-screen origin.
         let global = Pos2::new(inner.x as f32 + local.x, inner.y as f32 + local.y);
         self.panel_windows[idx].last_global = global;
-        if !self.panel_windows[idx].parked {
+
+        // Lazily begin the window-drag on the first move, capturing the tabs to
+        // transfer and parking the window out of the way.
+        if self.window_drag.is_none() {
+            let host = &self.panel_windows[idx];
+            let Some(rep) = host.rep_tab() else { return };
+            let extra: Vec<String> =
+                host.all_tabs().into_iter().filter(|t| *t != rep).collect();
+            self.window_drag = Some(WindowDrag {
+                source: win.id(),
+                rep,
+                extra,
+                grab: host.drag_grab,
+                last_global: global,
+            });
             let _ = win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
             self.panel_windows[idx].parked = true;
+        } else if let Some(wd) = self.window_drag.as_mut() {
+            wd.last_global = global;
         }
-        if let Some(main) = self.main_window.as_ref() {
-            if let Ok(morigin) = main.window().inner_position() {
-                let mlocal =
-                    Pos2::new(global.x - morigin.x as f32, global.y - morigin.y as f32);
-                let tab = self.panel_windows[idx].tab.clone();
-                self.pending_redock = Some(RedockDrag {
-                    tab,
-                    pointer: mlocal,
-                    released: false,
-                    force: false,
-                });
-                main.window().request_redraw();
+        self.route_window_drag(false);
+    }
+
+    /// Pump a windowless tab tear-off whose OS pointer capture is held by
+    /// floating host `idx` (the window the tab was pulled out of). Translates the
+    /// host-local cursor to screen space and routes the [`TabDrag`] to whatever
+    /// window sits underneath.
+    fn drive_tearoff_from_host(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        idx: usize,
+        local: Pos2,
+    ) {
+        let win = self.panel_windows[idx].renderer.window().clone();
+        let Ok(inner) = win.inner_position() else {
+            return;
+        };
+        let global = Pos2::new(inner.x as f32 + local.x, inner.y as f32 + local.y);
+        if let Some(td) = self.tab_drag.as_mut() {
+            td.last_global = global;
+        }
+        self.route_tab_drag(event_loop, false);
+    }
+
+    /// Find the window under the dragged window's cursor and feed it an
+    /// [`ExternalDrag`] so its drop zones light up. On `released` with no target
+    /// the drag is cancelled and the source window restored to the screen.
+    fn route_window_drag(&mut self, released: bool) {
+        let Some(wd) = self.window_drag.as_ref() else { return };
+        let source = wd.source;
+        let rep = wd.rep.clone();
+        let global = wd.last_global;
+        let grab = wd.grab;
+
+        // Pick the target: floating hosts (on top) first, then the main window.
+        let mut target: Option<DragTarget> = None;
+        for h in self.panel_windows.iter() {
+            if h.renderer.window().id() == source {
+                continue;
+            }
+            if window_contains_global(h.renderer.window(), global) {
+                target = Some(DragTarget::Host(h.renderer.window().id()));
+                break;
+            }
+        }
+        if target.is_none() {
+            if let Some(main) = self.main_window.as_ref() {
+                if window_contains_global(main.window(), global) {
+                    target = Some(DragTarget::Main);
+                }
+            }
+        }
+
+        // Clear last frame's hover everywhere so stale drop zones vanish.
+        self.main_incoming = None;
+        for h in self.panel_windows.iter_mut() {
+            h.incoming = None;
+        }
+
+        match target {
+            Some(DragTarget::Main) => {
+                if let Some(main) = self.main_window.as_ref() {
+                    if let Ok(o) = main.window().inner_position() {
+                        let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
+                        self.main_incoming = Some(ExternalDrag {
+                            tab_id: rep,
+                            pointer: local,
+                            grab,
+                            released,
+                            force: false,
+                            ghost: true,
+                        });
+                        main.window().request_redraw();
+                    }
+                }
+            }
+            Some(DragTarget::Host(id)) => {
+                if let Some(h) =
+                    self.panel_windows.iter_mut().find(|h| h.renderer.window().id() == id)
+                {
+                    if let Ok(o) = h.renderer.window().inner_position() {
+                        let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
+                        h.incoming = Some(ExternalDrag {
+                            tab_id: rep,
+                            pointer: local,
+                            grab,
+                            released,
+                            force: false,
+                            ghost: true,
+                        });
+                        h.renderer.window().request_redraw();
+                    }
+                }
+            }
+            None => {
+                // Released over nothing: cancel and restore the source window.
+                if released {
+                    if let Some(wd) = self.window_drag.take() {
+                        self.unpark_source(&wd);
+                    }
+                }
             }
         }
     }
 
-    /// Queue a tab to be re-inserted into the main dock on its next frame
-    /// (used when a panel window is closed). Drops near the top-left leaf.
-    fn redock_into_main(&mut self, tab: String) {
-        self.pending_redock = Some(RedockDrag {
-            tab,
-            pointer: Pos2::new(8.0, 8.0),
-            released: true,
-            force: true,
-        });
-        if let Some(main) = self.main_window.as_ref() {
-            main.window().request_redraw();
+    /// Restore a parked source window onto the screen at the cursor's last
+    /// position (used when a window-drag is cancelled).
+    fn unpark_source(&mut self, wd: &WindowDrag) {
+        if let Some(pw) = self
+            .panel_windows
+            .iter_mut()
+            .find(|p| p.renderer.window().id() == wd.source)
+        {
+            let pos = wd.last_global - wd.grab;
+            let _ = pw.renderer.window().set_outer_position(PhysicalPosition::new(
+                pos.x.round() as i32,
+                pos.y.round() as i32,
+            ));
+            pw.parked = false;
+            pw.renderer.window().request_redraw();
         }
     }
 
-    /// Render a single torn-off panel window: a draggable title strip plus
-    /// the panel's real content via [`render_panel`].
-    fn render_panel_window(&mut self, idx: usize) {
+    /// Render one floating dock-host window: a whole-window drag strip plus its
+    /// dock tree via [`DockArea`]. Returns the dock response and whether an
+    /// incoming cross-window drag was released over it this frame.
+    fn render_dock_host(&mut self, idx: usize) -> (DockResponse, bool) {
+        // A lone-tab host whose tab is mid-tear-off is empty and hidden; there's
+        // nothing to draw and `DockArea` would index an empty leaf. It still
+        // drives the drag via its captured pointer, so just skip the frame.
+        if self.panel_windows[idx].all_tabs().is_empty() {
+            return (DockResponse::default(), false);
+        }
+        let modifiers = self.modifiers;
+        let ui_us = self.ui_us;
+        let gpu_name = self.gpu_name.clone();
+        let mesh_open = self.mesh_window.is_some();
+        let editor = &mut self.editor;
         let pw = &mut self.panel_windows[idx];
+
         pw.renderer.text_mut().new_frame();
         let size = pw.renderer.window().inner_size();
         let pixels_per_point = pw.renderer.window().scale_factor() as f32;
@@ -964,95 +1708,184 @@ impl App {
             1.0 / 60.0
         };
         pw.last_frame_time = time;
-        let screen_rect = Rect::from_min_size(
-            Pos2::ZERO,
-            Vec2::new(size.width as f32, size.height as f32),
-        );
+        let width = size.width as f32;
+        let height = size.height as f32;
+        let screen_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
         let input = RawInput {
             screen_rect,
             pixels_per_point,
             time,
             predicted_dt: dt,
-            modifiers: self.modifiers,
+            modifiers,
             events: std::mem::take(&mut pw.pending_events),
         };
         let stats = PanelStats {
             frame_time_ms: (dt * 1000.0) as f32,
-            ui_us: self.ui_us,
+            ui_us,
             tess_us: pw.renderer.tess_us(),
-            gpu_name: self.gpu_name.clone(),
+            gpu_name,
             demo_texture: pw.demo_texture,
-            mesh_already_open: self.mesh_window.is_some(),
+            mesh_already_open: mesh_open,
         };
-        let editor = &mut self.editor;
         pw.ctx.begin_frame(input);
         pw.ctx.style = editor.theme.style();
-        let tab = pw.tab.clone();
-        let width = size.width as f32;
-        let st = pw.ctx.style;
 
-        // Draggable title strip across the top.
-        let strip = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, PANEL_TITLE_H));
-        pw.ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
-            strip,
-            st.rounding.small,
-            st.palette.surface_active,
-        )));
-        {
-            let pos = Pos2::new(strip.min.x + 8.0, strip.min.y + 5.0);
-            let label = format!("\u{2725} {tab}  (drag to re-dock)");
-            let mut tmp = Vec::new();
-            pw.renderer.text_mut().add_text(
-                &mut tmp,
-                &label,
-                st.fonts.small,
-                pos,
-                st.palette.text_dim,
-                None,
-            );
-            pw.ctx.paint.extend(tmp);
-        }
-
-        // Panel content fills a bounded rect *below* the strip — exactly like
-        // a dock leaf's body — so `ui.available()` (and the scroll areas that
-        // size themselves from it) get the right height instead of the whole
-        // window, which previously clipped most of the panel away.
-        let content_rect = Rect::from_min_max(
-            Pos2::new(0.0, PANEL_TITLE_H),
-            Pos2::new(width, size.height as f32),
-        );
-        let opts = UiOptions {
-            padding: Vec2::splat(st.spacing.padding),
-            spacing: st.spacing.item,
-        };
-        pw.ctx.paint.push(PaintCmd::PushClip(content_rect));
-        {
-            let root_id = Id::ROOT.with("panel").with(&tab);
-            let mut ui = Ui::with_root(
+        // The dock tree fills the whole window — no drag strip. The window is
+        // moved with the OS title bar; grabbing its tab re-docks it.
+        let dock_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(width, height));
+        // Peek (don't take) so the decorator persists on still frames; routing
+        // clears/re-sets it per move and `resolve_host_frame` clears it on drop.
+        let incoming = pw.incoming.clone();
+        let drop_released = incoming.as_ref().map(|e| e.released).unwrap_or(false);
+        let resp = DockArea::new(&mut pw.tree, &mut pw.state)
+            .external_drag(incoming)
+            .lone_tearoff(true)
+            .show(
                 &mut pw.ctx,
                 pw.renderer.text_mut(),
-                content_rect,
-                Direction::TopDown,
-                opts,
-                root_id,
+                dock_rect,
+                |ui, panel| render_panel(ui, panel, editor, &stats),
             );
-            render_panel(&mut ui, &tab, editor, &stats);
-        }
-        pw.ctx.paint.push(PaintCmd::PopClip);
         let output = pw.ctx.end_frame();
         pw.renderer.render(&[], &output.paint);
         pw.renderer.window().request_redraw();
+        (resp, drop_released)
+    }
 
-        // Begin a title-bar drag if the user pressed inside the strip.
-        if !pw.dragging && pw.ctx.input.pointer_pressed {
-            if let Some(p) = pw.ctx.input.pointer_pos {
-                if p.y <= PANEL_TITLE_H {
-                    pw.dragging = true;
-                    pw.drag_grab = Vec2::new(p.x, p.y);
+    /// Paint the live decorator window: the dragged panel's *real* content,
+    /// faded as one unit, on an otherwise fully transparent window — Unreal's
+    /// translucent drag thumbnail. Because the window is DWM-transparent, the
+    /// faded pixels let the drop compass in the window beneath show through, and
+    /// the empty margin around the panel reads as pure see-through.
+    fn render_decorator(&mut self, idx: usize) {
+        let modifiers = self.modifiers;
+        let ui_us = self.ui_us;
+        let gpu_name = self.gpu_name.clone();
+        let mesh_open = self.mesh_window.is_some();
+        let editor = &mut self.editor;
+        let pw = &mut self.panel_windows[idx];
+
+        pw.renderer.text_mut().new_frame();
+        let size = pw.renderer.window().inner_size();
+        let pixels_per_point = pw.renderer.window().scale_factor() as f32;
+        let time = pw.start.elapsed().as_secs_f64();
+        let width = size.width as f32;
+        let height = size.height as f32;
+        let screen_rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, height));
+        let input = RawInput {
+            screen_rect,
+            pixels_per_point,
+            time,
+            predicted_dt: 1.0 / 60.0,
+            modifiers,
+            events: std::mem::take(&mut pw.pending_events),
+        };
+        let stats = PanelStats {
+            frame_time_ms: 0.0,
+            ui_us,
+            tess_us: pw.renderer.tess_us(),
+            gpu_name,
+            demo_texture: pw.demo_texture,
+            mesh_already_open: mesh_open,
+        };
+        pw.ctx.begin_frame(input);
+        pw.ctx.style = editor.theme.style();
+
+        let dock_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(width, height));
+        DockArea::new(&mut pw.tree, &mut pw.state).lone_tearoff(true).show(
+            &mut pw.ctx,
+            pw.renderer.text_mut(),
+            dock_rect,
+            |ui, panel| render_panel(ui, panel, editor, &stats),
+        );
+        let mut output = pw.ctx.end_frame();
+        // Fade the whole card so the host's drop compass shows through the
+        // DWM-composited transparent window.
+        crusty_gui::paint::scale_alpha(&mut output.paint, 0.72);
+        pw.renderer.render(&[], &output.paint);
+    }
+
+    /// Resolve a dock-host frame: tear-offs spawn new windows; a committed
+    /// cross-window drop folds in the source window's other tabs and closes it;
+    /// a released-but-missed drop cancels and restores the source.
+    fn resolve_host_frame(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        idx: usize,
+        resp: DockResponse,
+        drop_released: bool,
+    ) {
+        // A tab was torn off this host mid-drag: start a windowless tab drag and
+        // hand the still-held pointer to it. This window holds the OS capture, so
+        // it drives the drag. If that was the host's last tab the window is now
+        // empty — hide it so its stale frame doesn't linger; it stays alive only
+        // to pump the drag and is closed when the drag resolves.
+        if let Some(d) = resp.detached {
+            let host_id = self.panel_windows[idx].renderer.window().id();
+            let g = self.panel_windows[idx]
+                .renderer
+                .window()
+                .inner_position()
+                .ok()
+                .map(|o| Pos2::new(o.x as f32 + d.pointer.x, o.y as f32 + d.pointer.y))
+                .unwrap_or(d.pointer);
+            if self.panel_windows[idx].all_tabs().is_empty() {
+                self.panel_windows[idx].renderer.window().set_visible(false);
+            }
+            self.begin_tearoff(event_loop, d.tab, g, DragTarget::Host(host_id));
+            return;
+        }
+
+        // A drag was released over this host this frame.
+        if drop_released {
+            self.panel_windows[idx].incoming = None;
+            if let Some(td) = self.tab_drag.take() {
+                // Tab drag missed this host's drop zones → float it.
+                if !resp.docked {
+                    if DECORATOR_WINDOW && self.decorator_id.is_some() {
+                        self.promote_decorator(event_loop);
+                    } else {
+                        self.spawn_dock_host(event_loop, td.tab_id, td.last_global);
+                    }
+                } else {
+                    // Docked into this host: focus it so the next click registers
+                    // immediately, then drop the decorator ghost.
+                    self.panel_windows[idx].renderer.window().focus_window();
+                    self.destroy_decorator();
+                }
+            } else if let Some(wd) = self.window_drag.take() {
+                // Whole-window title-strip drag dropped onto this host.
+                if resp.docked {
+                    let host_id = self.panel_windows[idx].renderer.window().id();
+                    if let Some(h) = self
+                        .panel_windows
+                        .iter_mut()
+                        .find(|h| h.renderer.window().id() == host_id)
+                    {
+                        for t in &wd.extra {
+                            h.tree.add_tab(t.as_str());
+                        }
+                    }
+                    self.panel_windows
+                        .retain(|p| p.renderer.window().id() != wd.source);
+                } else {
+                    self.unpark_source(&wd);
                 }
             }
         }
     }
+}
+
+/// True if the true screen-space cursor `g` falls within `window`'s outer
+/// bounds (including OS chrome).
+fn window_contains_global(window: &winit::window::Window, g: Pos2) -> bool {
+    let Ok(pos) = window.outer_position() else {
+        return false;
+    };
+    let size = window.outer_size();
+    let x0 = pos.x as f32;
+    let y0 = pos.y as f32;
+    g.x >= x0 && g.y >= y0 && g.x < x0 + size.width as f32 && g.y < y0 + size.height as f32
 }
 
 /// Render one dock panel's content. Shared by the main window's dock and
@@ -1586,6 +2419,48 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                 .size(st.fonts.small)
                                 .color(st.palette.accent)
                                 .show(ui);
+                        }
+                        "Texture" => {
+                            ui.label("metal_albedo.png");
+                            let st = ui.style();
+                            Label::new("2048 \u{00D7} 2048 \u{00B7} BC7 \u{00B7} 5.3 MB")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.item);
+                            Image::new(demo_texture, Vec2::new(200.0, 200.0)).show(ui);
+                            ui.add_space(st.spacing.item);
+                            ui.checkbox(preview_enabled, "sRGB");
+                            ui.checkbox(auto_save, "Generate mipmaps");
+                        }
+                        "Mesh" => {
+                            ui.label("character_lod0.mesh");
+                            let st = ui.style();
+                            Label::new("12,480 tris \u{00B7} 6,210 verts \u{00B7} 1 material")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.item);
+                            Image::new(demo_texture, Vec2::new(220.0, 160.0)).show(ui);
+                            ui.add_space(st.spacing.item);
+                            ui.label("LOD bias");
+                            ui.slider(brightness, 0.0..=1.0);
+                            ui.checkbox(preview_enabled, "Wireframe");
+                        }
+                        "Animation" => {
+                            ui.label("run_cycle.anim");
+                            let st = ui.style();
+                            Label::new("32 frames \u{00B7} 30 fps \u{00B7} 1.07 s \u{00B7} looping")
+                                .size(st.fonts.small)
+                                .color(st.palette.text_dim)
+                                .show(ui);
+                            ui.add_space(st.spacing.item);
+                            ui.label("Timeline");
+                            ui.slider(volume, 0.0..=1.0);
+                            ui.progress_bar(*volume);
+                            ui.add_space(st.spacing.item);
+                            ui.checkbox(preview_enabled, "Play");
+                            ui.checkbox(auto_save, "Loop");
                         }
                         _ => {}
     }

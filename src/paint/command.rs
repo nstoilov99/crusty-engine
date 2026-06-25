@@ -62,6 +62,37 @@ pub enum PaintCmd {
     PopClip,
 }
 
+/// Multiply the alpha of every colour in a slice of paint commands by `k`.
+/// Fades a self-contained block (e.g. a drag decorator) as one unit without
+/// per-shape edits or a tessellator-level layer-alpha pass.
+pub fn scale_alpha(cmds: &mut [PaintCmd], k: f32) {
+    for cmd in cmds {
+        match cmd {
+            PaintCmd::Rect { color, .. } => color.a *= k,
+            PaintCmd::Line { color, .. } => color.a *= k,
+            PaintCmd::ConvexPolygon { color, .. } => color.a *= k,
+            PaintCmd::Glyph { color, .. } => color.a *= k,
+            PaintCmd::Image { tint, .. } => tint.a *= k,
+            PaintCmd::ColorGlyph { alpha, .. } => *alpha *= k,
+            PaintCmd::Rrect(shape) => {
+                if let Some(c) = shape.fill.as_mut() {
+                    c.a *= k;
+                }
+                if let Some(s) = shape.stroke.as_mut() {
+                    s.color.a *= k;
+                }
+                if let Some(s) = shape.shadow.as_mut() {
+                    s.color.a *= k;
+                }
+                if let Some(g) = shape.glow.as_mut() {
+                    g.color.a *= k;
+                }
+            }
+            PaintCmd::PushClip(_) | PaintCmd::PopClip => {}
+        }
+    }
+}
+
 /// Fully-parameterised rounded rectangle. Fields are optional and combined
 /// in a fixed order during tessellation: shadow, glow, fill, stroke.
 #[derive(Clone, Debug)]
