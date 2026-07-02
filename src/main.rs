@@ -13,6 +13,7 @@ use std::time::Instant;
 use crusty_gui::backend::vulkano::upload_rgba_texture;
 use crusty_gui::dock::{DECORATOR_SIZE, DockArea, DockNode, DockResponse, DockState, ExternalDrag};
 use crusty_gui::prelude::*;
+use crusty_gui::shell::app::{DockApp, PanelFrame, ShellCmd, ShellCtl};
 use crusty_gui::shell::drag::{DragTarget, TabDrag, WindowDrag};
 use crusty_gui::shell::host::DockHost;
 use crusty_gui::shell::input::{
@@ -29,16 +30,6 @@ use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{WindowAttributes, WindowId, WindowLevel};
-
-/// Background scene. Empty in Phase 6.5 — the editor layout fills the
-/// whole window so any backdrop content just shows through translucent
-/// panels and competes with drop-zone overlays. Kept as a function so we
-/// can drop content back in if we want to demo glassmorphism over a
-/// rendered scene again.
-fn build_scene_paint(_screen: [u32; 2]) -> Vec<PaintCmd> {
-    Vec::new()
-}
-
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum Quality {
@@ -144,6 +135,144 @@ struct PanelStats {
     mesh_already_open: bool,
 }
 
+/// The demo's [`DockApp`]: owns all panel-level state plus the per-window
+/// demo textures, and renders the menu bar, panels, and overlay windows.
+struct Editor {
+    state: EditorState,
+    window_slider: f32,
+    gpu_name: String,
+    /// Refreshed by the frame loop so the Viewport panel can grey out its
+    /// "open mesh editor" button.
+    mesh_open: bool,
+    /// Per-window checkerboard textures (each window has its own registry).
+    textures: HashMap<WindowId, TextureId>,
+}
+
+impl Default for Editor {
+    fn default() -> Self {
+        Self {
+            state: EditorState::default(),
+            window_slider: 0.4,
+            gpu_name: String::new(),
+            mesh_open: false,
+            textures: HashMap::new(),
+        }
+    }
+}
+
+impl DockApp for Editor {
+    fn style(&self) -> Style {
+        self.state.theme.style()
+    }
+
+    fn setup_window(&mut self, gpu: &GpuContext, renderer: &mut WindowRenderer) {
+        let id = renderer.window().id();
+        let tex = build_demo_texture(gpu, renderer);
+        self.textures.insert(id, tex);
+    }
+
+    fn panel_ui(&mut self, ui: &mut Ui, tab: &str, frame: &PanelFrame) {
+        let stats = PanelStats {
+            frame_time_ms: frame.frame_time_ms,
+            ui_us: frame.ui_us,
+            tess_us: frame.tess_us,
+            gpu_name: self.gpu_name.clone(),
+            demo_texture: self
+                .textures
+                .get(&frame.window)
+                .copied()
+                .expect("demo texture registered"),
+            mesh_already_open: self.mesh_open,
+        };
+        render_panel(ui, tab, &mut self.state, &stats);
+    }
+
+    fn top_ui(&mut self, ui: &mut Ui, ctl: &mut ShellCtl) {
+        ui.menu_bar(|ui| {
+            ui.menu_button("File", |ui| {
+                if ui.menu_item("Save Layout") {
+                    ctl.save_layout();
+                }
+            });
+            ui.menu_button("Window", |ui| {
+                for name in ALL_PANELS {
+                    let open = ctl.is_open(name);
+                    let mark = if open { "\u{2713} " } else { "    " };
+                    if ui.menu_item(format!("{mark}{name}")) && !open {
+                        ctl.open_tab(name);
+                    }
+                }
+            });
+            ui.menu_button("Assets", |ui| {
+                for name in ASSET_EDITORS {
+                    if ui.menu_item(format!("Open {name} Editor")) {
+                        ctl.open_floating(name);
+                    }
+                }
+            });
+        });
+    }
+
+    fn overlay_ui(&mut self, ui: &mut Ui) {
+        let screen_rect = ui.ctx().screen_rect();
+        let editor = &mut self.state;
+        let window_slider = &mut self.window_slider;
+
+        GuiWindow::new("Settings")
+            .open(&mut editor.settings_open)
+            .default_pos(Pos2::new(260.0, 140.0))
+            .default_size(Vec2::new(320.0, 260.0))
+            .show(ui, |ui| {
+                ui.label("A floating window:");
+                let st = ui.style();
+                Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
+                    .size(st.fonts.small)
+                    .color(st.palette.text_dim)
+                    .show(ui);
+                ui.add_space(st.spacing.item);
+                ui.slider(window_slider, 0.0..=1.0);
+                ui.progress_bar(*window_slider);
+                ui.add_space(st.spacing.item);
+                if ui.button("Open About (modal)").clicked() {
+                    editor.about_open = true;
+                }
+            });
+
+        if editor.about_open {
+            let mut close_clicked = false;
+            GuiWindow::new("About crusty-gui")
+                .open(&mut editor.about_open)
+                .modal(true)
+                .resizable(false)
+                .collapsible(false)
+                .close_on_click_outside(true)
+                .default_pos(Pos2::new(
+                    screen_rect.center().x - 170.0,
+                    screen_rect.center().y - 110.0,
+                ))
+                .default_size(Vec2::new(340.0, 200.0))
+                .show(ui, |ui| {
+                    ui.label("crusty-gui \u{2014} Phase 9");
+                    let st = ui.style();
+                    Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
+                        .size(st.fonts.small)
+                        .color(st.palette.text_dim)
+                        .show(ui);
+                    ui.add_space(st.spacing.item);
+                    if ui.button("Close").clicked() {
+                        close_clicked = true;
+                    }
+                });
+            if close_clicked {
+                editor.about_open = false;
+            }
+        }
+
+        // Phase 13: render & reap queued toasts on top of all UI.
+        ui.show_toasts();
+    }
+}
+
 /// Height of the draggable title strip on a torn-off panel window.
 const PANEL_TITLE_H: f32 = 26.0;
 /// Horizontal cursor offset into the title strip kept under the pointer while
@@ -200,11 +329,6 @@ struct App {
     mesh_start: Option<Instant>,
     mesh_last_frame_time: f64,
     mesh_spin: f32,
-    demo_texture: Option<TextureId>,
-    /// Per-window checkerboard textures for torn-off hosts (each window has its
-    /// own texture registry).
-    host_textures: HashMap<WindowId, TextureId>,
-    gpu_name: String,
     ctx: Context,
     start: Option<Instant>,
     last_frame_time: f64,
@@ -213,10 +337,9 @@ struct App {
     modifiers: Modifiers,
     /// All panel-level demo state, shared between the dock and popped-out
     /// panel windows.
-    editor: EditorState,
+    editor: Editor,
     dock_tree: DockNode,
     dock_state: DockState,
-    window_slider: f32,
     ui_us: f32,
     /// Panels torn off into their own OS windows, each a full dock container.
     panel_windows: Vec<DockHost>,
@@ -268,19 +391,15 @@ impl Default for App {
             mesh_start: None,
             mesh_last_frame_time: 0.0,
             mesh_spin: 0.0,
-            demo_texture: None,
-            host_textures: HashMap::new(),
-            gpu_name: String::new(),
             ctx: Context::default(),
             start: None,
             last_frame_time: 0.0,
             pointer_pos: None,
             pending_events: Vec::new(),
             modifiers: Modifiers::empty(),
-            editor: EditorState::default(),
+            editor: Editor::default(),
             dock_tree: default_dock_tree(),
             dock_state: DockState::default(),
-            window_slider: 0.4,
             ui_us: 0.0,
             panel_windows: Vec::new(),
             window_drag: None,
@@ -339,6 +458,51 @@ impl App {
             &self.ctx.memory,
         );
     }
+
+    /// Apply the [`ShellCmd`]s the app queued during its `top_ui`. Returns
+    /// whether a spawned/focused window stole OS focus from the main window
+    /// (which then needs one synchronous repaint).
+    fn apply_commands(&mut self, event_loop: &ActiveEventLoop, cmds: Vec<ShellCmd>) -> bool {
+        let mut focus_stolen = false;
+        for cmd in cmds {
+            match cmd {
+                // Re-open a closed panel by docking it back into the main tree.
+                ShellCmd::OpenTab(name) => {
+                    self.dock_tree.add_tab(name.as_str());
+                }
+                // Open a standalone dock window near the main window — unless
+                // the tab is already open somewhere, in which case surface it
+                // instead of spawning a duplicate.
+                ShellCmd::OpenFloating(name) => {
+                    if self.dock_tree.contains_tab(&name) {
+                        self.dock_tree.activate_tab(&name);
+                        if let Some(main) = self.main_window.as_ref() {
+                            main.window().request_redraw();
+                        }
+                    } else if let Some(host) = self
+                        .panel_windows
+                        .iter()
+                        .find(|p| p.tree.contains_tab(&name))
+                    {
+                        host.renderer.window().focus_window();
+                        host.renderer.window().request_redraw();
+                        focus_stolen = true;
+                    } else {
+                        let g = self
+                            .main_window
+                            .as_ref()
+                            .and_then(|m| m.window().inner_position().ok())
+                            .map(|o| Pos2::new(o.x as f32 + 260.0, o.y as f32 + 200.0))
+                            .unwrap_or(Pos2::new(260.0, 200.0));
+                        self.spawn_dock_host(event_loop, name, g);
+                        focus_stolen = true;
+                    }
+                }
+                ShellCmd::SaveLayout => self.save_layout(),
+            }
+        }
+        focus_stolen
+    }
 }
 
 impl ApplicationHandler for App {
@@ -348,8 +512,8 @@ impl ApplicationHandler for App {
                 .with_title("crusty-gui — Phase 15 (multi-window)")
                 .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 800.0));
             let (gpu, mut window) = WindowRenderer::create_primary(event_loop, attrs);
-            self.gpu_name = gpu.gpu_name.clone();
-            self.demo_texture = Some(build_demo_texture(&gpu, &mut window));
+            self.editor.gpu_name = gpu.gpu_name.clone();
+            self.editor.setup_window(&gpu, &mut window);
             self.gpu = Some(gpu);
             self.main_window = Some(window);
             self.start = Some(Instant::now());
@@ -569,7 +733,8 @@ impl App {
                 let ui_start = Instant::now();
                 self.ctx.begin_frame(input);
                 // Apply the active theme before any widget reads it.
-                self.ctx.style = self.editor.theme.style();
+                self.editor.mesh_open = self.mesh_window.is_some();
+                self.ctx.style = self.editor.style();
 
                 let dock_root = Rect::from_min_size(
                     Pos2::new(4.0, MENU_BAR_H + 4.0),
@@ -579,21 +744,14 @@ impl App {
                     ),
                 );
 
-                // Top menu bar. The Window menu lists every known panel with a
-                // check for the ones currently open (docked or floating); a
-                // click re-docks a closed panel so it can never be lost.
-                let mut open_flags = [false; ALL_PANELS.len()];
-                {
-                    let mut existing = Vec::new();
-                    self.dock_tree.collect_tabs(&mut existing);
-                    for (i, name) in ALL_PANELS.iter().enumerate() {
-                        open_flags[i] = existing.iter().any(|t| t == name)
-                            || self.panel_windows.iter().any(|p| p.tree.contains_tab(name));
-                    }
+                // Top menu bar (app-drawn via `DockApp::top_ui`). Collect every
+                // open tab first so the app can checkmark its Window menu.
+                let mut open_tabs = Vec::new();
+                self.dock_tree.collect_tabs(&mut open_tabs);
+                for p in &self.panel_windows {
+                    p.tree.collect_tabs(&mut open_tabs);
                 }
-                let mut reopen_panel: Option<&'static str> = None;
-                let mut open_asset: Option<&'static str> = None;
-                let mut save_layout_requested = false;
+                let mut cmds: Vec<ShellCmd> = Vec::new();
                 let menu_rect = Rect::from_min_size(
                     Pos2::ZERO,
                     Vec2::new(size.width as f32, MENU_BAR_H),
@@ -613,36 +771,14 @@ impl App {
                         menu_opts,
                         Id::ROOT.with("menubar"),
                     );
-                    ui.menu_bar(|ui| {
-                        ui.menu_button("File", |ui| {
-                            if ui.menu_item("Save Layout") {
-                                save_layout_requested = true;
-                            }
-                        });
-                        ui.menu_button("Window", |ui| {
-                            for (i, name) in ALL_PANELS.iter().enumerate() {
-                                let mark = if open_flags[i] { "\u{2713} " } else { "    " };
-                                if ui.menu_item(format!("{mark}{name}")) && !open_flags[i] {
-                                    reopen_panel = Some(name);
-                                }
-                            }
-                        });
-                        ui.menu_button("Assets", |ui| {
-                            for name in ASSET_EDITORS {
-                                if ui.menu_item(format!("Open {name} Editor")) {
-                                    open_asset = Some(name);
-                                }
-                            }
-                        });
-                    });
+                    let mut ctl = ShellCtl::new(&open_tabs, &mut cmds);
+                    self.editor.top_ui(&mut ui, &mut ctl);
                 }
-                let stats = PanelStats {
+                let frame = PanelFrame {
+                    window: renderer.window().id(),
                     frame_time_ms: (dt * 1000.0) as f32,
                     ui_us: self.ui_us,
                     tess_us: renderer.tess_us(),
-                    gpu_name: self.gpu_name.clone(),
-                    demo_texture: self.demo_texture.expect("demo texture registered"),
-                    mesh_already_open: self.mesh_window.is_some(),
                 };
                 // Peek (don't take) the incoming drag so the translucent
                 // decorator keeps rendering on frames with no cursor movement —
@@ -661,75 +797,21 @@ impl App {
                         &mut self.ctx,
                         renderer.text_mut(),
                         dock_root,
-                        |ui, panel| render_panel(ui, panel, editor, &stats),
+                        |ui, panel| editor.panel_ui(ui, panel, &frame),
                     );
                 let detached = dock_response.detached;
                 let docked = dock_response.docked;
 
                 // ── Phase 9: floating windows (own layers, z-ordered,
                 // click-to-front; the modal blocks everything beneath).
-                let window_slider = &mut self.window_slider;
-                let editor = &mut self.editor;
-                self.ctx.run_root(renderer.text_mut(), screen_rect, |ui| {
-                    GuiWindow::new("Settings")
-                        .open(&mut editor.settings_open)
-                        .default_pos(Pos2::new(260.0, 140.0))
-                        .default_size(Vec2::new(320.0, 260.0))
-                        .show(ui, |ui| {
-                            ui.label("A floating window:");
-                            let st = ui.style();
-                            Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_dim)
-                                .show(ui);
-                            ui.add_space(st.spacing.item);
-                            ui.slider(window_slider, 0.0..=1.0);
-                            ui.progress_bar(*window_slider);
-                            ui.add_space(st.spacing.item);
-                            if ui.button("Open About (modal)").clicked() {
-                                editor.about_open = true;
-                            }
-                        });
-
-                    if editor.about_open {
-                        let mut close_clicked = false;
-                        GuiWindow::new("About crusty-gui")
-                            .open(&mut editor.about_open)
-                            .modal(true)
-                            .resizable(false)
-                            .collapsible(false)
-                            .close_on_click_outside(true)
-                            .default_pos(Pos2::new(
-                                screen_rect.center().x - 170.0,
-                                screen_rect.center().y - 110.0,
-                            ))
-                            .default_size(Vec2::new(340.0, 200.0))
-                            .show(ui, |ui| {
-                                ui.label("crusty-gui \u{2014} Phase 9");
-                                let st = ui.style();
-                                Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
-                                    .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
-                                    .show(ui);
-                                ui.add_space(st.spacing.item);
-                                if ui.button("Close").clicked() {
-                                    close_clicked = true;
-                                }
-                            });
-                        if close_clicked {
-                            editor.about_open = false;
-                        }
-                    }
-
-                    // Phase 13: render & reap queued toasts on top of all UI.
-                    ui.show_toasts();
-                });
+                self.ctx
+                    .run_root(renderer.text_mut(), screen_rect, |ui| editor.overlay_ui(ui));
 
                 let output = self.ctx.end_frame();
                 let ui_us = ui_start.elapsed().as_secs_f32() * 1e6;
                 self.ui_us = self.ui_us * 0.9 + ui_us * 0.1;
 
-                let scene_paint = build_scene_paint(inner_size);
+                let scene_paint = self.editor.scene_paint(inner_size);
                 renderer.render(&scene_paint, &output.paint);
                 renderer.window().request_redraw();
 
@@ -742,51 +824,14 @@ impl App {
                 // Phase 15: a Viewport button asked to spawn the second
                 // window. Do it now that the `renderer` borrow has ended and
                 // `event_loop` is live.
-                if self.editor.open_mesh_requested && self.mesh_window.is_none() {
-                    self.editor.open_mesh_requested = false;
+                if self.editor.state.open_mesh_requested && self.mesh_window.is_none() {
+                    self.editor.state.open_mesh_requested = false;
                     self.spawn_mesh_window(event_loop);
                     focus_stolen = true;
                 }
 
-                // Window menu: re-open a closed panel by docking it back in.
-                if let Some(name) = reopen_panel {
-                    self.dock_tree.add_tab(name);
-                }
-
-                // Assets menu: open an asset editor in its own standalone dock
-                // window, centred over the main window. It can then be docked in.
-                // If it's already open (in the main dock or any floating host),
-                // focus that instead of spawning a duplicate.
-                if let Some(name) = open_asset {
-                    if self.dock_tree.contains_tab(name) {
-                        // Already docked in the main window — surface its tab.
-                        self.dock_tree.activate_tab(name);
-                        if let Some(main) = self.main_window.as_ref() {
-                            main.window().request_redraw();
-                        }
-                    } else if let Some(host) = self
-                        .panel_windows
-                        .iter()
-                        .find(|p| p.tree.contains_tab(name))
-                    {
-                        // Already open as a float — raise and focus it.
-                        host.renderer.window().focus_window();
-                        host.renderer.window().request_redraw();
-                        focus_stolen = true;
-                    } else {
-                        let g = self
-                            .main_window
-                            .as_ref()
-                            .and_then(|m| m.window().inner_position().ok())
-                            .map(|o| Pos2::new(o.x as f32 + 260.0, o.y as f32 + 200.0))
-                            .unwrap_or(Pos2::new(260.0, 200.0));
-                        self.spawn_dock_host(event_loop, name.to_string(), g);
-                        focus_stolen = true;
-                    }
-                }
-                if save_layout_requested {
-                    self.save_layout();
-                }
+                // Apply the shell requests the app queued during the frame.
+                focus_stolen |= self.apply_commands(event_loop, cmds);
 
                 // A tab was torn off the main dock mid-drag: float it in its own
                 // window *now* and hand the still-held pointer to the whole-window
@@ -933,7 +978,7 @@ impl App {
                     events: std::mem::take(&mut self.mesh_pending_events),
                 };
                 self.mesh_ctx.begin_frame(input);
-                self.mesh_ctx.style = self.editor.theme.style();
+                self.mesh_ctx.style = self.editor.style();
 
                 let spin = self.mesh_spin;
                 self.mesh_ctx.run_root(renderer.text_mut(), screen_rect, |ui| {
@@ -993,7 +1038,7 @@ impl App {
         tab: String,
         at_global: Pos2,
     ) -> Option<WindowId> {
-        let gpu = self.gpu.as_ref()?;
+        let gpu = self.gpu.as_ref()?.clone();
         // Position the window in its creation attributes so it appears in place
         // instead of flashing at the OS default spot and jumping (spawn jitter).
         // A real float is grabbed by its title strip at PANEL_GRAB_X.
@@ -1016,9 +1061,8 @@ impl App {
         );
         window.set_outer_position(pos);
         let id = window.id();
-        let mut renderer = WindowRenderer::new_demotable(gpu, window);
-        let demo_texture = build_demo_texture(gpu, &mut renderer);
-        self.host_textures.insert(id, demo_texture);
+        let mut renderer = WindowRenderer::new_demotable(&gpu, window);
+        self.editor.setup_window(&gpu, &mut renderer);
         renderer.window().request_redraw();
         self.panel_windows
             .push(DockHost::new(renderer, DockNode::leaf(tab.as_str())));
@@ -1036,7 +1080,7 @@ impl App {
         pos: PhysicalPosition<i32>,
         visible: bool,
     ) -> Option<DockHost> {
-        let gpu = self.gpu.as_ref()?;
+        let gpu = self.gpu.as_ref()?.clone();
         // See `spawn_dock_host` for why the decorator is borderless + transparent
         // + always-on-top + inactive.
         let attrs = WindowAttributes::default()
@@ -1053,10 +1097,8 @@ impl App {
                 .create_window(attrs)
                 .expect("failed to create decorator window"),
         );
-        let id = window.id();
-        let mut renderer = WindowRenderer::new_transparent(gpu, window);
-        let demo_texture = build_demo_texture(gpu, &mut renderer);
-        self.host_textures.insert(id, demo_texture);
+        let mut renderer = WindowRenderer::new_transparent(&gpu, window);
+        self.editor.setup_window(&gpu, &mut renderer);
         let mut host = DockHost::new(renderer, DockNode::leaf("panel"));
         host.is_decorator = true;
         Some(host)
@@ -1729,13 +1771,7 @@ impl App {
         }
         let modifiers = self.modifiers;
         let ui_us = self.ui_us;
-        let gpu_name = self.gpu_name.clone();
-        let mesh_open = self.mesh_window.is_some();
-        let host_texture = self
-            .host_textures
-            .get(&self.panel_windows[idx].renderer.window().id())
-            .copied()
-            .expect("host texture registered");
+        self.editor.mesh_open = self.mesh_window.is_some();
         let editor = &mut self.editor;
         let pw = &mut self.panel_windows[idx];
 
@@ -1760,16 +1796,14 @@ impl App {
             modifiers,
             events: std::mem::take(&mut pw.pending_events),
         };
-        let stats = PanelStats {
+        let frame = PanelFrame {
+            window: pw.renderer.window().id(),
             frame_time_ms: (dt * 1000.0) as f32,
             ui_us,
             tess_us: pw.renderer.tess_us(),
-            gpu_name,
-            demo_texture: host_texture,
-            mesh_already_open: mesh_open,
         };
         pw.ctx.begin_frame(input);
-        pw.ctx.style = editor.theme.style();
+        pw.ctx.style = editor.style();
 
         // The dock tree fills the whole window — no drag strip. The window is
         // moved with the OS title bar; grabbing its tab re-docks it.
@@ -1785,7 +1819,7 @@ impl App {
                 &mut pw.ctx,
                 pw.renderer.text_mut(),
                 dock_rect,
-                |ui, panel| render_panel(ui, panel, editor, &stats),
+                |ui, panel| editor.panel_ui(ui, panel, &frame),
             );
         let output = pw.ctx.end_frame();
         pw.renderer.render(&[], &output.paint);
@@ -1801,13 +1835,7 @@ impl App {
     fn render_decorator(&mut self, idx: usize) {
         let modifiers = self.modifiers;
         let ui_us = self.ui_us;
-        let gpu_name = self.gpu_name.clone();
-        let mesh_open = self.mesh_window.is_some();
-        let host_texture = self
-            .host_textures
-            .get(&self.panel_windows[idx].renderer.window().id())
-            .copied()
-            .expect("host texture registered");
+        self.editor.mesh_open = self.mesh_window.is_some();
         let editor = &mut self.editor;
         let pw = &mut self.panel_windows[idx];
 
@@ -1826,23 +1854,21 @@ impl App {
             modifiers,
             events: std::mem::take(&mut pw.pending_events),
         };
-        let stats = PanelStats {
+        let frame = PanelFrame {
+            window: pw.renderer.window().id(),
             frame_time_ms: 0.0,
             ui_us,
             tess_us: pw.renderer.tess_us(),
-            gpu_name,
-            demo_texture: host_texture,
-            mesh_already_open: mesh_open,
         };
         pw.ctx.begin_frame(input);
-        pw.ctx.style = editor.theme.style();
+        pw.ctx.style = editor.style();
 
         let dock_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(width, height));
         DockArea::new(&mut pw.tree, &mut pw.state).lone_tearoff(true).show(
             &mut pw.ctx,
             pw.renderer.text_mut(),
             dock_rect,
-            |ui, panel| render_panel(ui, panel, editor, &stats),
+            |ui, panel| editor.panel_ui(ui, panel, &frame),
         );
         let mut output = pw.ctx.end_frame();
         // Fade the whole card so the host's drop compass shows through the
