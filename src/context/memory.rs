@@ -345,6 +345,16 @@ impl Memory {
         }
     }
 
+    /// True when `pointer` is over the rect of any widget visited this
+    /// frame. Drives [`FrameOutput::wants_pointer`](crate::context::FrameOutput::wants_pointer)
+    /// for hosts that embed the UI over a scene.
+    pub fn any_widget_contains(&self, pointer: Option<Pos2>) -> bool {
+        let Some(p) = pointer else { return false };
+        self.widgets
+            .values()
+            .any(|w| w.seen_this_frame && w.last_rect.contains(p))
+    }
+
     /// Run at the start of each frame, before any widget code runs.
     /// Marks every entry as not-yet-seen so we can detect dead widgets.
     pub fn begin_frame(&mut self) {

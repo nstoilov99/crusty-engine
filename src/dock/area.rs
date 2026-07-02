@@ -1,4 +1,4 @@
-use crate::context::{Context, Direction, Ui, UiOptions};
+use crate::context::{Context, CursorIcon, Direction, Ui, UiOptions};
 use crate::dock::tree::{DockNode, Leaf, SplitDirection, TabId};
 use crate::id::Id;
 use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
@@ -453,6 +453,12 @@ fn handle_splitter_drag(
         ctx.memory.active_widget = Some(splitter_id);
     }
     let is_active = ctx.memory.active_widget == Some(splitter_id);
+    if hovered || is_active {
+        ctx.set_cursor_icon(match dir {
+            SplitDirection::Horizontal => CursorIcon::ResizeEw,
+            SplitDirection::Vertical => CursorIcon::ResizeNs,
+        });
+    }
     if is_active && pointer_down {
         if let Some(p) = ctx.input.pointer_pos {
             *ratio = match dir {

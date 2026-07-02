@@ -129,12 +129,12 @@ letting `WindowRenderer` own the swapchain.
       `handle_window_event()` / `render()` / `about_to_wait()` hooks
 - [x] Layout persistence helpers: serde save/load of dock tree + `Memory`
       moved behind the `serde` feature (`LayoutRef`/`LayoutOwned`)
-- [ ] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
+- [x] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
       `wants_keyboard`, cursor icon, `repaint_after`
 - [ ] Presentation-optional render path: tessellate + record into an
       externally-owned command buffer / image target (engine composites),
       swapchain ownership only in the shell path
-- [ ] Backend quick wins touching the same seam: reuse vertex/index
+- [x] Backend quick wins touching the same seam: reuse vertex/index
       buffers, drop `wait_idle` on glyph upload
 - [x] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
       `render_panel`, theme, demo textures, default dock tree

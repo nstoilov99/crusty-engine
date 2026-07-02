@@ -13,7 +13,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{WindowAttributes, WindowId, WindowLevel};
 
-use crate::context::{Context, Direction, Ui, UiOptions};
+use crate::context::{Context, CursorIcon, Direction, Ui, UiOptions};
 use crate::dock::{DECORATOR_SIZE, DockArea, DockNode, DockResponse, DockState, ExternalDrag};
 use crate::id::Id;
 use crate::input::{Event, Modifiers, RawInput};
@@ -58,6 +58,24 @@ const DECORATOR_SETTLE_FRAMES: u32 = 4;
 /// so the cleared drop-compass is flushed even though the just-promoted titled
 /// window has stolen focus and the background main window won't repaint itself.
 const DRAG_SETTLE_FRAMES: u32 = 4;
+
+/// Map the library's backend-agnostic [`CursorIcon`] onto winit's.
+fn winit_cursor(icon: CursorIcon) -> winit::window::CursorIcon {
+    use winit::window::CursorIcon as W;
+    match icon {
+        CursorIcon::Default => W::Default,
+        CursorIcon::Pointer => W::Pointer,
+        CursorIcon::Text => W::Text,
+        CursorIcon::Grab => W::Grab,
+        CursorIcon::Grabbing => W::Grabbing,
+        CursorIcon::ResizeEw => W::EwResize,
+        CursorIcon::ResizeNs => W::NsResize,
+        CursorIcon::ResizeNwSe => W::NwseResize,
+        CursorIcon::ResizeNeSw => W::NeswResize,
+        CursorIcon::Move => W::Move,
+        CursorIcon::NotAllowed => W::NotAllowed,
+    }
+}
 
 /// Shell configuration handed to [`Shell::new`] alongside the app.
 pub struct ShellConfig {
@@ -571,6 +589,7 @@ impl<A: DockApp> Shell<A> {
         let ui_us = ui_start.elapsed().as_secs_f32() * 1e6;
         self.ui_us = self.ui_us * 0.9 + ui_us * 0.1;
 
+        renderer.window().set_cursor(winit_cursor(output.cursor_icon));
         let inner_size: [u32; 2] = size.into();
         let scene_paint = self.app.scene_paint(inner_size);
         renderer.render(&scene_paint, &output.paint);
@@ -1461,6 +1480,7 @@ impl<A: DockApp> Shell<A> {
                 |ui, panel| app.panel_ui(ui, panel, &frame),
             );
         let output = pw.ctx.end_frame();
+        pw.renderer.window().set_cursor(winit_cursor(output.cursor_icon));
         pw.renderer.render(&[], &output.paint);
         pw.renderer.window().request_redraw();
         (resp, drop_released)

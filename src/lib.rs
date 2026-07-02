@@ -27,7 +27,7 @@ pub mod backend;
 pub mod shell;
 
 pub mod prelude {
-    pub use crate::context::{Align, Context, Direction, Ui, UiOptions};
+    pub use crate::context::{Align, Context, CursorIcon, Direction, FrameOutput, Ui, UiOptions};
     pub use crate::id::Id;
     pub use crate::input::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
     pub use crate::layer::Order;

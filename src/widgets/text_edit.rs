@@ -1,6 +1,6 @@
 use crate::animation::approach_half_life;
 use crate::clipboard;
-use crate::context::Ui;
+use crate::context::{CursorIcon, Ui};
 use crate::input::{Key, Modifiers};
 use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
@@ -62,6 +62,9 @@ impl<'a> TextEdit<'a> {
 
         // ── Snapshot input up front to keep borrows simple.
         let hovered = ui.contains_pointer(rect);
+        if hovered {
+            ui.ctx_mut().set_cursor_icon(CursorIcon::Text);
+        }
         let pointer_pos = ui.ctx().input.pointer_pos;
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_down = ui.ctx().input.pointer_down;

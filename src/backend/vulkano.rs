@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use vulkano::buffer::allocator::{SubbufferAllocator, SubbufferAllocatorCreateInfo};
 use vulkano::buffer::{Buffer, BufferContents, BufferCreateInfo, BufferUsage, Subbuffer};
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::command_buffer::{
@@ -477,7 +478,10 @@ impl TextureRegistry {
 
 pub struct UiRenderer {
     pipeline: Arc<GraphicsPipeline>,
-    memory_allocator: Arc<StandardMemoryAllocator>,
+    /// Ring-buffer allocator for the per-frame vertex/index streams. Arenas
+    /// are recycled once the frames referencing them finish, instead of
+    /// allocating fresh device memory every draw.
+    stream_alloc: SubbufferAllocator,
     descriptor_set_allocator: Arc<StandardDescriptorSetAllocator>,
     set_layout: Arc<DescriptorSetLayout>,
     /// 1×1 RGBA fallback bound at the image / color-atlas slots when no real
@@ -494,6 +498,16 @@ impl UiRenderer {
             device.clone(),
             Default::default(),
         ));
+
+        let stream_alloc = SubbufferAllocator::new(
+            memory_allocator.clone(),
+            SubbufferAllocatorCreateInfo {
+                buffer_usage: BufferUsage::VERTEX_BUFFER | BufferUsage::INDEX_BUFFER,
+                memory_type_filter: MemoryTypeFilter::PREFER_HOST
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+        );
 
         let dummy_view = make_dummy_rgba(&memory_allocator);
         let default_sampler = Sampler::new(
@@ -571,7 +585,7 @@ impl UiRenderer {
 
         Self {
             pipeline,
-            memory_allocator,
+            stream_alloc,
             descriptor_set_allocator,
             set_layout,
             dummy_view,
@@ -708,37 +722,25 @@ impl UiRenderer {
     }
 
     fn upload_vertices(&self, vertices: &[Vertex]) -> Subbuffer<[Vertex]> {
-        Buffer::from_iter(
-            self.memory_allocator.clone(),
-            BufferCreateInfo {
-                usage: BufferUsage::VERTEX_BUFFER,
-                ..Default::default()
-            },
-            AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                ..Default::default()
-            },
-            vertices.iter().copied(),
-        )
-        .expect("failed to allocate UI vertex buffer")
+        let buf = self
+            .stream_alloc
+            .allocate_slice(vertices.len() as u64)
+            .expect("failed to allocate UI vertex buffer");
+        buf.write()
+            .expect("UI vertex buffer still in use")
+            .copy_from_slice(vertices);
+        buf
     }
 
     fn upload_indices(&self, indices: &[u32]) -> Subbuffer<[u32]> {
-        Buffer::from_iter(
-            self.memory_allocator.clone(),
-            BufferCreateInfo {
-                usage: BufferUsage::INDEX_BUFFER,
-                ..Default::default()
-            },
-            AllocationCreateInfo {
-                memory_type_filter: MemoryTypeFilter::PREFER_HOST
-                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-                ..Default::default()
-            },
-            indices.iter().copied(),
-        )
-        .expect("failed to allocate UI index buffer")
+        let buf = self
+            .stream_alloc
+            .allocate_slice(indices.len() as u64)
+            .expect("failed to allocate UI index buffer");
+        buf.write()
+            .expect("UI index buffer still in use")
+            .copy_from_slice(indices);
+        buf
     }
 }
 

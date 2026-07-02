@@ -418,10 +418,26 @@ impl WindowRenderer {
         }
 
         // The glyph atlas is one image shared across frames; if new glyphs
-        // were queued we must finish in-flight frames still sampling it
-        // before overwriting its pixels. Stalls only on upload frames.
+        // were queued we must finish this window's in-flight frames still
+        // sampling it before overwriting its pixels. Only this renderer ever
+        // samples its atlas, so waiting on our own frame chain suffices — no
+        // device-wide `wait_idle` stalling every other window. Stalls only on
+        // upload frames.
         if self.text.atlas().has_pending() {
-            let _ = unsafe { self.device.wait_idle() };
+            // A queue-less future (`sync::now`, first frame) has nothing in
+            // flight to wait for — and would trip a fence-signal assert.
+            if let Some(prev) = self.previous_frame_end.take() {
+                if prev.queue().is_some() {
+                    match prev.then_signal_fence_and_flush() {
+                        Ok(fence) => {
+                            let _ = fence.wait(None);
+                        }
+                        Err(_) => {
+                            let _ = unsafe { self.device.wait_idle() };
+                        }
+                    }
+                }
+            }
             self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
         }
 

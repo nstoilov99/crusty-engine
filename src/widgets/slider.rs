@@ -1,7 +1,7 @@
 use std::ops::RangeInclusive;
 
 use crate::animation::approach_half_life;
-use crate::context::Ui;
+use crate::context::{CursorIcon, Ui};
 use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
@@ -51,6 +51,12 @@ impl<'a> Slider<'a> {
         }
         let is_active = active_id == Some(id) || (pointer_pressed && hovered);
         let pressed = is_active && pointer_down;
+
+        if pressed {
+            ui.ctx_mut().set_cursor_icon(CursorIcon::Grabbing);
+        } else if hovered {
+            ui.ctx_mut().set_cursor_icon(CursorIcon::Grab);
+        }
 
         if pressed {
             if let Some(p) = ui.ctx().input.pointer_pos {

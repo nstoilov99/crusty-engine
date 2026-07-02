@@ -13,6 +13,8 @@ pub use dnd::DragDrop;
 pub use memory::{AreaState, Memory, WidgetMemory};
 pub use ui::{Align, Direction, Ui, UiOptions};
 
+use std::time::Duration;
+
 use crate::id::Id;
 use crate::input::{Event, Key, Modifiers, MouseButton, RawInput};
 use crate::layer::Order;
@@ -54,6 +56,12 @@ pub struct Context {
     /// Area owning the pointer this frame (topmost at the pointer using
     /// last-frame rects; modal-aware). `None` = the root UI.
     hovered_area: Option<Id>,
+    /// Cursor requested by widgets this frame; reset to `Default` at
+    /// begin_frame, reported through [`FrameOutput::cursor_icon`].
+    cursor_icon: CursorIcon,
+    /// Earliest repaint request made this frame (`None` = only repaint on
+    /// new input). Reported through [`FrameOutput::repaint_after`].
+    repaint_after: Option<Duration>,
 }
 
 impl Context {
@@ -83,6 +91,8 @@ impl Context {
         self.overlay_paint.clear();
         self.layers.clear();
         self.layer_stack.clear();
+        self.cursor_icon = CursorIcon::Default;
+        self.repaint_after = None;
         self.memory.popup_close_requested = false;
         // Uses last frame's `seen` flags, so this must run before
         // `memory.begin_frame()` clears them.
@@ -111,6 +121,13 @@ impl Context {
             let backward = tab.modifiers.contains(Modifiers::SHIFT);
             self.memory.focus_next(backward);
         }
+        // The engine seam: does the UI claim this frame's pointer/keyboard,
+        // or may the host route them to the scene underneath?
+        let wants_pointer = self.hovered_area.is_some()
+            || self.memory.active_widget.is_some()
+            || self.dnd.is_dragging()
+            || self.memory.any_widget_contains(self.input.pointer_pos);
+        let wants_keyboard = self.memory.focused_widget.is_some();
         self.memory.end_frame(8);
         self.inside_frame = false;
         self.frame_index = self.frame_index.wrapping_add(1);
@@ -134,6 +151,10 @@ impl Context {
         FrameOutput {
             screen_rect: self.screen_rect,
             paint,
+            wants_pointer,
+            wants_keyboard,
+            cursor_icon: self.cursor_icon,
+            repaint_after: self.repaint_after,
         }
     }
 
@@ -158,6 +179,26 @@ impl Context {
     #[inline]
     pub fn hovered_area(&self) -> Option<Id> {
         self.hovered_area
+    }
+
+    /// Request a cursor for this frame (hovering a text field, a resize
+    /// edge, …). Later callers win, so widgets drawn on top override the
+    /// ones below them. Resets to [`CursorIcon::Default`] every frame.
+    #[inline]
+    pub fn set_cursor_icon(&mut self, icon: CursorIcon) {
+        self.cursor_icon = icon;
+    }
+
+    /// Ask the host to repaint immediately (an animation is running).
+    #[inline]
+    pub fn request_repaint(&mut self) {
+        self.request_repaint_after(Duration::ZERO);
+    }
+
+    /// Ask the host to repaint no later than `after` from now (a blinking
+    /// caret, a timed toast). Multiple requests keep the earliest.
+    pub fn request_repaint_after(&mut self, after: Duration) {
+        self.repaint_after = Some(self.repaint_after.map_or(after, |cur| cur.min(after)));
     }
 
     /// True when the pointer is inside `rect` *and* not occluded by (or
@@ -204,6 +245,44 @@ impl Context {
 pub struct FrameOutput {
     pub screen_rect: Rect,
     pub paint: Vec<PaintCmd>,
+    /// The UI claims the pointer this frame: it is over a widget or a
+    /// floating area, or a widget/drag is holding it. A host embedding the
+    /// UI over a scene should not forward pointer input to the scene.
+    pub wants_pointer: bool,
+    /// A widget has keyboard focus; the host should not treat keys as
+    /// scene/game input.
+    pub wants_keyboard: bool,
+    /// Cursor the OS window should show, as requested by widgets this frame.
+    pub cursor_icon: CursorIcon,
+    /// Repaint scheduling hint: `Some(ZERO)` = repaint now (animating),
+    /// `Some(d)` = repaint within `d`, `None` = idle until new input.
+    pub repaint_after: Option<Duration>,
+}
+
+/// Backend-agnostic cursor shapes widgets can request via
+/// [`Context::set_cursor_icon`]; the shell maps them to OS cursors.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorIcon {
+    #[default]
+    Default,
+    /// Hand with pointing finger (links, clickable chips).
+    Pointer,
+    /// I-beam over editable text.
+    Text,
+    /// Open hand: something grabbable (slider knob, pannable canvas).
+    Grab,
+    /// Closed hand while actively dragging.
+    Grabbing,
+    /// Horizontal resize (vertical splitter, column edge).
+    ResizeEw,
+    /// Vertical resize (horizontal splitter, row edge).
+    ResizeNs,
+    /// Diagonal ↘ resize (window corner).
+    ResizeNwSe,
+    /// Diagonal ↗ resize.
+    ResizeNeSw,
+    Move,
+    NotAllowed,
 }
 
 /// Pointer/keyboard state distilled from a frame's [`RawInput::events`].
