@@ -6,16 +6,20 @@
 //! panel, and the resulting `PaintCmd` list is tessellated and rendered
 //! through the same multi-pass pipeline from Phase 1.5.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
 use crusty_gui::backend::vulkano::upload_rgba_texture;
 use crusty_gui::dock::{DECORATOR_SIZE, DockArea, DockNode, DockResponse, DockState, ExternalDrag};
 use crusty_gui::prelude::*;
+use crusty_gui::shell::drag::{DragTarget, TabDrag, WindowDrag};
+use crusty_gui::shell::host::DockHost;
 use crusty_gui::shell::input::{
     apply_input_event, clear_stuck_pointer, map_modifiers, map_mouse_button, map_scroll,
     push_key_event, window_contains_global,
 };
+use crusty_gui::shell::persist;
 use crusty_gui::style::Style;
 use crusty_gui::widgets::Window as GuiWindow;
 use crusty_gui::window::{GpuContext, WindowRenderer};
@@ -184,110 +188,6 @@ const DRAG_SETTLE_FRAMES: u32 = 4;
 /// window is currently opaque — see-through transparency is a follow-up.)
 const DECORATOR_WINDOW: bool = true;
 
-/// A floating OS window that is itself a full dock container: it hosts its own
-/// [`DockNode`] tree rendered through the same [`DockArea`] as the main window,
-/// so it can hold multiple tabs, be split, accept tabs dropped in from other
-/// windows, and have its own tabs torn back out. A thin title strip at the top
-/// drags the *whole* window to re-dock it into another window.
-struct DockHost {
-    renderer: WindowRenderer,
-    ctx: Context,
-    /// This window's dock layout. Starts as a single-tab leaf when torn off.
-    tree: DockNode,
-    state: DockState,
-    demo_texture: TextureId,
-    pointer_pos: Option<Pos2>,
-    pending_events: Vec<Event>,
-    start: Instant,
-    last_frame_time: f64,
-    /// True while the user holds the title strip to move/re-dock the window.
-    dragging: bool,
-    /// Cursor offset (window-local) captured when the title drag began.
-    drag_grab: Vec2,
-    /// True once a re-dock drag has parked this window off-screen, so its solid
-    /// body stops covering the target window's drop indicators.
-    parked: bool,
-    /// Latest true screen-space cursor seen during the drag, used to restore the
-    /// window onto the screen if the drop is cancelled (dropped over nothing).
-    last_global: Pos2,
-    /// A tab being dragged in from *another* window this frame; passed straight
-    /// to this host's [`DockArea`] so its drop zones light up.
-    incoming: Option<ExternalDrag>,
-    /// True while *this* window holds the OS pointer capture for a tab tear-off
-    /// it just spawned (the press happened here, so its CursorMoved/release must
-    /// drive the resulting whole-window drag even though the dragged window is a
-    /// different, parked host).
-    driving_tearoff: bool,
-    /// True while this host is the live "decorator window" of an in-flight
-    /// tear-off (it follows the cursor and is skipped as a drop target). Cleared
-    /// when the drag resolves: either the window is destroyed (docked elsewhere)
-    /// or promoted to a normal float in place.
-    is_decorator: bool,
-    /// Frames the decorator has painted since activation. The ghost content is
-    /// static while it trails the cursor, so we only repaint the first few
-    /// frames (to clear the blank pre-swapchain frame) and then let DWM composite
-    /// the moved window without a per-move repaint — that repaint was the
-    /// tear-off lag.
-    decorator_frames: u32,
-}
-
-impl DockHost {
-    /// A representative tab id for the whole window (used as the dragged tab
-    /// when the title strip re-docks this window into another).
-    fn rep_tab(&self) -> Option<String> {
-        let mut tabs = Vec::new();
-        self.tree.collect_tabs(&mut tabs);
-        tabs.first().cloned()
-    }
-
-    /// Every tab id this window currently hosts, in traversal order.
-    fn all_tabs(&self) -> Vec<String> {
-        let mut tabs = Vec::new();
-        self.tree.collect_tabs(&mut tabs);
-        tabs
-    }
-}
-
-/// A floating [`DockHost`] window being dragged by its title strip to re-dock
-/// into another window. While in flight the source window is parked off-screen
-/// and the cursor is fed to whichever target window sits under it.
-struct WindowDrag {
-    /// The window being dragged (its tabs move to the drop target).
-    source: WindowId,
-    /// Representative tab fed to the target's drop zones.
-    rep: String,
-    /// The source window's other tabs, transferred into the target on a
-    /// successful drop.
-    extra: Vec<String>,
-    /// Cursor offset (window-local) captured when the title drag began.
-    grab: Vec2,
-    /// Latest true screen-space cursor, used to un-park on a cancelled drop.
-    last_global: Pos2,
-}
-
-/// Where a [`WindowDrag`] is currently hovering — the window whose dock will
-/// receive the drop.
-#[derive(Clone, Copy, PartialEq)]
-enum DragTarget {
-    Main,
-    Host(WindowId),
-}
-
-/// A single tab torn off a dock and being dragged *without* yet having an OS
-/// window of its own (Unreal-style). It renders as a translucent decorator
-/// inside whatever window the cursor is over, lights up that window's drop
-/// zones, and only materialises into a floating [`DockHost`] when dropped over
-/// nothing. The window where the press happened holds the OS pointer capture
-/// and drives the move/release (see `*_driving_tearoff`).
-struct TabDrag {
-    tab_id: String,
-    /// Cursor offset for the decorator card, so it sits under the pointer the
-    /// same way a freshly-spawned floating window's title strip would.
-    grab: Vec2,
-    /// Latest true screen-space cursor.
-    last_global: Pos2,
-}
-
 struct App {
     gpu: Option<GpuContext>,
     main_window: Option<WindowRenderer>,
@@ -301,6 +201,9 @@ struct App {
     mesh_last_frame_time: f64,
     mesh_spin: f32,
     demo_texture: Option<TextureId>,
+    /// Per-window checkerboard textures for torn-off hosts (each window has its
+    /// own texture registry).
+    host_textures: HashMap<WindowId, TextureId>,
     gpu_name: String,
     ctx: Context,
     start: Option<Instant>,
@@ -366,6 +269,7 @@ impl Default for App {
             mesh_last_frame_time: 0.0,
             mesh_spin: 0.0,
             demo_texture: None,
+            host_textures: HashMap::new(),
             gpu_name: String::new(),
             ctx: Context::default(),
             start: None,
@@ -417,53 +321,23 @@ fn default_dock_tree() -> DockNode {
 /// Where the demo persists its dock layout + UI memory between runs.
 const LAYOUT_PATH: &str = "crusty_layout.json";
 
-/// Borrowed view written to disk — serializes the dock tree alongside the
-/// `Context`'s `Memory` (window positions, scroll offsets, animation state)
-/// so a relaunch restores both the panel arrangement and the UI state.
-#[derive(serde::Serialize)]
-struct LayoutRef<'a> {
-    dock: &'a DockNode,
-    memory: &'a crusty_gui::context::Memory,
-}
-
-/// Owned counterpart read back from disk.
-#[derive(serde::Deserialize)]
-struct LayoutOwned {
-    dock: DockNode,
-    memory: crusty_gui::context::Memory,
-}
-
 impl App {
     /// Restore the dock tree + UI memory from `LAYOUT_PATH` if it exists and
     /// parses. A missing or stale file just leaves the defaults in place.
     fn load_layout(&mut self) {
-        let Ok(text) = std::fs::read_to_string(LAYOUT_PATH) else {
-            return;
-        };
-        match serde_json::from_str::<LayoutOwned>(&text) {
-            Ok(layout) => {
-                self.dock_tree = layout.dock;
-                self.ctx.memory = layout.memory;
-                log::info!("restored dock layout from {LAYOUT_PATH}");
-            }
-            Err(e) => log::warn!("ignoring unreadable {LAYOUT_PATH}: {e}"),
+        if let Some((dock, memory)) = persist::load_layout(std::path::Path::new(LAYOUT_PATH)) {
+            self.dock_tree = dock;
+            self.ctx.memory = memory;
         }
     }
 
     /// Write the current dock tree + UI memory to `LAYOUT_PATH`.
     fn save_layout(&self) {
-        let layout = LayoutRef {
-            dock: &self.dock_tree,
-            memory: &self.ctx.memory,
-        };
-        match serde_json::to_string_pretty(&layout) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(LAYOUT_PATH, json) {
-                    log::warn!("failed writing {LAYOUT_PATH}: {e}");
-                }
-            }
-            Err(e) => log::warn!("failed serializing layout: {e}"),
-        }
+        persist::save_layout(
+            std::path::Path::new(LAYOUT_PATH),
+            &self.dock_tree,
+            &self.ctx.memory,
+        );
     }
 }
 
@@ -1144,26 +1018,10 @@ impl App {
         let id = window.id();
         let mut renderer = WindowRenderer::new_demotable(gpu, window);
         let demo_texture = build_demo_texture(gpu, &mut renderer);
+        self.host_textures.insert(id, demo_texture);
         renderer.window().request_redraw();
-        self.panel_windows.push(DockHost {
-            renderer,
-            ctx: Context::default(),
-            tree: DockNode::leaf(tab.as_str()),
-            state: DockState::default(),
-            demo_texture,
-            pointer_pos: None,
-            pending_events: Vec::new(),
-            start: Instant::now(),
-            last_frame_time: 0.0,
-            dragging: false,
-            drag_grab: Vec2::ZERO,
-            parked: false,
-            last_global: Pos2::ZERO,
-            incoming: None,
-            driving_tearoff: false,
-            is_decorator: false,
-            decorator_frames: 0,
-        });
+        self.panel_windows
+            .push(DockHost::new(renderer, DockNode::leaf(tab.as_str())));
         Some(id)
     }
 
@@ -1173,7 +1031,7 @@ impl App {
     /// (surface, swapchain, shader pipelines, glyph atlas) happens here, so doing
     /// it ahead of time is what removes the tear-off hitch.
     fn build_decorator_host(
-        &self,
+        &mut self,
         event_loop: &ActiveEventLoop,
         pos: PhysicalPosition<i32>,
         visible: bool,
@@ -1195,27 +1053,13 @@ impl App {
                 .create_window(attrs)
                 .expect("failed to create decorator window"),
         );
+        let id = window.id();
         let mut renderer = WindowRenderer::new_transparent(gpu, window);
         let demo_texture = build_demo_texture(gpu, &mut renderer);
-        Some(DockHost {
-            renderer,
-            ctx: Context::default(),
-            tree: DockNode::leaf("panel"),
-            state: DockState::default(),
-            demo_texture,
-            pointer_pos: None,
-            pending_events: Vec::new(),
-            start: Instant::now(),
-            last_frame_time: 0.0,
-            dragging: false,
-            drag_grab: Vec2::ZERO,
-            parked: false,
-            last_global: Pos2::ZERO,
-            incoming: None,
-            driving_tearoff: false,
-            is_decorator: true,
-            decorator_frames: 0,
-        })
+        self.host_textures.insert(id, demo_texture);
+        let mut host = DockHost::new(renderer, DockNode::leaf("panel"));
+        host.is_decorator = true;
+        Some(host)
     }
 
     /// Build the warm decorator spare if we don't already have one. Cheap no-op
@@ -1887,6 +1731,11 @@ impl App {
         let ui_us = self.ui_us;
         let gpu_name = self.gpu_name.clone();
         let mesh_open = self.mesh_window.is_some();
+        let host_texture = self
+            .host_textures
+            .get(&self.panel_windows[idx].renderer.window().id())
+            .copied()
+            .expect("host texture registered");
         let editor = &mut self.editor;
         let pw = &mut self.panel_windows[idx];
 
@@ -1916,7 +1765,7 @@ impl App {
             ui_us,
             tess_us: pw.renderer.tess_us(),
             gpu_name,
-            demo_texture: pw.demo_texture,
+            demo_texture: host_texture,
             mesh_already_open: mesh_open,
         };
         pw.ctx.begin_frame(input);
@@ -1954,6 +1803,11 @@ impl App {
         let ui_us = self.ui_us;
         let gpu_name = self.gpu_name.clone();
         let mesh_open = self.mesh_window.is_some();
+        let host_texture = self
+            .host_textures
+            .get(&self.panel_windows[idx].renderer.window().id())
+            .copied()
+            .expect("host texture registered");
         let editor = &mut self.editor;
         let pw = &mut self.panel_windows[idx];
 
@@ -1977,7 +1831,7 @@ impl App {
             ui_us,
             tess_us: pw.renderer.tess_us(),
             gpu_name,
-            demo_texture: pw.demo_texture,
+            demo_texture: host_texture,
             mesh_already_open: mesh_open,
         };
         pw.ctx.begin_frame(input);
