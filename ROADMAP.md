@@ -8,7 +8,7 @@ Both projects already share a stack — **vulkano 0.35**, **winit 0.30**,
 
 ## Current State
 
-crusty-gui is a Phase 0–8 hybrid immediate/retained GUI with:
+crusty-gui is a Phase 0–15 hybrid immediate/retained GUI with:
 
 - ~15 widgets (Button, Checkbox, Radio, Slider, ProgressBar, TextEdit, Label,
   CollapsingHeader, ScrollArea, ComboBox, SelectableValue, Tooltip,
@@ -105,6 +105,39 @@ Cursor-based top-down/left-right is too weak for the inspector and profiler.
       panel window, and the global cursor (`inner_position` + local) is
       translated into the main window's client space to drive the dock's
       `external_drag` drop zones.
+
+## Phase 15.5 — Shell extraction *(pre-swap blocker)*
+
+`main.rs` holds ~2,100 lines of orchestration every consumer needs — the
+multi-window dock hosting, tear-off/decorator system, and input translation
+built in Phases 12–15 are demo-trapped. Extract them into a reusable
+`shell` module (the `eframe` to our `egui`) so the engine integrates
+against a library API instead of forking the demo. Panel *content* stays
+app-owned via a trait; presentation stays optional so the engine can
+record UI into its own render target (`FramePacket` flow) instead of
+letting `WindowRenderer` own the swapchain.
+
+- [ ] `shell/input.rs`: winit `WindowEvent` → `Event` translation
+      (`apply_input_event`, `clear_stuck_pointer`, modifier tracking,
+      global↔client cursor mapping)
+- [ ] `DockApp` trait: app-implemented panel content callback replacing the
+      string-keyed `render_panel` (tab title + `panel_ui(&mut Ui, tab)`)
+- [ ] `Shell` type owning `GpuContext`, main `WindowRenderer`, `DockHost`
+      list, warm decorator pool, and all drag state; absorbs the ~25
+      tear-off/re-dock methods (`spawn_dock_host`, `begin_tearoff`,
+      `route_tab_drag`, `route_window_drag`, `promote_decorator`, …) behind
+      `handle_window_event()` / `render()` / `about_to_wait()` hooks
+- [ ] Layout persistence helpers: serde save/load of dock tree + `Memory`
+      moved behind the `serde` feature (`LayoutRef`/`LayoutOwned`)
+- [ ] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
+      `wants_keyboard`, cursor icon, `repaint_after`
+- [ ] Presentation-optional render path: tessellate + record into an
+      externally-owned command buffer / image target (engine composites),
+      swapchain ownership only in the shell path
+- [ ] Backend quick wins touching the same seam: reuse vertex/index
+      buffers, drop `wait_idle` on glyph upload
+- [ ] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
+      `render_panel`, theme, demo textures, default dock tree
 
 ## Phase 16 — Swap & hardening
 

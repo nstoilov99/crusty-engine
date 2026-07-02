@@ -23,6 +23,9 @@ pub mod window;
 #[cfg(feature = "vulkano-renderer")]
 pub mod backend;
 
+#[cfg(all(feature = "winit-window", feature = "vulkano-renderer"))]
+pub mod shell;
+
 pub mod prelude {
     pub use crate::context::{Align, Context, Direction, Ui, UiOptions};
     pub use crate::id::Id;

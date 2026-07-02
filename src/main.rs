@@ -12,6 +12,10 @@ use std::time::Instant;
 use crusty_gui::backend::vulkano::upload_rgba_texture;
 use crusty_gui::dock::{DECORATOR_SIZE, DockArea, DockNode, DockResponse, DockState, ExternalDrag};
 use crusty_gui::prelude::*;
+use crusty_gui::shell::input::{
+    apply_input_event, clear_stuck_pointer, map_modifiers, map_mouse_button, map_scroll,
+    push_key_event, window_contains_global,
+};
 use crusty_gui::style::Style;
 use crusty_gui::widgets::Window as GuiWindow;
 use crusty_gui::window::{GpuContext, WindowRenderer};
@@ -582,81 +586,23 @@ impl ApplicationHandler for App {
                     self.render_main(event_loop);
                     return;
                 }
-                let our_button = match button {
-                    winit::event::MouseButton::Left => MouseButton::Primary,
-                    winit::event::MouseButton::Right => MouseButton::Secondary,
-                    winit::event::MouseButton::Middle => MouseButton::Middle,
-                    _ => MouseButton::Other(0),
-                };
                 if let Some(pos) = self.pointer_pos {
                     self.pending_events.push(Event::PointerButton {
                         pos,
-                        button: our_button,
+                        button: map_mouse_button(button),
                         pressed,
                         modifiers: self.modifiers,
                     });
                 }
             }
             WindowEvent::ModifiersChanged(mods) => {
-                let s = mods.state();
-                let mut m = Modifiers::empty();
-                m.set(Modifiers::SHIFT, s.shift_key());
-                m.set(Modifiers::CTRL, s.control_key());
-                m.set(Modifiers::ALT, s.alt_key());
-                m.set(Modifiers::META, s.super_key());
-                self.modifiers = m;
+                self.modifiers = map_modifiers(&mods);
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                use winit::event::MouseScrollDelta;
-                let v = match delta {
-                    MouseScrollDelta::LineDelta(x, y) => Vec2::new(x, y),
-                    MouseScrollDelta::PixelDelta(p) => Vec2::new(
-                        (p.x as f32) / 20.0,
-                        (p.y as f32) / 20.0,
-                    ),
-                };
-                self.pending_events.push(Event::Scroll(v));
+                self.pending_events.push(Event::Scroll(map_scroll(delta)));
             }
             WindowEvent::KeyboardInput { event: key_event, .. } => {
-                use winit::event::ElementState;
-                use winit::keyboard::{Key as WKey, NamedKey};
-                let pressed = matches!(key_event.state, ElementState::Pressed);
-                let key = match &key_event.logical_key {
-                    WKey::Named(named) => match named {
-                        NamedKey::Backspace => Key::Backspace,
-                        NamedKey::Enter => Key::Enter,
-                        NamedKey::Tab => Key::Tab,
-                        NamedKey::Escape => Key::Escape,
-                        NamedKey::Space => Key::Space,
-                        NamedKey::ArrowLeft => Key::ArrowLeft,
-                        NamedKey::ArrowRight => Key::ArrowRight,
-                        NamedKey::ArrowUp => Key::ArrowUp,
-                        NamedKey::ArrowDown => Key::ArrowDown,
-                        NamedKey::Home => Key::Home,
-                        NamedKey::End => Key::End,
-                        NamedKey::PageUp => Key::PageUp,
-                        NamedKey::PageDown => Key::PageDown,
-                        NamedKey::Delete => Key::Delete,
-                        NamedKey::Insert => Key::Insert,
-                        _ => Key::Unknown,
-                    },
-                    WKey::Character(s) => {
-                        s.chars().next().map(Key::Char).unwrap_or(Key::Unknown)
-                    }
-                    _ => Key::Unknown,
-                };
-                self.pending_events.push(Event::Key {
-                    key,
-                    pressed,
-                    repeat: key_event.repeat,
-                    modifiers: self.modifiers,
-                });
-                if pressed {
-                    if let Some(text) = &key_event.text {
-                        self.pending_events
-                            .push(Event::Text(text.as_str().to_string()));
-                    }
-                }
+                push_key_event(&key_event, self.modifiers, &mut self.pending_events);
             }
             WindowEvent::RedrawRequested => self.render_main(event_loop),
             _ => {}
@@ -2131,18 +2077,6 @@ impl App {
     }
 }
 
-/// True if the true screen-space cursor `g` falls within `window`'s outer
-/// bounds (including OS chrome).
-fn window_contains_global(window: &winit::window::Window, g: Pos2) -> bool {
-    let Ok(pos) = window.outer_position() else {
-        return false;
-    };
-    let size = window.outer_size();
-    let x0 = pos.x as f32;
-    let y0 = pos.y as f32;
-    g.x >= x0 && g.y >= y0 && g.x < x0 + size.width as f32 && g.y < y0 + size.height as f32
-}
-
 /// Render one dock panel's content. Shared by the main window's dock and
 /// popped-out OS windows, so a torn-off panel shows its real UI.
 fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelStats) {
@@ -2719,128 +2653,6 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                         }
                         _ => {}
     }
-}
-
-/// Translate a winit input event into our [`Event`] stream for a window.
-/// Non-input events (close/resize/redraw) are handled by the caller and
-/// fall through here as no-ops.
-fn apply_input_event(
-    event: WindowEvent,
-    pointer_pos: &mut Option<Pos2>,
-    pending_events: &mut Vec<Event>,
-    modifiers: &mut Modifiers,
-) {
-    match event {
-        WindowEvent::CursorMoved { position, .. } => {
-            let pos = Pos2::new(position.x as f32, position.y as f32);
-            *pointer_pos = Some(pos);
-            pending_events.push(Event::PointerMoved(pos));
-        }
-        WindowEvent::CursorLeft { .. } => {
-            *pointer_pos = None;
-            pending_events.push(Event::PointerGone);
-        }
-        WindowEvent::MouseInput { state, button, .. } => {
-            let our_button = match button {
-                winit::event::MouseButton::Left => MouseButton::Primary,
-                winit::event::MouseButton::Right => MouseButton::Secondary,
-                winit::event::MouseButton::Middle => MouseButton::Middle,
-                _ => MouseButton::Other(0),
-            };
-            let pressed = matches!(state, winit::event::ElementState::Pressed);
-            if let Some(pos) = *pointer_pos {
-                pending_events.push(Event::PointerButton {
-                    pos,
-                    button: our_button,
-                    pressed,
-                    modifiers: *modifiers,
-                });
-            }
-        }
-        WindowEvent::ModifiersChanged(mods) => {
-            let s = mods.state();
-            let mut m = Modifiers::empty();
-            m.set(Modifiers::SHIFT, s.shift_key());
-            m.set(Modifiers::CTRL, s.control_key());
-            m.set(Modifiers::ALT, s.alt_key());
-            m.set(Modifiers::META, s.super_key());
-            *modifiers = m;
-        }
-        WindowEvent::MouseWheel { delta, .. } => {
-            use winit::event::MouseScrollDelta;
-            let v = match delta {
-                MouseScrollDelta::LineDelta(x, y) => Vec2::new(x, y),
-                MouseScrollDelta::PixelDelta(p) => {
-                    Vec2::new((p.x as f32) / 20.0, (p.y as f32) / 20.0)
-                }
-            };
-            pending_events.push(Event::Scroll(v));
-        }
-        WindowEvent::KeyboardInput { event: key_event, .. } => {
-            use winit::event::ElementState;
-            use winit::keyboard::{Key as WKey, NamedKey};
-            let pressed = matches!(key_event.state, ElementState::Pressed);
-            let key = match &key_event.logical_key {
-                WKey::Named(named) => match named {
-                    NamedKey::Backspace => Key::Backspace,
-                    NamedKey::Enter => Key::Enter,
-                    NamedKey::Tab => Key::Tab,
-                    NamedKey::Escape => Key::Escape,
-                    NamedKey::Space => Key::Space,
-                    NamedKey::ArrowLeft => Key::ArrowLeft,
-                    NamedKey::ArrowRight => Key::ArrowRight,
-                    NamedKey::ArrowUp => Key::ArrowUp,
-                    NamedKey::ArrowDown => Key::ArrowDown,
-                    NamedKey::Home => Key::Home,
-                    NamedKey::End => Key::End,
-                    NamedKey::PageUp => Key::PageUp,
-                    NamedKey::PageDown => Key::PageDown,
-                    NamedKey::Delete => Key::Delete,
-                    NamedKey::Insert => Key::Insert,
-                    _ => Key::Unknown,
-                },
-                WKey::Character(s) => s.chars().next().map(Key::Char).unwrap_or(Key::Unknown),
-                _ => Key::Unknown,
-            };
-            pending_events.push(Event::Key {
-                key,
-                pressed,
-                repeat: key_event.repeat,
-                modifiers: *modifiers,
-            });
-            if pressed {
-                if let Some(text) = &key_event.text {
-                    pending_events.push(Event::Text(text.as_str().to_string()));
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Inject a synthetic primary-button release into a window's input queue so its
-/// UI context registers the pointer coming up.
-///
-/// The drag-routing release arms (main tear-off, host title-drag, host tear-off)
-/// consume the *real* release event themselves to resolve the drop, so it never
-/// reaches `apply_input_event`. The window's `InputState` therefore keeps
-/// `pointer_down == true`, and a press edge only fires on `pressed && !down` —
-/// so the *next* real press is swallowed (it only flips `down` back), and the
-/// drag/click finally registers on the second click. This is the "have to click
-/// a tab twice to grab it after a tear-off / redock / upgrade" bug. The window a
-/// lone tab is torn off from is the same one later promoted in place, so the
-/// stuck state survives the role change — clear it here.
-fn clear_stuck_pointer(
-    pointer_pos: Option<Pos2>,
-    pending_events: &mut Vec<Event>,
-    modifiers: Modifiers,
-) {
-    pending_events.push(Event::PointerButton {
-        pos: pointer_pos.unwrap_or(Pos2::ZERO),
-        button: MouseButton::Primary,
-        pressed: false,
-        modifiers,
-    });
 }
 
 /// Build the checkerboard demo texture and register it on `window`'s
