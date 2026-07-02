@@ -154,6 +154,17 @@ const PANEL_GRAB_X: f32 = 60.0;
 /// beneath, capture survives, and the ghost stays opaque so it renders normally.
 const DECORATOR_CURSOR_GAP: f32 = 14.0;
 
+/// How many frames the decorator repaints after activation before it freezes its
+/// content and only repositions. A few frames clear the blank pre-swapchain
+/// frame and let any first-frame swapchain recreation settle; after that the
+/// trailing ghost is static, so DWM composites the moved window without a repaint.
+const DECORATOR_SETTLE_FRAMES: u32 = 4;
+
+/// How many extra frames to force-repaint the main window after a drag resolves,
+/// so the cleared drop-compass is flushed even though the just-promoted titled
+/// window has stolen focus and the background main window won't repaint itself.
+const DRAG_SETTLE_FRAMES: u32 = 4;
+
 /// PROTOTYPE TOGGLE — Unreal-style "decorator window" tear-off.
 ///
 /// When `true`, dragging a tab out spawns its real OS window *immediately* (a
@@ -208,6 +219,12 @@ struct DockHost {
     /// when the drag resolves: either the window is destroyed (docked elsewhere)
     /// or promoted to a normal float in place.
     is_decorator: bool,
+    /// Frames the decorator has painted since activation. The ghost content is
+    /// static while it trails the cursor, so we only repaint the first few
+    /// frames (to clear the blank pre-swapchain frame) and then let DWM composite
+    /// the moved window without a per-move repaint — that repaint was the
+    /// tear-off lag.
+    decorator_frames: u32,
 }
 
 impl DockHost {
@@ -318,6 +335,18 @@ struct App {
     /// tear-off stutter. Refilled after a docked drop (the window is reused) or
     /// lazily on an idle main-window frame after a promote consumes it.
     decorator_pool: Option<DockHost>,
+    /// When the live decorator (`decorator_id`) is a floating host demoted *in
+    /// place* (its single tab dragged to re-dock), this holds that window's id.
+    /// It tells the shared decorator cleanup to *close* the window on a successful
+    /// dock (its tab moved elsewhere) instead of returning it to the warm pool.
+    /// `None` for an ordinary tear-off whose decorator is the warm spare.
+    demoted_host: Option<WindowId>,
+    /// Frames to keep force-repainting the main window after a drag *resolves*.
+    /// A drop promotes the decorator to a titled window which steals focus; the
+    /// now-background main window won't service its own redraw, so the cleared
+    /// compass lingers as a stale framebuffer. Pumping a few trailing frames
+    /// flushes it. Set on resolution, counted down in `about_to_wait`.
+    drag_settle: u32,
 }
 
 impl Default for App {
@@ -349,6 +378,8 @@ impl Default for App {
             window_drag: None,
             main_incoming: None,
             tab_drag: None,
+            demoted_host: None,
+            drag_settle: 0,
             main_driving_tearoff: false,
             decorator_id: None,
             decorator_pool: None,
@@ -533,10 +564,22 @@ impl ApplicationHandler for App {
                     && matches!(button, winit::event::MouseButton::Left)
                 {
                     self.main_driving_tearoff = false;
+                    // The drag consumed this release, so the main UI never saw the
+                    // pointer come up — clear its stuck `pointer_down` so the next
+                    // click isn't swallowed.
+                    clear_stuck_pointer(self.pointer_pos, &mut self.pending_events, self.modifiers);
                     if self.tab_drag.is_some() {
                         self.route_tab_drag(event_loop, true);
+                    } else {
+                        // No drag to route: the release can't resolve a drop, so
+                        // wipe any compass left lit on a window from an earlier move.
+                        self.clear_drag_overlays();
                     }
                     self.close_empty_hosts();
+                    // Resolve + repaint the main window synchronously now: its own
+                    // deferred redraw would be dropped while another window holds
+                    // focus, leaving the compass frozen until a stray event lands.
+                    self.render_main(event_loop);
                     return;
                 }
                 let our_button = match button {
@@ -615,7 +658,51 @@ impl ApplicationHandler for App {
                     }
                 }
             }
-            WindowEvent::RedrawRequested => {
+            WindowEvent::RedrawRequested => self.render_main(event_loop),
+            _ => {}
+        }
+    }
+
+    /// Backstop for the rare frame where a drag resolves without an immediate
+    /// synchronous `render_main` (e.g. cancel paths): keep the main window and any
+    /// overlay-bearing host repainting for a few settle frames so a stale compass
+    /// can't linger. The decorator card is never touched — it deliberately freezes
+    /// to trail the cursor via DWM compositing.
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        let drag_active = self.tab_drag.is_some()
+            || self.window_drag.is_some()
+            || self.main_driving_tearoff
+            || self.main_incoming.is_some()
+            || self
+                .panel_windows
+                .iter()
+                .any(|h| h.incoming.is_some() || h.driving_tearoff || h.dragging);
+        if drag_active {
+            self.drag_settle = DRAG_SETTLE_FRAMES;
+        } else if self.drag_settle > 0 {
+            self.drag_settle -= 1;
+        } else {
+            return;
+        }
+        if let Some(main) = self.main_window.as_ref() {
+            main.window().request_redraw();
+        }
+        for h in self.panel_windows.iter() {
+            if !h.is_decorator && h.incoming.is_some() {
+                h.renderer.window().request_redraw();
+            }
+        }
+    }
+}
+
+impl App {
+    /// Render one full main-window frame. Extracted from the `RedrawRequested`
+    /// arm so a resolved drop can force an *immediate, synchronous* repaint by
+    /// calling this directly. Relying on a deferred `RedrawRequested` fails here:
+    /// while a background window holds the drag capture (and the freshly-promoted
+    /// titled window steals focus), Windows drops the main window's pending redraw,
+    /// leaving the drop-compass frozen on screen until an unrelated event lands.
+    fn render_main(&mut self, event_loop: &ActiveEventLoop) {
                 // Re-warm the decorator spare on an idle frame (no drag in
                 // flight) if a previous promote consumed it, so the next
                 // tear-off is hitch-free. No-op when the pool is already full.
@@ -826,12 +913,19 @@ impl ApplicationHandler for App {
                 renderer.render(&scene_paint, &output.paint);
                 renderer.window().request_redraw();
 
+                // Opening an editor window pulls OS focus off the main window,
+                // so its own deferred redraw is dropped by Windows and the
+                // just-closed menu stays painted until the user clicks back.
+                // Track it and paint one more frame synchronously below.
+                let mut focus_stolen = false;
+
                 // Phase 15: a Viewport button asked to spawn the second
                 // window. Do it now that the `renderer` borrow has ended and
                 // `event_loop` is live.
                 if self.editor.open_mesh_requested && self.mesh_window.is_none() {
                     self.editor.open_mesh_requested = false;
                     self.spawn_mesh_window(event_loop);
+                    focus_stolen = true;
                 }
 
                 // Window menu: re-open a closed panel by docking it back in.
@@ -858,6 +952,7 @@ impl ApplicationHandler for App {
                         // Already open as a float — raise and focus it.
                         host.renderer.window().focus_window();
                         host.renderer.window().request_redraw();
+                        focus_stolen = true;
                     } else {
                         let g = self
                             .main_window
@@ -866,6 +961,7 @@ impl ApplicationHandler for App {
                             .map(|o| Pos2::new(o.x as f32 + 260.0, o.y as f32 + 200.0))
                             .unwrap_or(Pos2::new(260.0, 200.0));
                         self.spawn_dock_host(event_loop, name.to_string(), g);
+                        focus_stolen = true;
                     }
                 }
                 if save_layout_requested {
@@ -923,14 +1019,28 @@ impl ApplicationHandler for App {
                             }
                             self.panel_windows
                                 .retain(|p| p.renderer.window().id() != wd.source);
+                            self.destroy_decorator();
                         } else {
                             self.unpark_source(&wd);
                         }
                     }
                 }
-            }
-            _ => {}
-        }
+                // The frame just presented still painted the compass — the drag was
+                // `Some(released=true)` while it resolved the drop. Now that the drop
+                // is resolved and `main_incoming` is cleared, paint one more frame so
+                // the compass actually disappears. The recursive call sees
+                // `main_incoming == None`, so `main_drop_released` is false and it
+                // can't recurse again.
+                if main_drop_released {
+                    self.render_main(event_loop);
+                } else if focus_stolen {
+                    // A newly-opened editor window took focus this frame; repaint
+                    // the main window now so its closed menu disappears instead of
+                    // lingering until the user clicks back. The recursive frame has
+                    // `focus_stolen == false` (no menu click, editor already open),
+                    // so it can't recurse again.
+                    self.render_main(event_loop);
+                }
     }
 }
 
@@ -1074,7 +1184,11 @@ impl App {
         let attrs = WindowAttributes::default()
             .with_title(format!("crusty-gui — {tab}"))
             .with_inner_size(winit::dpi::LogicalSize::new(DECORATOR_SIZE.x, DECORATOR_SIZE.y))
-            .with_position(pos);
+            .with_position(pos)
+            // Transparent-capable so this float can be demoted into a see-through
+            // drag card in place (no title bar) when re-docked by its tab. It
+            // still renders fully opaque until then.
+            .with_transparent(true);
         let window = Arc::new(
             event_loop
                 .create_window(attrs)
@@ -1082,7 +1196,7 @@ impl App {
         );
         window.set_outer_position(pos);
         let id = window.id();
-        let mut renderer = WindowRenderer::new(gpu, window);
+        let mut renderer = WindowRenderer::new_demotable(gpu, window);
         let demo_texture = build_demo_texture(gpu, &mut renderer);
         renderer.window().request_redraw();
         self.panel_windows.push(DockHost {
@@ -1102,6 +1216,7 @@ impl App {
             incoming: None,
             driving_tearoff: false,
             is_decorator: false,
+            decorator_frames: 0,
         });
         Some(id)
     }
@@ -1153,6 +1268,7 @@ impl App {
             incoming: None,
             driving_tearoff: false,
             is_decorator: true,
+            decorator_frames: 0,
         })
     }
 
@@ -1196,6 +1312,7 @@ impl App {
         host.dragging = false;
         host.parked = false;
         host.driving_tearoff = false;
+        host.decorator_frames = 0;
         let win = host.renderer.window().clone();
         let _ = win.set_outer_position(pos);
         win.set_title(&format!("crusty-gui — {tab}"));
@@ -1220,12 +1337,14 @@ impl App {
                     (global.x + DECORATOR_CURSOR_GAP).round() as i32,
                     (global.y + DECORATOR_CURSOR_GAP).round() as i32,
                 ));
-                // Keep painting the ghost as it tracks the cursor. The drag is
-                // driven by the *source* window's events, so the ghost never
-                // gets input of its own — without an explicit redraw each move it
-                // would present a single (often pre-swapchain, blank/white) frame
-                // and then freeze.
-                h.renderer.window().request_redraw();
+                // The ghost content is static while it trails the cursor, so we
+                // only repaint the first few frames (to clear the blank pre-
+                // swapchain frame); after that DWM composites the moved window
+                // from its last presented frame and a per-move repaint would just
+                // re-tessellate the whole faded dock tree — the tear-off lag.
+                if h.decorator_frames < DECORATOR_SETTLE_FRAMES {
+                    h.renderer.window().request_redraw();
+                }
             }
         }
     }
@@ -1243,6 +1362,8 @@ impl App {
         let Some(id) = self.decorator_id.take() else {
             return;
         };
+        // A demoted-in-place host promotes back to the very window it already is.
+        self.demoted_host = None;
         let Some(host) = self
             .panel_windows
             .iter_mut()
@@ -1263,6 +1384,16 @@ impl App {
         host.renderer.make_opaque();
         host.renderer.request_rebuild();
         win.request_redraw();
+        // Activate the freshly-titled window now so its first click starts a drag
+        // immediately — otherwise Windows spends that click just activating the
+        // background window, forcing the user to click a tab twice to tear it off.
+        win.focus_window();
+        // The drag is over: the decorator is now a real titled window. Drop any
+        // drop-compass still lit on the main window / a target host so it doesn't
+        // linger (the freshly-titled window steals focus, starving the background
+        // main window of the redraw that would otherwise clear it).
+        self.clear_drag_overlays();
+        self.drag_settle = DRAG_SETTLE_FRAMES;
     }
 
     /// Retire the live decorator window — the dragged tab was docked into some
@@ -1273,6 +1404,10 @@ impl App {
         let Some(id) = self.decorator_id.take() else {
             return;
         };
+        // A demoted-in-place host is a *real* float, not the warm spare: its tab
+        // moved into the drop target, so close the window outright rather than
+        // poisoning the pool with it.
+        let was_demoted = self.demoted_host.take() == Some(id);
         let Some(pos) = self
             .panel_windows
             .iter()
@@ -1281,6 +1416,9 @@ impl App {
             return;
         };
         let host = self.panel_windows.remove(pos);
+        if was_demoted {
+            return;
+        }
         if self.decorator_pool.is_none() {
             host.renderer.window().set_visible(false);
             self.decorator_pool = Some(host);
@@ -1292,6 +1430,23 @@ impl App {
     /// so the hidden husk window can be destroyed.
     fn close_empty_hosts(&mut self) {
         self.panel_windows.retain(|h| !h.all_tabs().is_empty());
+    }
+
+    /// Force every window's drop-compass overlay off and repaint it. Called when a
+    /// drag fully resolves so no window is left frozen showing a stale compass —
+    /// the per-move clearing in `route_tab_drag` only touches the window the cursor
+    /// last hovered, which can leave another window (e.g. the source) still lit.
+    fn clear_drag_overlays(&mut self) {
+        if self.main_incoming.take().is_some() {
+            if let Some(main) = self.main_window.as_ref() {
+                main.window().request_redraw();
+            }
+        }
+        for h in self.panel_windows.iter_mut() {
+            if h.incoming.take().is_some() {
+                h.renderer.window().request_redraw();
+            }
+        }
     }
 
     /// Begin a windowless tab tear-off (Unreal-style): the tab is already out of
@@ -1331,6 +1486,43 @@ impl App {
                 }
             }
         }
+        self.route_tab_drag(event_loop, false);
+    }
+
+    /// Re-dock a *whole* floating window by its tab: rather than hiding it and
+    /// popping a separate decorator card, demote the window itself in place —
+    /// drop its title bar, raise it above the others, and render it see-through —
+    /// so it *is* the drag card. It drives the [`TabDrag`] from its own captured
+    /// pointer (like a tear-off) and on drop either docks into a target (the
+    /// window is then closed) or restores to a normal float in place.
+    fn demote_host_in_place(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        idx: usize,
+        tab: String,
+        at_global: Pos2,
+    ) {
+        let grab = Vec2::new(PANEL_GRAB_X, PANEL_TITLE_H * 0.5);
+        // The tear-off already pulled the lone tab out; put it back so the window
+        // keeps rendering its real content as the (faded) drag card.
+        self.panel_windows[idx].tree = DockNode::leaf(tab.as_str());
+        let host = &mut self.panel_windows[idx];
+        host.is_decorator = true;
+        host.driving_tearoff = true;
+        host.decorator_frames = 0;
+        let win = host.renderer.window().clone();
+        let id = win.id();
+        win.set_decorations(false);
+        win.set_window_level(WindowLevel::AlwaysOnTop);
+        host.renderer.make_transparent();
+        host.renderer.request_rebuild();
+        self.decorator_id = Some(id);
+        self.demoted_host = Some(id);
+        self.tab_drag = Some(TabDrag {
+            tab_id: tab,
+            grab,
+            last_global: at_global,
+        });
         self.route_tab_drag(event_loop, false);
     }
 
@@ -1445,14 +1637,16 @@ impl App {
     fn panel_event(&mut self, event_loop: &ActiveEventLoop, idx: usize, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                // Don't lose the panels: fold every tab back into the main dock.
-                let host = self.panel_windows.remove(idx);
-                for t in host.all_tabs() {
-                    self.dock_tree.add_tab(t.as_str());
+                // Closing a floating window discards its panels; do NOT fold the
+                // tabs back into the main dock (they belong to this window now).
+                let id = self.panel_windows[idx].renderer.window().id();
+                if self.decorator_id == Some(id) {
+                    self.decorator_id = None;
                 }
-                if let Some(main) = self.main_window.as_ref() {
-                    main.window().request_redraw();
+                if self.demoted_host == Some(id) {
+                    self.demoted_host = None;
                 }
+                self.panel_windows.remove(idx);
             }
             WindowEvent::Resized(_) => {
                 let pw = &mut self.panel_windows[idx];
@@ -1474,7 +1668,11 @@ impl App {
             WindowEvent::CursorMoved { position, .. }
                 if self.panel_windows[idx].dragging =>
             {
-                self.drag_panel_window(idx, Pos2::new(position.x as f32, position.y as f32));
+                self.drag_panel_window(
+                    event_loop,
+                    idx,
+                    Pos2::new(position.x as f32, position.y as f32),
+                );
             }
             WindowEvent::CursorMoved { position, .. }
                 if self.panel_windows[idx].driving_tearoff =>
@@ -1495,9 +1693,12 @@ impl App {
                 // Title drag released: route the drop to whichever window the
                 // cursor is over (or cancel if over nothing).
                 self.panel_windows[idx].dragging = false;
+                let pw = &mut self.panel_windows[idx];
+                clear_stuck_pointer(pw.pointer_pos, &mut pw.pending_events, self.modifiers);
                 if self.window_drag.is_some() {
                     self.route_window_drag(true);
                 }
+                self.render_main(event_loop);
             }
             WindowEvent::MouseInput { state, button, .. }
                 if matches!(state, winit::event::ElementState::Released)
@@ -1506,10 +1707,21 @@ impl App {
             {
                 // Tear-off drag released from the host that owns the capture.
                 self.panel_windows[idx].driving_tearoff = false;
+                // This host (the tear-off source) consumed the release; if it
+                // survives — or is promoted in place into a titled window — its
+                // stuck `pointer_down` would swallow the next click.
+                let pw = &mut self.panel_windows[idx];
+                clear_stuck_pointer(pw.pointer_pos, &mut pw.pending_events, self.modifiers);
                 if self.tab_drag.is_some() {
                     self.route_tab_drag(event_loop, true);
+                } else {
+                    self.clear_drag_overlays();
                 }
                 self.close_empty_hosts();
+                // Force the main window to resolve + repaint *now*; its deferred
+                // redraw is dropped while this host / the promoted window holds
+                // focus, which is what left the drop-compass stuck on screen.
+                self.render_main(event_loop);
             }
             other => {
                 let pw = &mut self.panel_windows[idx];
@@ -1519,28 +1731,37 @@ impl App {
                     &mut pw.pending_events,
                     &mut self.modifiers,
                 );
+                // Host windows have no self-sustaining redraw chain (unlike the
+                // main window), so queued input would otherwise sit in
+                // `pending_events` until some unrelated event triggers a frame —
+                // which is why the first click after docking/upgrading needed a
+                // second click to register. Request a frame now so the click is
+                // processed immediately.
+                pw.renderer.window().request_redraw();
             }
         }
     }
 
-    /// While the title strip is held, park the floating window far off-screen so
-    /// its solid body stops covering target windows' drop indicators, recover
-    /// the true screen cursor, and route it to whichever window sits underneath.
-    /// The OS keeps the pointer captured here even while parked, so moves and
-    /// the release keep flowing in.
-    fn drag_panel_window(&mut self, idx: usize, local: Pos2) {
+    /// While the title strip is held, re-dock the whole window: capture its tabs,
+    /// hide its solid body so it stops covering target windows' drop indicators,
+    /// and route the drag to whichever window sits underneath. With the decorator
+    /// prototype on, the hidden window is replaced by the warm transparent
+    /// decorator card (no title bar, see-through so the compass shows through) —
+    /// the same smooth path as a tab tear-off. The OS keeps the pointer captured
+    /// on the source even while hidden, so moves and the release keep flowing in.
+    fn drag_panel_window(&mut self, event_loop: &ActiveEventLoop, idx: usize, local: Pos2) {
         let win = self.panel_windows[idx].renderer.window().clone();
         let Ok(inner) = win.inner_position() else {
             return;
         };
-        // Recover the true screen-space cursor from the (possibly parked) window
-        // origin plus the window-local cursor. Done before parking so the first
+        // Recover the true screen-space cursor from the (possibly hidden) window
+        // origin plus the window-local cursor. Done before hiding so the first
         // move still reads the on-screen origin.
         let global = Pos2::new(inner.x as f32 + local.x, inner.y as f32 + local.y);
         self.panel_windows[idx].last_global = global;
 
         // Lazily begin the window-drag on the first move, capturing the tabs to
-        // transfer and parking the window out of the way.
+        // transfer and demoting the window into a decorator (or parking it).
         if self.window_drag.is_none() {
             let host = &self.panel_windows[idx];
             let Some(rep) = host.rep_tab() else { return };
@@ -1548,15 +1769,26 @@ impl App {
                 host.all_tabs().into_iter().filter(|t| *t != rep).collect();
             self.window_drag = Some(WindowDrag {
                 source: win.id(),
-                rep,
+                rep: rep.clone(),
                 extra,
                 grab: host.drag_grab,
                 last_global: global,
             });
-            let _ = win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
-            self.panel_windows[idx].parked = true;
+            if DECORATOR_WINDOW {
+                // Demote: hide the solid source and hand the drag to the warm
+                // transparent decorator. `parked` here means "source hidden".
+                win.set_visible(false);
+                self.panel_windows[idx].parked = true;
+                self.decorator_id = self.activate_decorator(event_loop, &rep, global);
+            } else {
+                let _ = win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
+                self.panel_windows[idx].parked = true;
+            }
         } else if let Some(wd) = self.window_drag.as_mut() {
             wd.last_global = global;
+        }
+        if self.decorator_id.is_some() {
+            self.move_decorator(global, self.panel_windows[idx].drag_grab);
         }
         self.route_window_drag(false);
     }
@@ -1591,11 +1823,15 @@ impl App {
         let rep = wd.rep.clone();
         let global = wd.last_global;
         let grab = wd.grab;
+        // When demoted to a decorator, the card itself is the drag visual, so the
+        // target shows only its drop compass (no in-app translucent ghost).
+        let ghost = self.decorator_id.is_none();
 
         // Pick the target: floating hosts (on top) first, then the main window.
+        // Skip the source and the live decorator card so they're never a target.
         let mut target: Option<DragTarget> = None;
         for h in self.panel_windows.iter() {
-            if h.renderer.window().id() == source {
+            if h.renderer.window().id() == source || h.is_decorator {
                 continue;
             }
             if window_contains_global(h.renderer.window(), global) {
@@ -1628,7 +1864,7 @@ impl App {
                             grab,
                             released,
                             force: false,
-                            ghost: true,
+                            ghost,
                         });
                         main.window().request_redraw();
                     }
@@ -1646,7 +1882,7 @@ impl App {
                             grab,
                             released,
                             force: false,
-                            ghost: true,
+                            ghost,
                         });
                         h.renderer.window().request_redraw();
                     }
@@ -1663,21 +1899,31 @@ impl App {
         }
     }
 
-    /// Restore a parked source window onto the screen at the cursor's last
-    /// position (used when a window-drag is cancelled).
+    /// Restore a hidden/parked source window after a cancelled window-drag. With
+    /// the decorator prototype on the source was only hidden (never moved), so we
+    /// just show it again and retire the decorator card; otherwise it was parked
+    /// off-screen and is repositioned at the cursor.
     fn unpark_source(&mut self, wd: &WindowDrag) {
+        let demoted = self.decorator_id.is_some();
         if let Some(pw) = self
             .panel_windows
             .iter_mut()
             .find(|p| p.renderer.window().id() == wd.source)
         {
-            let pos = wd.last_global - wd.grab;
-            let _ = pw.renderer.window().set_outer_position(PhysicalPosition::new(
-                pos.x.round() as i32,
-                pos.y.round() as i32,
-            ));
+            if demoted {
+                pw.renderer.window().set_visible(true);
+            } else {
+                let pos = wd.last_global - wd.grab;
+                let _ = pw.renderer.window().set_outer_position(PhysicalPosition::new(
+                    pos.x.round() as i32,
+                    pos.y.round() as i32,
+                ));
+            }
             pw.parked = false;
             pw.renderer.window().request_redraw();
+        }
+        if demoted {
+            self.destroy_decorator();
         }
     }
 
@@ -1803,6 +2049,7 @@ impl App {
         // DWM-composited transparent window.
         crusty_gui::paint::scale_alpha(&mut output.paint, 0.72);
         pw.renderer.render(&[], &output.paint);
+        pw.decorator_frames = pw.decorator_frames.saturating_add(1);
     }
 
     /// Resolve a dock-host frame: tear-offs spawn new windows; a committed
@@ -1830,6 +2077,13 @@ impl App {
                 .map(|o| Pos2::new(o.x as f32 + d.pointer.x, o.y as f32 + d.pointer.y))
                 .unwrap_or(d.pointer);
             if self.panel_windows[idx].all_tabs().is_empty() {
+                // Lone tab: the *whole* window is being re-docked. Demote it in
+                // place (borderless, see-through, follows the cursor) instead of
+                // hiding it and popping a separate decorator window.
+                if DECORATOR_WINDOW {
+                    self.demote_host_in_place(event_loop, idx, d.tab, g);
+                    return;
+                }
                 self.panel_windows[idx].renderer.window().set_visible(false);
             }
             self.begin_tearoff(event_loop, d.tab, g, DragTarget::Host(host_id));
@@ -1868,6 +2122,7 @@ impl App {
                     }
                     self.panel_windows
                         .retain(|p| p.renderer.window().id() != wd.source);
+                    self.destroy_decorator();
                 } else {
                     self.unpark_source(&wd);
                 }
@@ -2561,6 +2816,31 @@ fn apply_input_event(
         }
         _ => {}
     }
+}
+
+/// Inject a synthetic primary-button release into a window's input queue so its
+/// UI context registers the pointer coming up.
+///
+/// The drag-routing release arms (main tear-off, host title-drag, host tear-off)
+/// consume the *real* release event themselves to resolve the drop, so it never
+/// reaches `apply_input_event`. The window's `InputState` therefore keeps
+/// `pointer_down == true`, and a press edge only fires on `pressed && !down` —
+/// so the *next* real press is swallowed (it only flips `down` back), and the
+/// drag/click finally registers on the second click. This is the "have to click
+/// a tab twice to grab it after a tear-off / redock / upgrade" bug. The window a
+/// lone tab is torn off from is the same one later promoted in place, so the
+/// stuck state survives the role change — clear it here.
+fn clear_stuck_pointer(
+    pointer_pos: Option<Pos2>,
+    pending_events: &mut Vec<Event>,
+    modifiers: Modifiers,
+) {
+    pending_events.push(Event::PointerButton {
+        pos: pointer_pos.unwrap_or(Pos2::ZERO),
+        button: MouseButton::Primary,
+        pressed: false,
+        modifiers,
+    });
 }
 
 /// Build the checkerboard demo texture and register it on `window`'s

@@ -186,7 +186,7 @@ impl WindowRenderer {
             .expect("failed to create vulkan surface from window");
 
         let gpu = GpuContext::new(instance, &surface);
-        let renderer = Self::build(&gpu, window, surface, false);
+        let renderer = Self::build(&gpu, window, surface, false, false);
         (gpu, renderer)
     }
 
@@ -194,7 +194,7 @@ impl WindowRenderer {
     pub fn new(gpu: &GpuContext, window: Arc<Window>) -> Self {
         let surface = Surface::from_window(gpu.instance.clone(), window.clone())
             .expect("failed to create vulkan surface from window");
-        Self::build(gpu, window, surface, false)
+        Self::build(gpu, window, surface, false, false)
     }
 
     /// Open a per-pixel-transparent window (used for the drag decorator). The
@@ -204,10 +204,28 @@ impl WindowRenderer {
     pub fn new_transparent(gpu: &GpuContext, window: Arc<Window>) -> Self {
         let surface = Surface::from_window(gpu.instance.clone(), window.clone())
             .expect("failed to create vulkan surface from window");
-        Self::build(gpu, window, surface, true)
+        Self::build(gpu, window, surface, true, true)
     }
 
-    fn build(gpu: &GpuContext, window: Arc<Window>, surface: Arc<Surface>, transparent: bool) -> Self {
+    /// Open a window that *renders opaque* but is transparent-*capable*: its
+    /// `window` must be created with `WindowAttributes::with_transparent(true)`
+    /// and it gets a premultiplied composite-alpha swapchain, so it can be flipped
+    /// to see-through at runtime with [`WindowRenderer::make_transparent`] without
+    /// recreating the swapchain. Used for floating dock hosts so they can be
+    /// demoted into a transparent drag card in place.
+    pub fn new_demotable(gpu: &GpuContext, window: Arc<Window>) -> Self {
+        let surface = Surface::from_window(gpu.instance.clone(), window.clone())
+            .expect("failed to create vulkan surface from window");
+        Self::build(gpu, window, surface, false, true)
+    }
+
+    fn build(
+        gpu: &GpuContext,
+        window: Arc<Window>,
+        surface: Arc<Surface>,
+        transparent: bool,
+        composite_transparent: bool,
+    ) -> Self {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
 
@@ -255,7 +273,7 @@ impl WindowRenderer {
                     image_usage: ImageUsage::COLOR_ATTACHMENT,
                     composite_alpha: pick_composite_alpha(
                         surface_caps.supported_composite_alpha,
-                        transparent,
+                        composite_transparent,
                     ),
                     present_mode,
                     ..Default::default()
@@ -357,6 +375,15 @@ impl WindowRenderer {
     /// pixels is itself opaque.
     pub fn make_opaque(&mut self) {
         self.transparent = false;
+    }
+
+    /// Flip a transparent-*capable* window (see [`WindowRenderer::new_demotable`])
+    /// to render see-through: subsequent frames clear to nothing and skip the
+    /// solid scene background, so the empty margins read as pure transparency and
+    /// content composites over whatever sits behind. No swapchain recreation —
+    /// the swapchain already uses a premultiplied composite-alpha mode.
+    pub fn make_transparent(&mut self) {
+        self.transparent = true;
     }
 
     fn recreate_swapchain(&mut self) {

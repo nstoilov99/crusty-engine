@@ -223,6 +223,27 @@ impl<'a> DockArea<'a> {
                     via_tab_bar,
                 };
                 render_drop_overlay(ctx, &candidate);
+                // Over the tab bar: figure out which slot the drop lands in from
+                // the cursor x and draw an insertion caret there so the position
+                // is explicit before release.
+                let tab_slot = if over_tab_bar {
+                    find_leaf(self.root, &candidate.target_anchor).map(|leaf| {
+                        tab_drop_index(leaf, leaf_rect, ext.pointer.x, text, ctx.style.fonts.body)
+                    })
+                } else {
+                    None
+                };
+                if let Some((_, caret_x)) = tab_slot {
+                    let caret = Rect::from_min_max(
+                        Pos2::new(caret_x, tab_bar_rect.min.y + 2.0),
+                        Pos2::new(caret_x + 2.5, tab_bar_rect.max.y - 2.0),
+                    );
+                    ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+                        caret,
+                        Rounding::same(1.0),
+                        ctx.style.palette.accent,
+                    )));
+                }
                 if ext.ghost {
                     render_external_decorator(
                         ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f,
@@ -235,6 +256,7 @@ impl<'a> DockArea<'a> {
                             &candidate.target_anchor,
                             &ext.tab_id,
                             DropZone::Center,
+                            tab_slot.map(|(idx, _)| idx),
                         );
                         response.docked = true;
                     } else if let Some(edge) = button {
@@ -245,6 +267,7 @@ impl<'a> DockArea<'a> {
                                 &candidate.target_anchor,
                                 &ext.tab_id,
                                 edge,
+                                None,
                             );
                             response.docked = true;
                         }
@@ -642,19 +665,8 @@ fn render_drop_overlay(ctx: &mut Context, candidate: &DropCandidate) {
 
     // ── 1. Preview overlay (rendered first, so the compass sits on top).
     if candidate.via_tab_bar {
-        // Drop on tab bar = add as new tab to this leaf — highlight the
-        // tab bar strip so the user sees that's the target.
-        let tab_bar_h = style.fonts.body + 10.0;
-        let tab_bar_rect = Rect::from_min_max(
-            leaf_rect.min,
-            Pos2::new(leaf_rect.max.x, leaf_rect.min.y + tab_bar_h),
-        );
-        let mut tint = style.palette.accent;
-        tint.a = 0.55;
-        ctx.paint.push(PaintCmd::Rrect(
-            RectShape::fill(tab_bar_rect, style.rounding.small, tint)
-                .with_stroke(1.5, style.palette.accent),
-        ));
+        // Drop on tab bar = add as a tab here — the exact insertion slot is
+        // shown by the caret drawn in the caller, so don't tint the whole bar.
     } else if let Some(zone) = candidate.zone {
         let preview = preview_rect_for_zone(leaf_rect, zone);
         let mut tint = style.palette.accent;
@@ -882,11 +894,17 @@ fn collapse_to(node: &mut DockNode, first_emptied: bool) {
 
 /// Find the leaf that contains `anchor` and insert `dragged` according
 /// to `zone` (Center = add to its tabs; N/S/E/W = create a new Split).
-fn insert_at(node: &mut DockNode, anchor: &str, dragged: &str, zone: DropZone) -> bool {
+fn insert_at(
+    node: &mut DockNode,
+    anchor: &str,
+    dragged: &str,
+    zone: DropZone,
+    at: Option<usize>,
+) -> bool {
     match node {
         DockNode::Leaf(leaf) => {
             if leaf.tabs.iter().any(|t| t == anchor) {
-                apply_zone(node, dragged, zone);
+                apply_zone(node, dragged, zone, at);
                 true
             } else {
                 false
@@ -896,13 +914,13 @@ fn insert_at(node: &mut DockNode, anchor: &str, dragged: &str, zone: DropZone) -
             // recurse first
             {
                 if let DockNode::Split(s) = node {
-                    if insert_at(&mut s.first, anchor, dragged, zone) {
+                    if insert_at(&mut s.first, anchor, dragged, zone, at) {
                         return true;
                     }
                 }
             }
             if let DockNode::Split(s) = node {
-                insert_at(&mut s.second, anchor, dragged, zone)
+                insert_at(&mut s.second, anchor, dragged, zone, at)
             } else {
                 false
             }
@@ -910,12 +928,15 @@ fn insert_at(node: &mut DockNode, anchor: &str, dragged: &str, zone: DropZone) -
     }
 }
 
-fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone) {
+fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone, at: Option<usize>) {
     match zone {
         DropZone::Center => {
             if let DockNode::Leaf(leaf) = node {
-                leaf.tabs.push(dragged.to_string());
-                leaf.active = leaf.tabs.len() - 1;
+                // `at` chooses the slot among the existing tabs (set from the
+                // drop position in the tab bar); `None` appends at the end.
+                let idx = at.unwrap_or(leaf.tabs.len()).min(leaf.tabs.len());
+                leaf.tabs.insert(idx, dragged.to_string());
+                leaf.active = idx;
             }
         }
         DropZone::North | DropZone::South | DropZone::East | DropZone::West => {
@@ -941,6 +962,37 @@ fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone) {
             };
         }
     }
+}
+
+/// Borrow the leaf that contains `anchor`, for measuring its tab strip.
+fn find_leaf<'a>(node: &'a DockNode, anchor: &str) -> Option<&'a Leaf> {
+    match node {
+        DockNode::Leaf(leaf) => leaf.tabs.iter().any(|t| t == anchor).then_some(leaf),
+        DockNode::Split(s) => {
+            find_leaf(&s.first, anchor).or_else(|| find_leaf(&s.second, anchor))
+        }
+    }
+}
+
+/// Where an external tab would land if dropped on `leaf`'s tab bar at cursor x
+/// `px`: the insertion index (`0..=tabs.len()`) and the caret x to draw. Mirrors
+/// `draw_tabs` geometry so the caret falls on real tab boundaries.
+fn tab_drop_index(
+    leaf: &Leaf,
+    leaf_rect: Rect,
+    px: f32,
+    text: &mut TextRenderer,
+    font: f32,
+) -> (usize, f32) {
+    let mut cx = leaf_rect.min.x + 6.0;
+    for (i, tab) in leaf.tabs.iter().enumerate() {
+        let w = text.measure(tab, font, None).x + 18.0;
+        if px < cx + w * 0.5 {
+            return (i, cx - 2.0);
+        }
+        cx += w + 4.0;
+    }
+    (leaf.tabs.len(), cx - 2.0)
 }
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
