@@ -4,9 +4,12 @@
 //! *content*: what each panel draws, the main window's menu bar, and any
 //! floating overlay UI. Implement [`DockApp`] and hand it to the shell.
 
+use winit::event::WindowEvent;
+use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 use crate::context::Ui;
+use crate::input::Modifiers;
 use crate::paint::PaintCmd;
 use crate::style::Style;
 use crate::window::{GpuContext, WindowRenderer};
@@ -109,5 +112,28 @@ pub trait DockApp {
     fn scene_paint(&mut self, screen: [u32; 2]) -> Vec<PaintCmd> {
         let _ = screen;
         Vec::new()
+    }
+
+    /// Window events for windows the shell does *not* own — windows the app
+    /// created itself (e.g. in [`post_frame`](Self::post_frame)). `modifiers`
+    /// is the shell's shared keyboard-modifier state; pass it to
+    /// [`apply_input_event`](crate::shell::input::apply_input_event).
+    fn app_window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+        modifiers: &mut Modifiers,
+    ) {
+        let _ = (event_loop, window_id, event, modifiers);
+    }
+
+    /// Called after each main-window frame, with the event loop live, so the
+    /// app can spawn or focus OS windows of its own. Return `true` if a window
+    /// was created or focused (it stole OS focus from the main window, which
+    /// the shell then repaints synchronously).
+    fn post_frame(&mut self, gpu: &GpuContext, event_loop: &ActiveEventLoop) -> bool {
+        let _ = (gpu, event_loop);
+        false
     }
 }

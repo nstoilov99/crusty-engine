@@ -117,17 +117,17 @@ app-owned via a trait; presentation stays optional so the engine can
 record UI into its own render target (`FramePacket` flow) instead of
 letting `WindowRenderer` own the swapchain.
 
-- [ ] `shell/input.rs`: winit `WindowEvent` → `Event` translation
+- [x] `shell/input.rs`: winit `WindowEvent` → `Event` translation
       (`apply_input_event`, `clear_stuck_pointer`, modifier tracking,
       global↔client cursor mapping)
-- [ ] `DockApp` trait: app-implemented panel content callback replacing the
+- [x] `DockApp` trait: app-implemented panel content callback replacing the
       string-keyed `render_panel` (tab title + `panel_ui(&mut Ui, tab)`)
-- [ ] `Shell` type owning `GpuContext`, main `WindowRenderer`, `DockHost`
+- [x] `Shell` type owning `GpuContext`, main `WindowRenderer`, `DockHost`
       list, warm decorator pool, and all drag state; absorbs the ~25
       tear-off/re-dock methods (`spawn_dock_host`, `begin_tearoff`,
       `route_tab_drag`, `route_window_drag`, `promote_decorator`, …) behind
       `handle_window_event()` / `render()` / `about_to_wait()` hooks
-- [ ] Layout persistence helpers: serde save/load of dock tree + `Memory`
+- [x] Layout persistence helpers: serde save/load of dock tree + `Memory`
       moved behind the `serde` feature (`LayoutRef`/`LayoutOwned`)
 - [ ] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
       `wants_keyboard`, cursor icon, `repaint_after`
@@ -136,7 +136,7 @@ letting `WindowRenderer` own the swapchain.
       swapchain ownership only in the shell path
 - [ ] Backend quick wins touching the same seam: reuse vertex/index
       buffers, drop `wait_idle` on glyph upload
-- [ ] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
+- [x] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
       `render_panel`, theme, demo textures, default dock tree
 
 ## Phase 16 — Swap & hardening

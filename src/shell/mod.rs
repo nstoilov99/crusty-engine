@@ -6,8 +6,12 @@
 
 pub mod app;
 pub mod drag;
+pub mod driver;
 pub mod host;
 pub mod input;
 #[cfg(feature = "serde")]
 pub mod persist;
+
+pub use app::{DockApp, PanelFrame, ShellCmd, ShellCtl};
+pub use driver::{Shell, ShellConfig};
 
