@@ -131,9 +131,11 @@ letting `WindowRenderer` own the swapchain.
       moved behind the `serde` feature (`LayoutRef`/`LayoutOwned`)
 - [x] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
       `wants_keyboard`, cursor icon, `repaint_after`
-- [ ] Presentation-optional render path: tessellate + record into an
+- [x] Presentation-optional render path: tessellate + record into an
       externally-owned command buffer / image target (engine composites),
-      swapchain ownership only in the shell path
+      swapchain ownership only in the shell path — `TargetRenderer` in
+      `backend/target.rs` (caller-owned `ImageView`, optional backdrop for
+      glass blur, returns a primary command buffer for the host frame graph)
 - [x] Backend quick wins touching the same seam: reuse vertex/index
       buffers, drop `wait_idle` on glyph upload
 - [x] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
