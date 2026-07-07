@@ -36,9 +36,12 @@ use crate::text::TextRenderer;
 use super::vulkano::{BlurRenderer, OffscreenTargets, TextureRegistry, UiRenderer};
 
 /// Renders UI paint lists into caller-owned images, one command buffer per
-/// frame. Owns the same per-"window" resources as `WindowRenderer` (glyph
-/// atlas, texture registry, blur targets, tessellator) but no window, no
-/// surface and no swapchain — presentation belongs to the host.
+/// frame. Owns per-target GPU resources (texture registry, blur targets,
+/// tessellator) but no window, no surface and no swapchain — presentation
+/// belongs to the host. The [`TextRenderer`] is host-owned and borrowed per
+/// [`render`](Self::render) call, because UI building (glyph shaping)
+/// typically happens on the host's main thread while command recording
+/// happens on its render thread.
 pub struct TargetRenderer {
     device: Arc<Device>,
     queue: Arc<Queue>,
@@ -55,7 +58,6 @@ pub struct TargetRenderer {
     offscreen: OffscreenTargets,
     ui: UiRenderer,
     blur: BlurRenderer,
-    text: TextRenderer,
     registry: TextureRegistry,
     tessellator: Tessellator,
     ui_mesh: Mesh,
@@ -116,7 +118,6 @@ impl TargetRenderer {
             Subpass::from(offscreen.render_pass().clone(), 0)
                 .expect("offscreen render pass has subpass 0"),
         );
-        let text = TextRenderer::new(device.clone(), [1024, 1024]);
         let registry = TextureRegistry::new(device.clone());
 
         Self {
@@ -129,17 +130,11 @@ impl TargetRenderer {
             offscreen,
             ui,
             blur,
-            text,
             registry,
             tessellator: Tessellator::new(),
             ui_mesh: Mesh::default(),
             tess_us: 0.0,
         }
-    }
-
-    /// Mutable access to the glyph shaping + atlas (pass to `Ui` building).
-    pub fn text_mut(&mut self) -> &mut TextRenderer {
-        &mut self.text
     }
 
     /// Mutable access to the texture registry — register the host's own
@@ -164,6 +159,9 @@ impl TargetRenderer {
     /// host schedules it in its own frame graph (see the module docs for the
     /// ordering contract).
     ///
+    /// * `text` — the host-owned glyph shaper/atlas that was used to build
+    ///   this frame's `Ui` (queued glyph uploads are flushed here). It must
+    ///   be the same instance every frame.
     /// * `backdrop` — image the glass panels blur and sample as what is
     ///   "behind" the UI, usually the host's scene image for this frame. It
     ///   must not be `target` itself, and is sampled stretched to the full
@@ -175,6 +173,7 @@ impl TargetRenderer {
     /// Returns `None` when the target has a zero extent.
     pub fn render(
         &mut self,
+        text: &mut TextRenderer,
         target: Arc<ImageView>,
         ui_paint: &[PaintCmd],
         backdrop: Option<Arc<ImageView>>,
@@ -195,7 +194,7 @@ impl TargetRenderer {
         .expect("failed to allocate command buffer");
 
         // Flush any glyph bitmaps queued by widget code.
-        self.text.atlas_mut().flush_uploads(&mut builder);
+        text.atlas_mut().flush_uploads(&mut builder);
 
         let tess_start = Instant::now();
         self.tessellator.reset(&mut self.ui_mesh);
@@ -266,10 +265,10 @@ impl TargetRenderer {
             screen_size,
             glass_backdrop,
             self.offscreen.sampler().clone(),
-            self.text.atlas().view().clone(),
-            self.text.atlas().sampler().clone(),
-            self.text.atlas().rgba_view().cloned(),
-            Some(self.text.atlas().sampler().clone()),
+            text.atlas().view().clone(),
+            text.atlas().sampler().clone(),
+            text.atlas().rgba_view().cloned(),
+            Some(text.atlas().sampler().clone()),
             &self.registry,
         );
         builder

@@ -60,7 +60,7 @@ const DECORATOR_SETTLE_FRAMES: u32 = 4;
 const DRAG_SETTLE_FRAMES: u32 = 4;
 
 /// Map the library's backend-agnostic [`CursorIcon`] onto winit's.
-fn winit_cursor(icon: CursorIcon) -> winit::window::CursorIcon {
+pub fn winit_cursor(icon: CursorIcon) -> winit::window::CursorIcon {
     use winit::window::CursorIcon as W;
     match icon {
         CursorIcon::Default => W::Default,

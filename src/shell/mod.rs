@@ -13,5 +13,5 @@ pub mod input;
 pub mod persist;
 
 pub use app::{DockApp, PanelFrame, ShellCmd, ShellCtl};
-pub use driver::{Shell, ShellConfig};
+pub use driver::{Shell, ShellConfig, winit_cursor};
 
