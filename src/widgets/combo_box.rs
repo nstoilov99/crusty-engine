@@ -104,7 +104,6 @@ impl ComboBox {
         }
 
         // ── Dropdown render (overlay)
-        let mut dropdown_rect = Rect::ZERO;
         if is_open {
             let dropdown_root = id.with("popup");
             let dropdown_x = trigger_rect.min.x;
@@ -148,7 +147,7 @@ impl ComboBox {
             let drained: Vec<PaintCmd> =
                 ui.ctx_mut().paint.drain(body_start_main..).collect();
 
-            dropdown_rect = Rect::from_min_size(
+            let dropdown_rect = Rect::from_min_size(
                 Pos2::new(dropdown_x, dropdown_y),
                 Vec2::new(width, (used_h + 8.0).max(trigger_h)),
             );
