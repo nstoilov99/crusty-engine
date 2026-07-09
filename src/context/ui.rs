@@ -233,11 +233,14 @@ impl<'a> Ui<'a> {
         }
 
         // Pressed but not yet activated: arm once the pointer travels far
-        // enough from the press origin.
+        // enough from the press origin. Read the origin with `data_get_mut`
+        // so the entry is marked alive each frame — `data_get` doesn't, and
+        // memory GC would evict the origin after a few frames, silently
+        // killing any drag slower than a quick flick.
         if self.ctx.input.pointer_down {
             if let (Some(p), Some(start)) = (
                 self.ctx.input.pointer_pos,
-                self.ctx.memory.data_get::<Pos2>(id).copied(),
+                self.ctx.memory.data_get_mut::<Pos2>(id).map(|s| *s),
             ) {
                 let dx = p.x - start.x;
                 let dy = p.y - start.y;

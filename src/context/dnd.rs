@@ -43,6 +43,13 @@ impl DragDrop {
         self.dragging.then_some(self.label.as_str())
     }
 
+    /// Borrow the in-flight payload if it is a `T`, without ending the
+    /// drag. Lets a drop target inspect the payload mid-drag (e.g. to
+    /// refuse dropping a tree node onto itself).
+    pub fn peek<T: 'static>(&self) -> Option<&T> {
+        self.payload.as_ref()?.downcast_ref::<T>()
+    }
+
     /// Take the payload if it is a `T`, ending the drag. Returns `None`
     /// (leaving the drag intact) on a type mismatch.
     pub fn take<T: 'static>(&mut self) -> Option<T> {

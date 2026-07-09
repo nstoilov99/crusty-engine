@@ -41,6 +41,168 @@ const LIGHT_IDS: [&str; 8] = [
     "light_0", "light_1", "light_2", "light_3",
     "light_4", "light_5", "light_6", "light_7",
 ];
+const PROP_IDS: [&str; 12] = [
+    "prop_00", "prop_01", "prop_02", "prop_03", "prop_04", "prop_05",
+    "prop_06", "prop_07", "prop_08", "prop_09", "prop_10", "prop_11",
+];
+
+/// A node in the demo Hierarchy panel's mutable scene tree. Real nesting so
+/// drag-and-drop reparenting (`TreeNode::show_dnd`) can actually be exercised.
+struct HierNode {
+    id: &'static str,
+    label: String,
+    children: Vec<HierNode>,
+}
+
+impl HierNode {
+    fn leaf(id: &'static str, label: impl Into<String>) -> Self {
+        Self { id, label: label.into(), children: Vec::new() }
+    }
+
+    fn branch(id: &'static str, label: impl Into<String>, children: Vec<HierNode>) -> Self {
+        Self { id, label: label.into(), children }
+    }
+}
+
+fn default_hierarchy() -> Vec<HierNode> {
+    vec![
+        HierNode::branch("camera", "Camera", vec![
+            HierNode::leaf("camera_transform", "Transform"),
+            HierNode::leaf("camera_component", "CameraComponent"),
+            HierNode::leaf("camera_audio", "AudioListener"),
+        ]),
+        HierNode::branch("sun", "Sun", vec![
+            HierNode::leaf("sun_transform", "Transform"),
+            HierNode::leaf("sun_light", "DirectionalLight"),
+        ]),
+        HierNode::branch("world", "World", vec![
+            HierNode::leaf("world_terrain", "Terrain"),
+            HierNode::leaf("world_foliage", "Foliage"),
+            HierNode::leaf("world_water", "Water"),
+            HierNode::leaf("world_skybox", "Skybox"),
+        ]),
+        HierNode::branch(
+            "props",
+            "Props",
+            PROP_IDS
+                .iter()
+                .enumerate()
+                .map(|(i, id)| HierNode::leaf(id, format!("Prop_{i:02}")))
+                .collect(),
+        ),
+        HierNode::branch(
+            "npcs",
+            "NPCs",
+            NPC_IDS
+                .iter()
+                .enumerate()
+                .map(|(i, id)| HierNode::leaf(id, format!("NPC_{i:02}")))
+                .collect(),
+        ),
+        HierNode::branch(
+            "lights",
+            "Lights",
+            LIGHT_IDS
+                .iter()
+                .enumerate()
+                .map(|(i, id)| HierNode::leaf(id, format!("PointLight_{i:02}")))
+                .collect(),
+        ),
+    ]
+}
+
+/// Detach the node with `id` from wherever it sits in the tree.
+fn hier_remove(nodes: &mut Vec<HierNode>, id: &str) -> Option<HierNode> {
+    if let Some(i) = nodes.iter().position(|n| n.id == id) {
+        return Some(nodes.remove(i));
+    }
+    for n in nodes.iter_mut() {
+        if let Some(found) = hier_remove(&mut n.children, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Insert `node` relative to the node with `target` id. Returns the node
+/// back if the target no longer exists.
+fn hier_insert(
+    nodes: &mut Vec<HierNode>,
+    target: &str,
+    pos: TreeDropPos,
+    node: HierNode,
+) -> Result<(), HierNode> {
+    if let Some(i) = nodes.iter().position(|n| n.id == target) {
+        match pos {
+            TreeDropPos::Before => nodes.insert(i, node),
+            TreeDropPos::After => nodes.insert(i + 1, node),
+            TreeDropPos::Into => nodes[i].children.push(node),
+        }
+        return Ok(());
+    }
+    let mut node = node;
+    for n in nodes.iter_mut() {
+        match hier_insert(&mut n.children, target, pos, node) {
+            Ok(()) => return Ok(()),
+            Err(back) => node = back,
+        }
+    }
+    Err(node)
+}
+
+fn hier_find<'t>(nodes: &'t [HierNode], id: &str) -> Option<&'t HierNode> {
+    for n in nodes {
+        if n.id == id {
+            return Some(n);
+        }
+        if let Some(found) = hier_find(&n.children, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn hier_subtree_contains(node: &HierNode, id: &str) -> bool {
+    node.id == id || node.children.iter().any(|c| hier_subtree_contains(c, id))
+}
+
+/// Recursively render the hierarchy. Drops are collected instead of applied
+/// so the tree isn't mutated while it's being iterated.
+fn render_hier_nodes(
+    ui: &mut Ui,
+    nodes: &[HierNode],
+    sel: &mut &'static str,
+    drops: &mut Vec<(&'static str, &'static str, TreeDropPos)>,
+) {
+    for node in nodes {
+        let label = if node.children.is_empty() {
+            node.label.clone()
+        } else {
+            format!("{} ({})", node.label, node.children.len())
+        };
+        let out = TreeNode::new(sel, node.id, label)
+            .id_source(node.id)
+            .draggable(true)
+            .leaf(node.children.is_empty())
+            .show_dnd(ui, |ui, sel| {
+                render_hier_nodes(ui, &node.children, sel, drops);
+            });
+        if out.response.double_clicked(ui) {
+            ui.toast(format!("Double-clicked {}", node.id));
+        }
+        if node.id == "camera" {
+            ui.context_menu_for("ctx_camera", out.response.rect, |ui| {
+                let mut _unused = 0u32;
+                ui.selectable_value(&mut _unused, 1, "Rename");
+                ui.selectable_value(&mut _unused, 2, "Duplicate");
+                ui.selectable_value(&mut _unused, 3, "Delete");
+            });
+        }
+        if let Some((dragged, pos)) = out.drop {
+            drops.push((dragged, node.id, pos));
+        }
+    }
+}
 
 /// Every panel `render_panel` knows how to draw. The Window menu lists these
 /// so a panel that was closed (or torn off) can always be re-opened.
@@ -87,6 +249,9 @@ struct EditorState {
     entity_name: String,
     asset_path: String,
     selected_entity: &'static str,
+    /// Mutable scene tree shown in the Hierarchy panel — drag rows to
+    /// reorder and reparent (exercises `TreeNode::show_dnd`).
+    hierarchy: Vec<HierNode>,
     inspector_slot: Option<String>,
     // Request flags: a panel sets these, the frame loop consumes them.
     settings_open: bool,
@@ -107,6 +272,7 @@ impl Default for EditorState {
             entity_name: "PlayerCamera".to_string(),
             asset_path: "assets/scenes/demo.scene".to_string(),
             selected_entity: "",
+            hierarchy: default_hierarchy(),
             inspector_slot: None,
             settings_open: true,
             about_open: false,
@@ -452,6 +618,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let asset_path = &mut ed.asset_path;
     let inspector_slot = &mut ed.inspector_slot;
     let selected_entity = &mut ed.selected_entity;
+    let hierarchy = &mut ed.hierarchy;
     let click_count = &mut ed.click_count;
     let settings_open = &mut ed.settings_open;
     let about_open = &mut ed.about_open;
@@ -465,65 +632,37 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     match panel {
                         "Hierarchy" => {
                             let avail = ui.available().height();
+                            let mut drops = Vec::new();
                             ui.scroll_area(avail, |ui| {
-                                let camera_resp = ui.tree_node(
-                                    selected_entity,
-                                    "camera",
-                                    "Camera",
-                                    |ui, sel| {
-                                        ui.selectable_value(sel, "camera_transform", "Transform");
-                                        ui.selectable_value(sel, "camera_component", "CameraComponent");
-                                        ui.selectable_value(sel, "camera_audio", "AudioListener");
-                                    },
-                                );
-                                ui.context_menu_for(
-                                    "ctx_camera",
-                                    camera_resp.rect,
-                                    |ui| {
-                                        let mut _unused = 0u32;
-                                        ui.selectable_value(&mut _unused, 1, "Rename");
-                                        ui.selectable_value(&mut _unused, 2, "Duplicate");
-                                        ui.selectable_value(&mut _unused, 3, "Delete");
-                                    },
-                                );
-                                ui.tree_node(selected_entity, "sun", "Sun", |ui, sel| {
-                                    ui.selectable_value(sel, "sun_transform", "Transform");
-                                    ui.selectable_value(sel, "sun_light", "DirectionalLight");
-                                });
-                                ui.tree_node(selected_entity, "world", "World", |ui, sel| {
-                                    ui.selectable_value(sel, "world_terrain", "Terrain");
-                                    ui.selectable_value(sel, "world_foliage", "Foliage");
-                                    ui.selectable_value(sel, "world_water", "Water");
-                                    ui.selectable_value(sel, "world_skybox", "Skybox");
-                                });
-                                ui.tree_node(selected_entity, "props", "Props (12)", |ui, sel| {
-                                    for i in 0..12 {
-                                        let id_str: &'static str = match i {
-                                            0 => "prop_00", 1 => "prop_01", 2 => "prop_02",
-                                            3 => "prop_03", 4 => "prop_04", 5 => "prop_05",
-                                            6 => "prop_06", 7 => "prop_07", 8 => "prop_08",
-                                            9 => "prop_09", 10 => "prop_10", _ => "prop_11",
-                                        };
-                                        ui.selectable_value(sel, id_str, format!("Prop_{:02}", i));
-                                    }
-                                });
-                                ui.tree_node(selected_entity, "npcs", "NPCs (24)", |ui, sel| {
-                                    for i in 0..24 {
-                                        // Cheap unique id source: index-based names with a
-                                        // common prefix; we just need *something* unique per
-                                        // row that's `&'static str`-compatible.
-                                        let name = format!("NPC_{:02}", i);
-                                        let id_src: &'static str = NPC_IDS[i];
-                                        ui.selectable_value(sel, id_src, name);
-                                    }
-                                });
-                                ui.tree_node(selected_entity, "lights", "Lights (8)", |ui, sel| {
-                                    for i in 0..8 {
-                                        let id_src: &'static str = LIGHT_IDS[i];
-                                        ui.selectable_value(sel, id_src, format!("PointLight_{:02}", i));
-                                    }
-                                });
+                                render_hier_nodes(ui, hierarchy, selected_entity, &mut drops);
                             });
+                            for (dragged, target, pos) in drops {
+                                // Refuse dropping a node into its own subtree —
+                                // it would orphan the whole branch.
+                                let cycle = hier_find(hierarchy, dragged)
+                                    .is_some_and(|n| hier_subtree_contains(n, target));
+                                if cycle {
+                                    ui.toast_error(format!(
+                                        "Can't move {dragged} into its own subtree"
+                                    ));
+                                    continue;
+                                }
+                                if let Some(node) = hier_remove(hierarchy, dragged) {
+                                    match hier_insert(hierarchy, target, pos, node) {
+                                        Ok(()) => {
+                                            let verb = match pos {
+                                                TreeDropPos::Before => "before",
+                                                TreeDropPos::After => "after",
+                                                TreeDropPos::Into => "into",
+                                            };
+                                            ui.toast_success(format!(
+                                                "Moved {dragged} {verb} {target}"
+                                            ));
+                                        }
+                                        Err(node) => hierarchy.push(node),
+                                    }
+                                }
+                            }
                         }
                         "Viewport" => {
                             let st = ui.style();

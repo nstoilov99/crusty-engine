@@ -87,6 +87,7 @@ impl Context {
         for ev in &input.events {
             self.input.apply_event(ev);
         }
+        self.input.detect_double_press(input.time);
         self.paint.clear();
         self.overlay_paint.clear();
         self.layers.clear();
@@ -295,6 +296,15 @@ pub struct InputState {
     pub pointer_pressed: bool,
     /// Primary pointer button transitioned to "up" this frame.
     pub pointer_released: bool,
+    /// True while the most recent primary press was the second press of
+    /// a double-click (quick + near the previous press). Persists until
+    /// the next press, so a widget's release-click can test it:
+    /// `response.clicked && press_was_double` = double-click.
+    pub press_was_double: bool,
+    /// Time of the previous primary press (double-click detection).
+    last_press_time: f64,
+    /// Position of the previous primary press (double-click detection).
+    last_press_pos: Option<Pos2>,
     /// Secondary pointer button transitioned to "down" this frame
     /// (right-click — used to open context menus).
     pub right_pressed: bool,
@@ -326,6 +336,34 @@ impl InputState {
         self.scroll_delta = crate::math::Vec2::ZERO;
         self.typed_text.clear();
         self.key_presses.clear();
+    }
+
+    /// Classify this frame's press (if any) as the second of a
+    /// double-click. Called once per frame after events are applied.
+    fn detect_double_press(&mut self, now: f64) {
+        const DOUBLE_CLICK_TIME: f64 = 0.35;
+        const DOUBLE_CLICK_DIST: f32 = 6.0;
+
+        if !self.pointer_pressed {
+            return;
+        }
+        let near = match (self.pointer_pos, self.last_press_pos) {
+            (Some(a), Some(b)) => {
+                let (dx, dy) = (a.x - b.x, a.y - b.y);
+                (dx * dx + dy * dy).sqrt() <= DOUBLE_CLICK_DIST
+            }
+            _ => false,
+        };
+        self.press_was_double = near && now - self.last_press_time <= DOUBLE_CLICK_TIME;
+        if self.press_was_double {
+            // A third quick click starts a fresh cycle instead of
+            // chaining double-clicks.
+            self.last_press_pos = None;
+            self.last_press_time = f64::NEG_INFINITY;
+        } else {
+            self.last_press_pos = self.pointer_pos;
+            self.last_press_time = now;
+        }
     }
 
     fn apply_event(&mut self, ev: &Event) {

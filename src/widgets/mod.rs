@@ -42,7 +42,7 @@ pub use table::{Column, SortDir, Table, TableBody, TableOutput, TableRow};
 pub use text_edit::TextEdit;
 pub use toast::ToastKind;
 pub use tooltip::show_tooltip_for;
-pub use tree::TreeNode;
+pub use tree::{TreeDropPos, TreeNode, TreeNodeOutput};
 pub use window::{Window, WindowResponse};
 
 use std::ops::RangeInclusive;
@@ -186,7 +186,7 @@ impl Ui<'_> {
         body: impl FnOnce(&mut Ui, &mut T) -> R,
     ) -> Response
     where
-        T: PartialEq + Copy,
+        T: PartialEq + Copy + 'static,
     {
         TreeNode::new(selection, value, label).show(self, body)
     }

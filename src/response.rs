@@ -8,6 +8,7 @@
 //! hit testing — it's stable enough that the user can't perceive the
 //! one-frame lag.
 
+use crate::context::Ui;
 use crate::id::Id;
 use crate::math::Rect;
 
@@ -33,6 +34,12 @@ pub struct Response {
 impl Response {
     pub fn clicked(&self) -> bool {
         self.clicked
+    }
+    /// True when this frame's click completed a double-click (the press
+    /// that produced it was quick + near the previous press). Needs the
+    /// `Ui` because click timing lives in the shared input state.
+    pub fn double_clicked(&self, ui: &Ui) -> bool {
+        self.clicked && ui.ctx().input.press_was_double
     }
     pub fn hovered(&self) -> bool {
         self.hovered
