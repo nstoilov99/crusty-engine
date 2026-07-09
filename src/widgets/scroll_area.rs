@@ -10,6 +10,7 @@ pub struct ScrollArea {
     max_height: f32,
     auto_shrink: bool,
     stick_to_bottom: bool,
+    inset: f32,
 }
 
 impl ScrollArea {
@@ -18,7 +19,16 @@ impl ScrollArea {
             max_height,
             auto_shrink: true,
             stick_to_bottom: false,
+            inset: 8.0,
         }
+    }
+
+    /// Horizontal inset of the inner content (default 8). The default keeps
+    /// left-edge widget effects (hover glow, stroke) from being clipped by
+    /// the viewport; lower it for plain-text content that should sit flush.
+    pub fn inset(mut self, v: f32) -> Self {
+        self.inset = v;
+        self
     }
 
     /// If true (default), the area shrinks to its content's height when
@@ -72,12 +82,10 @@ impl ScrollArea {
 
         let inner_root = id.with("inner");
         let (result, used_h) = {
-            // A small horizontal inset so widgets flush against the start of
-            // the row (a left-edge button's hover glow, a stroke) aren't
-            // clipped by the viewport's left edge. Vertical padding stays 0
-            // so content still aligns with the scroll offset.
+            // Vertical padding stays 0 so content still aligns with the
+            // scroll offset.
             let inner_opts = UiOptions {
-                padding: Vec2::new(8.0, 0.0),
+                padding: Vec2::new(self.inset, 0.0),
                 spacing: style.spacing.item,
             };
             let parent_area = ui.area();

@@ -7,6 +7,8 @@ use crate::response::Response;
 pub struct Button {
     text: String,
     size: Option<f32>,
+    fill: Option<Color>,
+    text_color: Option<Color>,
 }
 
 impl Button {
@@ -14,11 +16,27 @@ impl Button {
         Self {
             text: text.into(),
             size: None,
+            fill: None,
+            text_color: None,
         }
     }
 
     pub fn size(mut self, size_px: f32) -> Self {
         self.size = Some(size_px);
+        self
+    }
+
+    /// Override the background fill (hover/press lighten it slightly).
+    /// Used for toggle-style buttons that tint by state, like the console
+    /// log filters.
+    pub fn fill(mut self, color: Color) -> Self {
+        self.fill = Some(color);
+        self
+    }
+
+    /// Override the label color.
+    pub fn text_color(mut self, color: Color) -> Self {
+        self.text_color = Some(color);
         self
     }
 
@@ -62,9 +80,18 @@ impl Button {
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
-        // Compose fill: surface → surface_hover (with hover) → surface_active (with press).
-        let mut fill = lerp_color(style.palette.surface, style.palette.surface_hover, hover_anim);
-        fill = lerp_color(fill, style.palette.surface_active, press_anim);
+        // Compose fill: base → hover → active. A custom fill lightens by state
+        // instead of using the palette surfaces.
+        let (base, hover_c, active_c) = match self.fill {
+            Some(c) => (c, lighten(c, 0.05), lighten(c, 0.10)),
+            None => (
+                style.palette.surface,
+                style.palette.surface_hover,
+                style.palette.surface_active,
+            ),
+        };
+        let mut fill = lerp_color(base, hover_c, hover_anim);
+        fill = lerp_color(fill, active_c, press_anim);
 
         let stroke =
             lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim);
@@ -89,7 +116,7 @@ impl Button {
             &self.text,
             font_size,
             text_pos,
-            style.palette.text,
+            self.text_color.unwrap_or(style.palette.text),
             None,
         );
 
@@ -103,6 +130,15 @@ impl Button {
             press_anim,
         }
     }
+}
+
+fn lighten(c: Color, amt: f32) -> Color {
+    Color::rgba(
+        (c.r + amt).min(1.0),
+        (c.g + amt).min(1.0),
+        (c.b + amt).min(1.0),
+        c.a,
+    )
 }
 
 fn lerp(a: f32, b: f32, t: f32) -> f32 {

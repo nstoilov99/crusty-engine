@@ -40,6 +40,7 @@ pub struct TextEdit<'a> {
     width: Option<f32>,
     hint: Option<String>,
     keep_focus_on_submit: bool,
+    fill: Option<Color>,
 }
 
 impl<'a> TextEdit<'a> {
@@ -49,7 +50,14 @@ impl<'a> TextEdit<'a> {
             width: None,
             hint: None,
             keep_focus_on_submit: false,
+            fill: None,
         }
+    }
+
+    /// Override the field background (default: `palette.surface_active`).
+    pub fn fill(mut self, color: Color) -> Self {
+        self.fill = Some(color);
+        self
     }
 
     pub fn width(mut self, w: f32) -> Self {
@@ -270,7 +278,7 @@ impl<'a> TextEdit<'a> {
         let focus_anim = mem.aux_anim;
 
         // ── Background + border (accent stroke when focused).
-        let fill = style.palette.surface_active;
+        let fill = self.fill.unwrap_or(style.palette.surface_active);
         let stroke = lerp_color(
             lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim),
             style.palette.accent,

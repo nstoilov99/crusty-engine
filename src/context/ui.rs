@@ -351,6 +351,26 @@ impl<'a> Ui<'a> {
         }
     }
 
+    /// Draw a thin dividing line across the layout: horizontal (full
+    /// available width) in top-down layouts, vertical (one widget-row
+    /// tall — a horizontal row's available height can be the parent's
+    /// whole remaining space) in left-to-right.
+    pub fn separator(&mut self) {
+        let style = self.ctx.style;
+        let color = style.palette.stroke;
+        let rect = match self.direction {
+            Direction::TopDown => {
+                self.allocate(Vec2::new(self.available().width(), 1.0))
+            }
+            Direction::LeftToRight => {
+                let h = style.fonts.body + style.spacing.button_padding.y * 2.0;
+                self.allocate(Vec2::new(1.0, h))
+            }
+        };
+        let shape = RectShape::fill(rect, 0.0, color);
+        self.ctx.paint.push(PaintCmd::Rrect(shape));
+    }
+
     pub fn used_rect(&self) -> Rect {
         self.used
     }

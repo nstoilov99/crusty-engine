@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use ahash::AHasher;
 use cosmic_text::{
-    Attrs, Buffer, CacheKey, FontSystem, Metrics, Shaping, SwashCache, SwashContent,
+    Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, SwashCache,
+    SwashContent,
 };
 use vulkano::device::Device;
 use vulkano::memory::allocator::StandardMemoryAllocator;
@@ -51,6 +52,7 @@ pub struct TextRenderer {
     cache: HashMap<u64, Option<CachedGlyph>, std::hash::BuildHasherDefault<AHasher>>,
     shape_cache: HashMap<u64, ShapedText, std::hash::BuildHasherDefault<AHasher>>,
     frame: u64,
+    default_family: Option<String>,
 }
 
 impl TextRenderer {
@@ -67,7 +69,28 @@ impl TextRenderer {
             cache: HashMap::default(),
             shape_cache: HashMap::default(),
             frame: 0,
+            default_family: None,
         }
+    }
+
+    /// Register a font from raw TTF/OTF bytes and return its family name
+    /// (pass it to [`set_default_family`](Self::set_default_family) to make
+    /// it the default UI font).
+    pub fn load_font(&mut self, data: Vec<u8>) -> Option<String> {
+        let ids = self
+            .font_system
+            .db_mut()
+            .load_font_source(cosmic_text::fontdb::Source::Binary(Arc::new(data)));
+        let id = *ids.first()?;
+        let face = self.font_system.db().face(id)?;
+        face.families.first().map(|(name, _)| name.clone())
+    }
+
+    /// Shape all subsequent text with this font family instead of the
+    /// system default. Clears the shape cache so existing labels reflow.
+    pub fn set_default_family(&mut self, name: impl Into<String>) {
+        self.default_family = Some(name.into());
+        self.shape_cache.clear();
     }
 
     /// Advance the frame counter and drop shaped layouts that haven't been
@@ -91,7 +114,11 @@ impl TextRenderer {
         let metrics = Metrics::new(size_px, line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
         buffer.set_size(&mut self.font_system, max_width, None);
-        buffer.set_text(&mut self.font_system, text, Attrs::new(), Shaping::Advanced);
+        let attrs = match self.default_family.as_deref() {
+            Some(name) => Attrs::new().family(Family::Name(name)),
+            None => Attrs::new(),
+        };
+        buffer.set_text(&mut self.font_system, text, attrs, Shaping::Advanced);
         buffer.shape_until_scroll(&mut self.font_system, false);
 
         let size = measure_buffer(&buffer, size_px);
