@@ -314,13 +314,13 @@ impl Tessellator {
             let stroke_color = shape.stroke.map(|s| s.color).unwrap_or(fill);
             // A combined fill+stroke uses one quad in MODE_RRECT; if no
             // stroke, stroke_w stays 0 and the shader skips that branch.
-            let _ = stroke_color; // stroke colour blending lives in Phase 2 (need 2 draws or per-vertex blend)
             let template = Vertex {
                 color: fill.to_array(),
                 rect_center,
                 rect_half,
                 rounding: rounding_arr,
                 params: [stroke_w, 0.0, 0.0, MODE_RRECT],
+                stroke_color: stroke_color.to_array(),
                 ..Vertex::ZERO
             };
             push_quad(mesh, shape.rect, |pos, uv| Vertex {
@@ -329,22 +329,19 @@ impl Tessellator {
                 ..template
             });
         } else if let Some(stroke) = shape.stroke {
-            // Stroke-only: the shader treats `fill` color with full alpha
-            // outside the stroke band as transparent.
+            // Stroke-only: fill color alpha 0 makes the glass-mix branch
+            // contribute nothing; only the stroke band draws.
+            let mut c = stroke.color.to_array();
+            c[3] = 0.0;
             let template = Vertex {
-                color: stroke.color.to_array(),
+                color: c,
                 rect_center,
                 rect_half,
                 rounding: rounding_arr,
                 params: [stroke.width, 0.0, 0.0, MODE_RRECT],
-                // Setting color alpha to 0 makes the fill branch contribute
-                // nothing; the stroke branch overwrites with full alpha.
+                stroke_color: stroke.color.to_array(),
                 ..Vertex::ZERO
             };
-            let mut template = template;
-            let mut c = stroke.color.to_array();
-            c[3] = 0.0;
-            template.color = c;
             push_quad(mesh, shape.rect, |pos, uv| Vertex {
                 pos,
                 uv,

@@ -120,7 +120,7 @@ impl<'a> Slider<'a> {
                 1.0,
                 lerp_color(style.palette.stroke, style.palette.accent, hover_anim),
             );
-        let handle_shape = if hover_anim > 0.0 {
+        let handle_shape = if hover_anim > 0.0 && style.palette.accent_glow.a > 0.0 {
             let mut glow = style.palette.accent_glow;
             glow.a *= hover_anim;
             handle_shape.with_glow(6.0 + 4.0 * hover_anim, glow)

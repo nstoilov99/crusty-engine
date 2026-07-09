@@ -42,6 +42,7 @@ struct VsIn {
     @location(4) rect_half: vec2<f32>,
     @location(5) rounding: vec4<f32>,
     @location(6) params: vec4<f32>,
+    @location(7) stroke_color: vec4<f32>,
 };
 
 struct VsOut {
@@ -53,6 +54,7 @@ struct VsOut {
     @location(4) rect_half: vec2<f32>,
     @location(5) rounding: vec4<f32>,
     @location(6) params: vec4<f32>,
+    @location(7) stroke_color: vec4<f32>,
 };
 
 @vertex
@@ -70,6 +72,7 @@ fn vs_main(input: VsIn) -> VsOut {
     out.rect_half = input.rect_half;
     out.rounding = input.rounding;
     out.params = input.params;
+    out.stroke_color = input.stroke_color;
     return out;
 }
 
@@ -113,12 +116,12 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         var out_a = coverage;
 
         if (stroke_w > 0.0) {
-            // Centered stroke band of width `stroke_w` around d = 0.
+            // Centered stroke band of width `stroke_w` around d = 0, drawn
+            // in `stroke_color` (alpha scales the band).
             let stroke_d = abs(d);
-            let stroke_alpha = clamp(stroke_w * 0.5 + 0.5 - stroke_d, 0.0, 1.0);
-            // Stroke colour rides in the alpha=1 channel by convention:
-            // we re-use input.color but force alpha to full for the band.
-            out_rgb = mix(out_rgb, input.color.rgb, stroke_alpha);
+            let band = clamp(stroke_w * 0.5 + 0.5 - stroke_d, 0.0, 1.0);
+            let stroke_alpha = band * input.stroke_color.a;
+            out_rgb = mix(out_rgb, input.stroke_color.rgb, stroke_alpha);
             out_a = max(out_a, stroke_alpha);
         }
 

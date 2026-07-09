@@ -95,9 +95,12 @@ impl Button {
 
         let stroke =
             lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim);
+        // egui parity: 1px stroke at rest/hover, 1.5px while pressed.
         let shape = RectShape::fill(rect, style.rounding.widget, fill)
-            .with_stroke(1.0 + hover_anim * 0.5, stroke);
-        let shape = if hover_anim > 0.0 {
+            .with_stroke(1.0 + press_anim * 0.5, stroke);
+        // Zero-alpha accent_glow disables the hover glow (themes that want a
+        // plain stroke outline, like the engine's egui-matching style).
+        let shape = if hover_anim > 0.0 && style.palette.accent_glow.a > 0.0 {
             let mut glow = style.palette.accent_glow;
             glow.a *= hover_anim;
             shape.with_glow(8.0 + 4.0 * hover_anim, glow)

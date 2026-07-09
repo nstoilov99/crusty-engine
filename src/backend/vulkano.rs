@@ -948,6 +948,7 @@ fn vertex_input_for_ui_vertex() -> VertexInputState {
         (4, Format::R32G32_SFLOAT, std::mem::offset_of!(Vertex, rect_half)),
         (5, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, rounding)),
         (6, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, params)),
+        (7, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, stroke_color)),
     ];
     for (loc, format, offset) in attrs {
         state = state.attribute(

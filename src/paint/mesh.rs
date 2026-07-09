@@ -20,6 +20,8 @@ pub struct Vertex {
     pub rounding: [f32; 4],
     /// `[stroke_w, shadow_radius, glow_radius, mode]`.
     pub params: [f32; 4],
+    /// Stroke band color for `MODE_RRECT`; alpha scales the band.
+    pub stroke_color: [f32; 4],
 }
 
 impl Vertex {
@@ -31,6 +33,7 @@ impl Vertex {
         rect_half: [0.0; 2],
         rounding: [0.0; 4],
         params: [0.0; 4],
+        stroke_color: [0.0; 4],
     };
 }
 
