@@ -252,6 +252,14 @@ struct EditorState {
     /// Mutable scene tree shown in the Hierarchy panel — drag rows to
     /// reorder and reparent (exercises `TreeNode::show_dnd`).
     hierarchy: Vec<HierNode>,
+    /// Console panel: log lines + command input with history
+    /// (exercises `ScrollArea::stick_to_bottom` + `TextEdit::show_full`).
+    console_lines: Vec<String>,
+    console_input: String,
+    console_history: Vec<String>,
+    /// Index into `console_history` while navigating with Up/Down;
+    /// `None` = editing a fresh line.
+    console_history_pos: Option<usize>,
     inspector_slot: Option<String>,
     // Request flags: a panel sets these, the frame loop consumes them.
     settings_open: bool,
@@ -273,6 +281,26 @@ impl Default for EditorState {
             asset_path: "assets/scenes/demo.scene".to_string(),
             selected_entity: "",
             hierarchy: default_hierarchy(),
+            console_lines: [
+                "[10:23:45] Engine v0.1.0 starting up",
+                "[10:23:46] Loading project 'demo-scene'...",
+                "[10:23:46] Compiled 12 shaders",
+                "[10:23:46] Loaded 218 entities",
+                "[10:23:47] Texture streaming online (256 MB cache)",
+                "[10:23:47] Audio engine started",
+                "[10:23:47] Physics world initialised",
+                "[10:23:47] Render thread online",
+                "[10:23:48] Network: bound to 0.0.0.0:7777",
+                "[10:23:48] Save subsystem ready",
+                "[10:23:48] Hot-reload watcher: 142 files",
+                "[10:23:48] Profiler attached on port 8080",
+                "[10:23:48] Ready. Type 'help' below.",
+            ]
+            .map(String::from)
+            .to_vec(),
+            console_input: String::new(),
+            console_history: Vec::new(),
+            console_history_pos: None,
             inspector_slot: None,
             settings_open: true,
             about_open: false,
@@ -619,6 +647,10 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let inspector_slot = &mut ed.inspector_slot;
     let selected_entity = &mut ed.selected_entity;
     let hierarchy = &mut ed.hierarchy;
+    let console_lines = &mut ed.console_lines;
+    let console_input = &mut ed.console_input;
+    let console_history = &mut ed.console_history;
+    let console_history_pos = &mut ed.console_history_pos;
     let click_count = &mut ed.click_count;
     let settings_open = &mut ed.settings_open;
     let about_open = &mut ed.about_open;
@@ -997,38 +1029,82 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                         }
                         "Console" => {
                             let st = ui.style();
-                            let avail = ui.available().height();
-                            ui.scroll_area(avail, |ui| {
-                                let gpu_line =
-                                    format!("[10:23:45] Vulkano 0.35 — {gpu_name}");
-                                let lines = [
-                                    "[10:23:45] Engine v0.1.0 starting up",
-                                    gpu_line.as_str(),
-                                    "[10:23:46] Loading project 'demo-scene'...",
-                                    "[10:23:46] Compiled 12 shaders",
-                                    "[10:23:46] Loaded 218 entities",
-                                    "[10:23:47] Texture streaming online (256 MB cache)",
-                                    "[10:23:47] Audio engine started",
-                                    "[10:23:47] Physics world initialised",
-                                    "[10:23:47] Render thread online",
-                                    "[10:23:48] Network: bound to 0.0.0.0:7777",
-                                    "[10:23:48] Save subsystem ready",
-                                    "[10:23:48] Hot-reload watcher: 142 files",
-                                    "[10:23:48] Profiler attached on port 8080",
-                                    "[10:23:48] Ready.",
-                                    "[10:24:01] Camera moved to (12.4, 3.0, -8.2)",
-                                    "[10:24:02] Selected entity 'PlayerCamera'",
-                                    "[10:24:05] Saved scene",
-                                    "[10:24:09] Compiled 1 shader (hot reload)",
-                                    "[10:24:14] FPS stabilised at 60",
-                                ];
-                                for line in lines {
-                                    Label::new(line)
-                                        .size(st.fonts.small)
-                                        .color(st.palette.text_dim)
-                                        .show(ui);
+                            // Reserve room for the input row below the log.
+                            let input_h = st.fonts.body + 10.0;
+                            let log_h = (ui.available().height()
+                                - input_h
+                                - st.spacing.item * 2.0)
+                                .max(60.0);
+                            ScrollArea::new(log_h)
+                                .auto_shrink(false)
+                                .stick_to_bottom(true)
+                                .show(ui, |ui| {
+                                    for line in console_lines.iter() {
+                                        let color = if line.starts_with("> ") {
+                                            st.palette.text
+                                        } else if line.starts_with("[error]") {
+                                            Color::rgba(0.95, 0.45, 0.45, 1.0)
+                                        } else {
+                                            st.palette.text_dim
+                                        };
+                                        Label::new(line)
+                                            .size(st.fonts.small)
+                                            .color(color)
+                                            .show(ui);
+                                    }
+                                });
+                            ui.add_space(st.spacing.item);
+
+                            let out = TextEdit::new(console_input)
+                                .width(ui.available().width())
+                                .hint("command (Enter to run, Up/Down for history)")
+                                .keep_focus_on_submit(true)
+                                .show_full(ui);
+
+                            if out.submitted && !console_input.trim().is_empty() {
+                                let cmd = console_input.trim().to_string();
+                                console_lines.push(format!("> {cmd}"));
+                                let mut parts = cmd.splitn(2, ' ');
+                                match (parts.next().unwrap_or(""), parts.next()) {
+                                    ("help", _) => console_lines.push(
+                                        "commands: help, clear, echo <text>, gpu"
+                                            .to_string(),
+                                    ),
+                                    ("clear", _) => console_lines.clear(),
+                                    ("echo", rest) => console_lines
+                                        .push(rest.unwrap_or("").to_string()),
+                                    ("gpu", _) => console_lines
+                                        .push(format!("Vulkano 0.35 — {gpu_name}")),
+                                    (other, _) => console_lines.push(format!(
+                                        "[error] unknown command '{other}'"
+                                    )),
                                 }
-                            });
+                                console_history.push(cmd);
+                                *console_history_pos = None;
+                                console_input.clear();
+                            }
+                            if out.nav_up && !console_history.is_empty() {
+                                let pos = match *console_history_pos {
+                                    Some(p) => p.saturating_sub(1),
+                                    None => console_history.len() - 1,
+                                };
+                                *console_history_pos = Some(pos);
+                                *console_input = console_history[pos].clone();
+                            }
+                            if out.nav_down {
+                                match *console_history_pos {
+                                    Some(p) if p + 1 < console_history.len() => {
+                                        *console_history_pos = Some(p + 1);
+                                        *console_input =
+                                            console_history[p + 1].clone();
+                                    }
+                                    Some(_) => {
+                                        *console_history_pos = None;
+                                        console_input.clear();
+                                    }
+                                    None => {}
+                                }
+                            }
                         }
                         "Profiler" => {
                             let st = ui.style();

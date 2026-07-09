@@ -39,7 +39,7 @@ pub use scroll_area::ScrollArea;
 pub use selectable::SelectableValue;
 pub use slider::Slider;
 pub use table::{Column, SortDir, Table, TableBody, TableOutput, TableRow};
-pub use text_edit::TextEdit;
+pub use text_edit::{TextEdit, TextEditOutput};
 pub use toast::ToastKind;
 pub use tooltip::show_tooltip_for;
 pub use tree::{TreeDropPos, TreeNode, TreeNodeOutput};

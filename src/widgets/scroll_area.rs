@@ -9,6 +9,7 @@ use crate::paint::{PaintCmd, RectShape};
 pub struct ScrollArea {
     max_height: f32,
     auto_shrink: bool,
+    stick_to_bottom: bool,
 }
 
 impl ScrollArea {
@@ -16,6 +17,7 @@ impl ScrollArea {
         Self {
             max_height,
             auto_shrink: true,
+            stick_to_bottom: false,
         }
     }
 
@@ -24,6 +26,14 @@ impl ScrollArea {
     /// scrolling regions.
     pub fn auto_shrink(mut self, v: bool) -> Self {
         self.auto_shrink = v;
+        self
+    }
+
+    /// Keep the view pinned to the bottom while it *is* at the bottom
+    /// (e.g. a log view following new lines). Scrolling up unpins; scrolling
+    /// back to the bottom re-pins.
+    pub fn stick_to_bottom(mut self, v: bool) -> Self {
+        self.stick_to_bottom = v;
         self
     }
 
@@ -95,6 +105,12 @@ impl ScrollArea {
         let pointer_in_outer = ui.contains_pointer(outer_rect);
         let max_offset = (used_h - outer_rect.height()).max(0.0);
         let mut new_offset = prev_offset_y.clamp(0.0, max_offset);
+        if self.stick_to_bottom {
+            let prev_max = (prev_content_h - outer_rect.height()).max(0.0);
+            if prev_offset_y >= prev_max - 1.0 {
+                new_offset = max_offset;
+            }
+        }
         if pointer_in_outer {
             let wheel = ui.ctx().input.scroll_delta.y;
             if wheel != 0.0 {

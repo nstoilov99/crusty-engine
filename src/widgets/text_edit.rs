@@ -16,6 +16,20 @@ struct TextEditState {
     anchor: usize,
 }
 
+/// Result of [`TextEdit::show_full`]: the plain [`Response`] plus the
+/// keyboard events a caller like a console or search box needs to react to.
+pub struct TextEditOutput {
+    pub response: Response,
+    /// Enter was pressed this frame while focused.
+    pub submitted: bool,
+    /// Escape was pressed this frame while focused (focus was dropped).
+    pub cancelled: bool,
+    /// ArrowUp was pressed this frame while focused (e.g. history back).
+    pub nav_up: bool,
+    /// ArrowDown was pressed this frame while focused (e.g. history forward).
+    pub nav_down: bool,
+}
+
 /// Single-line text input.
 ///
 /// Supports click-to-place and drag-to-select cursor, arrow / Home / End
@@ -25,6 +39,7 @@ pub struct TextEdit<'a> {
     value: &'a mut String,
     width: Option<f32>,
     hint: Option<String>,
+    keep_focus_on_submit: bool,
 }
 
 impl<'a> TextEdit<'a> {
@@ -33,6 +48,7 @@ impl<'a> TextEdit<'a> {
             value,
             width: None,
             hint: None,
+            keep_focus_on_submit: false,
         }
     }
 
@@ -47,7 +63,20 @@ impl<'a> TextEdit<'a> {
         self
     }
 
+    /// Keep keyboard focus after Enter (a console input that submits
+    /// repeatedly). Default: Enter drops focus like Escape.
+    pub fn keep_focus_on_submit(mut self, v: bool) -> Self {
+        self.keep_focus_on_submit = v;
+        self
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
+        self.show_full(ui).response
+    }
+
+    /// Like [`show`](Self::show), but also reports Enter / Escape /
+    /// ArrowUp / ArrowDown so callers can implement submit + history.
+    pub fn show_full(self, ui: &mut Ui) -> TextEditOutput {
         let style = ui.style();
         let id = ui.alloc_id("text_edit");
         let font = style.fonts.body;
@@ -88,6 +117,10 @@ impl<'a> TextEdit<'a> {
         }
         let focused = ui.ctx().memory.focused_widget == Some(id);
         let mut clicked = start_click;
+        let mut submitted = false;
+        let mut cancelled = false;
+        let mut nav_up = false;
+        let mut nav_down = false;
 
         // ── Load persisted cursor/selection, clamped to the live string
         //    (the value may have been edited by the app between frames).
@@ -166,9 +199,31 @@ impl<'a> TextEdit<'a> {
                             replace_selection(self.value, &mut st, &one_line);
                         }
                     }
-                    Key::Escape | Key::Enter => {
+                    Key::Enter => {
+                        submitted = true;
+                        if !self.keep_focus_on_submit {
+                            ui.ctx_mut().memory.focused_widget = None;
+                        }
+                        clicked = true;
+                    }
+                    Key::Escape => {
+                        cancelled = true;
                         ui.ctx_mut().memory.focused_widget = None;
                         clicked = true;
+                    }
+                    // Report vertical arrows (history nav) and park the
+                    // caret at "end of string": the caller usually replaces
+                    // the value, and next frame's clamp lands the cursor at
+                    // the end of the new text.
+                    Key::ArrowUp => {
+                        nav_up = true;
+                        st.cursor = usize::MAX;
+                        st.anchor = usize::MAX;
+                    }
+                    Key::ArrowDown => {
+                        nav_down = true;
+                        st.cursor = usize::MAX;
+                        st.anchor = usize::MAX;
                     }
                     _ => {}
                 }
@@ -179,8 +234,12 @@ impl<'a> TextEdit<'a> {
             ui.ctx_mut().memory.active_widget = None;
         }
 
-        // Persist cursor/selection for next frame.
+        // Persist cursor/selection for next frame. The persisted copy may
+        // hold the usize::MAX "end of string" sentinel from history nav;
+        // re-clamp the local copy before it's used to slice for measuring.
         ui.ctx_mut().memory.data_insert::<TextEditState>(id, st);
+        st.cursor = clamp_boundary(self.value, st.cursor);
+        st.anchor = clamp_boundary(self.value, st.anchor);
 
         // ── Measure the x positions we need to draw (caret + selection).
         let (sel_a, sel_b) = sel_range(&st);
@@ -268,14 +327,20 @@ impl<'a> TextEdit<'a> {
             }
         }
 
-        Response {
-            id,
-            rect,
-            hovered,
-            pressed: focused,
-            clicked,
-            hover_anim,
-            press_anim: focus_anim,
+        TextEditOutput {
+            response: Response {
+                id,
+                rect,
+                hovered,
+                pressed: focused,
+                clicked,
+                hover_anim,
+                press_anim: focus_anim,
+            },
+            submitted,
+            cancelled,
+            nav_up,
+            nav_down,
         }
     }
 }

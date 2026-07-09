@@ -39,7 +39,7 @@ pub mod prelude {
     pub use crate::widgets::{
         Area, Button, Checkbox, CollapsingHeader, Column, ComboBox, Grid, GridUi, Image,
         ImageButton, Label, ProgressBar, Radio, ScrollArea, SelectableValue, Slider, SortDir,
-        Table, TableBody, TableOutput, TableRow, TextEdit, ToastKind, TreeDropPos, TreeNode,
-        TreeNodeOutput, Window,
+        Table, TableBody, TableOutput, TableRow, TextEdit, TextEditOutput, ToastKind,
+        TreeDropPos, TreeNode, TreeNodeOutput, Window,
     };
 }

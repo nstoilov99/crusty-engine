@@ -146,6 +146,9 @@ letting `WindowRenderer` own the swapchain.
 - [ ] Define a `GuiBackend` trait in rust-engine mirroring the current
       `Gui` / `EguiRenderer` seam; implement for crusty-gui
 - [ ] Port panels one at a time (start with **console** — simplest)
+  - [x] Console — crusty panel draws into the egui dock tab's rect
+        (`console_crusty.rs`); filters + counts, stick-to-bottom log,
+        command input with Enter/history/Escape; egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
