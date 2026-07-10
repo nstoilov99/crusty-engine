@@ -23,6 +23,15 @@ pub enum PaintCmd {
         width: f32,
         color: Color,
     },
+    /// Axis-aligned quad with one color per corner, interpolated across
+    /// the surface (color pickers, gradient bars). Corner order:
+    /// top-left, top-right, bottom-right, bottom-left. Interpolation is
+    /// barycentric per-triangle, not bilinear — subdivide caller-side when
+    /// both axes vary (e.g. an SV square) to hide the diagonal seam.
+    GradientQuad {
+        rect: Rect,
+        colors: [Color; 4],
+    },
     /// A solid-filled **convex** polygon, triangulated as a fan from the
     /// first vertex. Points must wind consistently and describe a convex
     /// outline (circles, triangles, sampled bezier fills, gizmo handles).
@@ -69,6 +78,11 @@ pub fn scale_alpha(cmds: &mut [PaintCmd], k: f32) {
     for cmd in cmds {
         match cmd {
             PaintCmd::Rect { color, .. } => color.a *= k,
+            PaintCmd::GradientQuad { colors, .. } => {
+                for c in colors {
+                    c.a *= k;
+                }
+            }
             PaintCmd::Line { color, .. } => color.a *= k,
             PaintCmd::ConvexPolygon { color, .. } => color.a *= k,
             PaintCmd::Glyph { color, .. } => color.a *= k,

@@ -44,6 +44,9 @@ impl Tessellator {
                 PaintCmd::Rect { rect, color } => {
                     self.push_solid_rect(mesh, *rect, *color);
                 }
+                PaintCmd::GradientQuad { rect, colors } => {
+                    self.push_gradient_quad(mesh, *rect, *colors);
+                }
                 PaintCmd::Rrect(shape) => {
                     self.push_rect_shape(mesh, shape);
                 }
@@ -249,6 +252,28 @@ impl Tessellator {
         }
     }
 
+    /// Quad with per-corner colors (tl, tr, br, bl) in `MODE_SOLID`.
+    fn push_gradient_quad(&mut self, mesh: &mut Mesh, rect: Rect, colors: [Color; 4]) {
+        let base = mesh.vertices.len() as u32;
+        let corners = [
+            ([rect.min.x, rect.min.y], colors[0]),
+            ([rect.max.x, rect.min.y], colors[1]),
+            ([rect.max.x, rect.max.y], colors[2]),
+            ([rect.min.x, rect.max.y], colors[3]),
+        ];
+        for (pos, color) in corners {
+            mesh.vertices.push(Vertex {
+                pos,
+                uv: [0.0, 0.0],
+                color: color.to_array(),
+                params: [0.0, 0.0, 0.0, MODE_SOLID],
+                ..Vertex::ZERO
+            });
+        }
+        mesh.indices
+            .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+
     fn push_solid_rect(&mut self, mesh: &mut Mesh, rect: Rect, color: Color) {
         let template = Vertex {
             color: color.to_array(),
@@ -329,8 +354,8 @@ impl Tessellator {
                 ..template
             });
         } else if let Some(stroke) = shape.stroke {
-            // Stroke-only: fill color alpha 0 makes the glass-mix branch
-            // contribute nothing; only the stroke band draws.
+            // Stroke-only: params.y = 1 tells the shader to keep the
+            // interior fully transparent (no glass/backdrop compositing).
             let mut c = stroke.color.to_array();
             c[3] = 0.0;
             let template = Vertex {
@@ -338,7 +363,7 @@ impl Tessellator {
                 rect_center,
                 rect_half,
                 rounding: rounding_arr,
-                params: [stroke.width, 0.0, 0.0, MODE_RRECT],
+                params: [stroke.width, 1.0, 0.0, MODE_RRECT],
                 stroke_color: stroke.color.to_array(),
                 ..Vertex::ZERO
             };

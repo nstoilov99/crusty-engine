@@ -6,8 +6,10 @@ mod area;
 mod button;
 mod checkbox;
 mod collapsing;
+mod color_picker;
 mod combo_box;
 mod context_menu;
+mod drag_value;
 mod grid;
 mod image;
 mod label;
@@ -28,8 +30,10 @@ pub use area::Area;
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use collapsing::CollapsingHeader;
+pub use color_picker::ColorPicker;
 pub use combo_box::ComboBox;
 pub use context_menu::context_menu_for;
+pub use drag_value::DragValue;
 pub use grid::{Grid, GridUi};
 pub use image::{Image, ImageButton};
 pub use label::Label;
@@ -106,6 +110,10 @@ impl Ui<'_> {
 
     pub fn slider(&mut self, value: &mut f32, range: RangeInclusive<f32>) -> Response {
         Slider::new(value, range).show(self)
+    }
+
+    pub fn drag_value(&mut self, value: &mut f32) -> Response {
+        DragValue::new(value).show(self)
     }
 
     pub fn progress_bar(&mut self, progress: f32) -> Response {

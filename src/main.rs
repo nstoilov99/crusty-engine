@@ -15,6 +15,7 @@ use crusty_gui::prelude::*;
 use crusty_gui::shell::input::apply_input_event;
 use crusty_gui::shell::{DockApp, PanelFrame, Shell, ShellConfig, ShellCtl};
 use crusty_gui::widgets::Window as GuiWindow;
+use crusty_gui::widgets::{ColorPicker, DragValue};
 use crusty_gui::window::{GpuContext, WindowRenderer};
 
 use winit::event::WindowEvent;
@@ -326,6 +327,9 @@ struct PanelStats {
 struct Editor {
     state: EditorState,
     window_slider: f32,
+    demo_drag: f32,
+    demo_color: Color,
+    demo_swatches: Vec<Color>,
     gpu_name: String,
     /// Per-window checkerboard textures (each window has its own registry).
     textures: HashMap<WindowId, TextureId>,
@@ -343,6 +347,9 @@ impl Default for Editor {
         Self {
             state: EditorState::default(),
             window_slider: 0.4,
+            demo_drag: 60.0,
+            demo_color: Color::from_srgb_u8(228, 106, 40, 255),
+            demo_swatches: Vec::new(),
             gpu_name: String::new(),
             textures: HashMap::new(),
             mesh_window: None,
@@ -436,6 +443,9 @@ impl DockApp for Editor {
         let screen_rect = ui.ctx().screen_rect();
         let editor = &mut self.state;
         let window_slider = &mut self.window_slider;
+        let demo_drag = &mut self.demo_drag;
+        let demo_color = &mut self.demo_color;
+        let demo_swatches = &mut self.demo_swatches;
 
         GuiWindow::new("Settings")
             .open(&mut editor.settings_open)
@@ -451,6 +461,22 @@ impl DockApp for Editor {
                 ui.add_space(st.spacing.item);
                 ui.slider(window_slider, 0.0..=1.0);
                 ui.progress_bar(*window_slider);
+                ui.add_space(st.spacing.item);
+                ui.horizontal(|ui| {
+                    ui.label("Drag value:");
+                    DragValue::new(demo_drag)
+                        .range(0.0..=179.0)
+                        .speed(0.25)
+                        .suffix("\u{00B0}")
+                        .width(64.0)
+                        .show(ui);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Color:");
+                    ColorPicker::new("demo_color", demo_color)
+                        .swatches(demo_swatches)
+                        .show(ui);
+                });
                 ui.add_space(st.spacing.item);
                 if ui.button("Open About (modal)").clicked() {
                     editor.about_open = true;

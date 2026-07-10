@@ -115,6 +115,14 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         var out_rgb = glass_rgb;
         var out_a = coverage;
 
+        // Stroke-only shapes (params.y = 1) keep a fully transparent
+        // interior instead of compositing the blurred backdrop — glass
+        // "tint 0" and "no fill at all" need to be distinguishable.
+        if (input.params.y > 0.5) {
+            out_rgb = input.stroke_color.rgb;
+            out_a = 0.0;
+        }
+
         if (stroke_w > 0.0) {
             // Inside stroke band of width `stroke_w` ending at d = 0, drawn
             // in `stroke_color` (alpha scales the band). Drawn inside (not

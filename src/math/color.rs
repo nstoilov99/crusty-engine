@@ -49,6 +49,26 @@ impl Color {
     pub fn to_array(self) -> [f32; 4] {
         [self.r, self.g, self.b, self.a]
     }
+
+    /// Convert back to 8-bit sRGB (inverse of [`Color::from_srgb_u8`]).
+    #[inline]
+    pub fn to_srgb_u8(self) -> [u8; 4] {
+        [
+            (linear_to_srgb(self.r) * 255.0).round().clamp(0.0, 255.0) as u8,
+            (linear_to_srgb(self.g) * 255.0).round().clamp(0.0, 255.0) as u8,
+            (linear_to_srgb(self.b) * 255.0).round().clamp(0.0, 255.0) as u8,
+            (self.a * 255.0).round().clamp(0.0, 255.0) as u8,
+        ]
+    }
+}
+
+#[inline]
+fn linear_to_srgb(c: f32) -> f32 {
+    if c <= 0.003_130_8 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    }
 }
 
 #[inline]

@@ -164,6 +164,13 @@ impl<'a> TextEdit<'a> {
         st.cursor = clamp_boundary(self.value, st.cursor);
         st.anchor = clamp_boundary(self.value, st.anchor);
 
+        // Programmatic focus grab selects everything (rename fields,
+        // DragValue click-to-type) so typing replaces the old value.
+        if self.request_focus {
+            st.anchor = 0;
+            st.cursor = self.value.len();
+        }
+
         if let Some(ci) = click_idx {
             st.cursor = ci;
             // A plain click collapses the selection; Shift+click and drags
