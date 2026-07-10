@@ -28,6 +28,8 @@ pub struct TextEditOutput {
     pub nav_up: bool,
     /// ArrowDown was pressed this frame while focused (e.g. history forward).
     pub nav_down: bool,
+    /// The field holds keyboard focus after this frame's processing.
+    pub focused: bool,
 }
 
 /// Single-line text input.
@@ -38,9 +40,11 @@ pub struct TextEditOutput {
 pub struct TextEdit<'a> {
     value: &'a mut String,
     width: Option<f32>,
+    height: Option<f32>,
     hint: Option<String>,
     keep_focus_on_submit: bool,
     fill: Option<Color>,
+    request_focus: bool,
 }
 
 impl<'a> TextEdit<'a> {
@@ -48,9 +52,11 @@ impl<'a> TextEdit<'a> {
         Self {
             value,
             width: None,
+            height: None,
             hint: None,
             keep_focus_on_submit: false,
             fill: None,
+            request_focus: false,
         }
     }
 
@@ -62,6 +68,12 @@ impl<'a> TextEdit<'a> {
 
     pub fn width(mut self, w: f32) -> Self {
         self.width = Some(w);
+        self
+    }
+
+    /// Override the field height (default: body font size + 10).
+    pub fn height(mut self, h: f32) -> Self {
+        self.height = Some(h);
         self
     }
 
@@ -78,6 +90,14 @@ impl<'a> TextEdit<'a> {
         self
     }
 
+    /// Grab keyboard focus this frame (e.g. an inline rename field on its
+    /// first frame). Pass true once — passing it every frame would keep
+    /// re-grabbing focus and make it impossible to click away.
+    pub fn request_focus(mut self, v: bool) -> Self {
+        self.request_focus = v;
+        self
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
         self.show_full(ui).response
     }
@@ -91,11 +111,14 @@ impl<'a> TextEdit<'a> {
         let width = self
             .width
             .unwrap_or_else(|| ui.available().width().min(220.0));
-        let height = font + 10.0;
+        let height = self.height.unwrap_or(font + 10.0);
         let rect = ui.allocate(Vec2::new(width, height));
         let text_pad = 6.0;
         let text_x = rect.min.x + text_pad;
         ui.ctx_mut().memory.register_focusable(id);
+        if self.request_focus {
+            ui.ctx_mut().memory.focused_widget = Some(id);
+        }
 
         // ── Snapshot input up front to keep borrows simple.
         let hovered = ui.contains_pointer(rect);
@@ -307,9 +330,13 @@ impl<'a> TextEdit<'a> {
             )));
         }
 
-        // Text (or dimmed hint when empty + unfocused).
+        // Text (or dimmed hint when empty + unfocused). The hint fades well
+        // below the dim text color (egui's "weak" text) so it can't be
+        // mistaken for a value.
         let (display_text, display_color) = if self.value.is_empty() && !focused {
-            (self.hint.as_deref().unwrap_or(""), style.palette.text_dim)
+            let mut c = style.palette.text_dim;
+            c.a *= 0.55;
+            (self.hint.as_deref().unwrap_or(""), c)
         } else {
             (self.value.as_str(), style.palette.text)
         };
@@ -349,6 +376,9 @@ impl<'a> TextEdit<'a> {
             cancelled,
             nav_up,
             nav_down,
+            // Re-read after Enter/Escape handling so a focus drop this
+            // frame is reflected.
+            focused: ui.ctx().memory.focused_widget == Some(id),
         }
     }
 }

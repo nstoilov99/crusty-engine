@@ -11,6 +11,7 @@ pub struct ScrollArea {
     auto_shrink: bool,
     stick_to_bottom: bool,
     inset: f32,
+    spacing: Option<f32>,
 }
 
 impl ScrollArea {
@@ -20,7 +21,15 @@ impl ScrollArea {
             auto_shrink: true,
             stick_to_bottom: false,
             inset: 8.0,
+            spacing: None,
         }
+    }
+
+    /// Override the inner content's item spacing (defaults to the theme's
+    /// `spacing.item`). Set to 0 for contiguous rows (tree views, lists).
+    pub fn spacing(mut self, v: f32) -> Self {
+        self.spacing = Some(v);
+        self
     }
 
     /// Horizontal inset of the inner content (default 8). The default keeps
@@ -68,7 +77,14 @@ impl ScrollArea {
         let outer_rect = ui.allocate(Vec2::new(width, outer_h));
 
         let scrollbar_w = 8.0;
-        let inner_width = (outer_rect.width() - scrollbar_w - 4.0).max(1.0);
+        // Only reserve scrollbar space when the content actually overflows
+        // (egui-like): otherwise the inner content spans the full width.
+        let will_overflow = prev_content_h > outer_h + 0.5;
+        let inner_width = if will_overflow {
+            (outer_rect.width() - scrollbar_w - 4.0).max(1.0)
+        } else {
+            outer_rect.width()
+        };
         // Inner Ui starts at a y shifted up by the scroll offset so
         // content "slides" under the clip rect.
         let inner_top = outer_rect.min.y - prev_offset_y;
@@ -86,7 +102,7 @@ impl ScrollArea {
             // scroll offset.
             let inner_opts = UiOptions {
                 padding: Vec2::new(self.inset, 0.0),
-                spacing: style.spacing.item,
+                spacing: self.spacing.unwrap_or(style.spacing.item),
             };
             let parent_area = ui.area();
             let Ui { ctx, text, .. } = ui;

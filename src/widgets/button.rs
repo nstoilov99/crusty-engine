@@ -7,6 +7,8 @@ use crate::response::Response;
 pub struct Button {
     text: String,
     size: Option<f32>,
+    min_size: Option<Vec2>,
+    exact_size: Option<Vec2>,
     fill: Option<Color>,
     text_color: Option<Color>,
 }
@@ -16,6 +18,8 @@ impl Button {
         Self {
             text: text.into(),
             size: None,
+            min_size: None,
+            exact_size: None,
             fill: None,
             text_color: None,
         }
@@ -23,6 +27,20 @@ impl Button {
 
     pub fn size(mut self, size_px: f32) -> Self {
         self.size = Some(size_px);
+        self
+    }
+
+    /// Lower bound on the button rect (text + padding still wins when
+    /// larger). Useful for square icon-ish buttons with narrow labels.
+    pub fn min_size(mut self, size: Vec2) -> Self {
+        self.min_size = Some(size);
+        self
+    }
+
+    /// Pin the button rect to this size regardless of text metrics
+    /// (like egui's `add_sized`). The label stays centered.
+    pub fn exact_size(mut self, size: Vec2) -> Self {
+        self.exact_size = Some(size);
         self
     }
 
@@ -46,10 +64,11 @@ impl Button {
         let id = ui.alloc_id(&self.text);
 
         let text_size = ui.text_mut().measure(&self.text, font_size, None);
-        let button_size = Vec2::new(
-            text_size.x + style.spacing.button_padding.x * 2.0,
-            text_size.y + style.spacing.button_padding.y * 2.0,
-        );
+        let min = self.min_size.unwrap_or(Vec2::ZERO);
+        let button_size = self.exact_size.unwrap_or(Vec2::new(
+            (text_size.x + style.spacing.button_padding.x * 2.0).max(min.x),
+            (text_size.y + style.spacing.button_padding.y * 2.0).max(min.y),
+        ));
         let rect = ui.allocate(button_size);
 
         let hovered = ui.contains_pointer(rect);

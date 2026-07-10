@@ -149,6 +149,9 @@ letting `WindowRenderer` own the swapchain.
   - [x] Console — crusty panel draws into the egui dock tab's rect
         (`console_crusty.rs`); filters + counts, stick-to-bottom log,
         command input with Enter/history/Escape; egui fallback intact
+  - [x] Hierarchy — scene tree (`hierarchy_crusty.rs`); registry-tinted
+        icons, rename, context menu, visibility eye, search filter,
+        drag-drop reparent/reorder, keyboard shortcuts; egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 

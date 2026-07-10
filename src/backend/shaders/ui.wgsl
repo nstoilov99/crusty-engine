@@ -116,9 +116,11 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         var out_a = coverage;
 
         if (stroke_w > 0.0) {
-            // Centered stroke band of width `stroke_w` around d = 0, drawn
-            // in `stroke_color` (alpha scales the band).
-            let stroke_d = abs(d);
+            // Inside stroke band of width `stroke_w` ending at d = 0, drawn
+            // in `stroke_color` (alpha scales the band). Drawn inside (not
+            // centered) so a 1px stroke on a pixel-aligned rect covers one
+            // full pixel row instead of two half-coverage rows (egui parity).
+            let stroke_d = abs(d + stroke_w * 0.5);
             let band = clamp(stroke_w * 0.5 + 0.5 - stroke_d, 0.0, 1.0);
             let stroke_alpha = band * input.stroke_color.a;
             out_rgb = mix(out_rgb, input.stroke_color.rgb, stroke_alpha);

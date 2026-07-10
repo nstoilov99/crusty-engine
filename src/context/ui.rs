@@ -199,6 +199,57 @@ impl<'a> Ui<'a> {
         crate::paint::Painter::new(&mut self.ctx.overlay_paint, &mut *self.text, clip)
     }
 
+    /// Raw-rect interaction for custom-drawn widgets (tree rows, plot
+    /// regions): hover / press / click against `rect` with the standard
+    /// active-widget protocol, without allocating layout space or painting
+    /// anything. Combine with [`Response::double_clicked`] for
+    /// double-clicks and [`dnd_drag_source`](Self::dnd_drag_source) (same
+    /// `id`) for drags. A release that ends an in-flight drag does not
+    /// count as a click.
+    pub fn interact(&mut self, id: Id, rect: Rect) -> crate::response::Response {
+        let hovered = self.contains_pointer(rect);
+        let pointer_pressed = self.ctx.input.pointer_pressed;
+        let pointer_released = self.ctx.input.pointer_released;
+        let pointer_down = self.ctx.input.pointer_down;
+        if pointer_pressed && hovered {
+            self.ctx.memory.active_widget = Some(id);
+        }
+        let is_active = self.ctx.memory.active_widget == Some(id);
+        let pressed = is_active && pointer_down;
+        let clicked =
+            pointer_released && is_active && hovered && !self.ctx.dnd.is_dragging();
+
+        let dt = self.ctx.dt();
+        let style = self.ctx.style;
+        let mem = self.ctx.memory.get_or_default(id);
+        mem.seen_this_frame = true;
+        mem.last_rect = rect;
+        mem.hover_anim = crate::animation::approach_half_life(
+            mem.hover_anim,
+            if hovered { 1.0 } else { 0.0 },
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = crate::animation::approach_half_life(
+            mem.press_anim,
+            if pressed { 1.0 } else { 0.0 },
+            dt,
+            style.motion.press_half_life,
+        );
+        let hover_anim = mem.hover_anim;
+        let press_anim = mem.press_anim;
+
+        crate::response::Response {
+            id,
+            rect,
+            hovered,
+            pressed,
+            clicked,
+            hover_anim,
+            press_anim,
+        }
+    }
+
     /// Drag source. When the user presses inside `rect` and moves past a
     /// small threshold, begins carrying a type-erased `payload` (built
     /// lazily so it's only constructed once a real drag starts) labelled
