@@ -106,14 +106,19 @@ impl ComboBox {
         // ── Dropdown render (overlay)
         if is_open {
             let dropdown_root = id.with("popup");
-            let dropdown_x = trigger_rect.min.x;
-            let dropdown_y = trigger_rect.max.y + 2.0;
+            let popup_area_id = id.with("popup_area");
+            let dropdown_pos = super::popup_pos(
+                ui,
+                popup_area_id,
+                trigger_rect,
+                width,
+                trigger_h,
+                2.0,
+            );
             // Reserve a generous max height; the dropdown will be tighter
             // than this after we measure the body.
-            let scratch_rect = Rect::from_min_size(
-                Pos2::new(dropdown_x, dropdown_y),
-                Vec2::new(width, 600.0),
-            );
+            let scratch_rect =
+                Rect::from_min_size(dropdown_pos, Vec2::new(width, 600.0));
 
             // We need the body's commands to land *between* the dropdown
             // background and any later overlay commands, so they:
@@ -124,7 +129,6 @@ impl ComboBox {
             // background underneath.
             let body_start_main = ui.ctx().paint.len();
 
-            let popup_area_id = id.with("popup_area");
             let used_h = {
                 let Ui { ctx, text, .. } = ui;
                 let opts = UiOptions {
@@ -148,7 +152,7 @@ impl ComboBox {
                 ui.ctx_mut().paint.drain(body_start_main..).collect();
 
             let dropdown_rect = Rect::from_min_size(
-                Pos2::new(dropdown_x, dropdown_y),
+                dropdown_pos,
                 Vec2::new(width, (used_h + 8.0).max(trigger_h)),
             );
 

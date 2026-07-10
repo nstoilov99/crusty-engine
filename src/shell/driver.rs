@@ -74,6 +74,7 @@ pub fn winit_cursor(icon: CursorIcon) -> winit::window::CursorIcon {
         CursorIcon::ResizeNeSw => W::NeswResize,
         CursorIcon::Move => W::Move,
         CursorIcon::NotAllowed => W::NotAllowed,
+        CursorIcon::Crosshair => W::Crosshair,
     }
 }
 

@@ -30,7 +30,7 @@ pub use area::Area;
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use collapsing::CollapsingHeader;
-pub use color_picker::ColorPicker;
+pub use color_picker::{ColorPicker, EyedropperState};
 pub use combo_box::ComboBox;
 pub use context_menu::context_menu_for;
 pub use drag_value::DragValue;
@@ -55,6 +55,43 @@ use crate::context::Ui;
 use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, TextureId};
 use crate::response::Response;
+
+/// Place a popup of `width` next to `anchor` so it stays inside the screen:
+/// prefer below the anchor, flip above when there's no room, clamp as a
+/// last resort. Popups are laid out before their height is known, so the
+/// height comes from the popup's area size last frame (`area_id`), falling
+/// back to `fallback_h` on the first open frame (one-frame correction).
+pub(crate) fn popup_pos(
+    ui: &Ui,
+    area_id: crate::id::Id,
+    anchor: Rect,
+    width: f32,
+    fallback_h: f32,
+    gap: f32,
+) -> Pos2 {
+    const MARGIN: f32 = 4.0;
+    let screen = ui.ctx().screen_rect();
+    let h = ui
+        .ctx()
+        .memory
+        .area(area_id)
+        .map(|a| a.size.y)
+        .filter(|h| *h > 0.0)
+        .unwrap_or(fallback_h);
+    let x = anchor
+        .min
+        .x
+        .min(screen.max.x - width - MARGIN)
+        .max(screen.min.x + MARGIN);
+    let below = anchor.max.y + gap;
+    let above = anchor.min.y - gap - h;
+    let y = if below + h <= screen.max.y - MARGIN || above < screen.min.y + MARGIN {
+        below.min((screen.max.y - MARGIN - h).max(screen.min.y + MARGIN))
+    } else {
+        above
+    };
+    Pos2::new(x, y)
+}
 
 /// Append a disclosure chevron centered at `center`. `half` is the
 /// half-extent of the glyph; `width` the stroke width. Drawn as two strokes

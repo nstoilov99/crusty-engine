@@ -284,6 +284,8 @@ pub enum CursorIcon {
     ResizeNeSw,
     Move,
     NotAllowed,
+    /// Precise picking (eyedropper, pixel selection).
+    Crosshair,
 }
 
 /// Pointer/keyboard state distilled from a frame's [`RawInput::events`].

@@ -42,12 +42,14 @@ pub fn context_menu_for(
     let mut menu_rect = Rect::ZERO;
     if is_open {
         let menu_root_id = id.with("menu");
-        let scratch_rect = Rect::from_min_size(
-            Pos2::new(anchor.x, anchor.y),
-            Vec2::new(180.0, 600.0),
-        );
-
         let menu_area_id = id.with("menu_area");
+        let anchor_rect =
+            Rect::from_min_size(Pos2::new(anchor.x, anchor.y), Vec2::ZERO);
+        let menu_pos =
+            super::popup_pos(ui, menu_area_id, anchor_rect, 180.0, 20.0, 0.0);
+        let scratch_rect =
+            Rect::from_min_size(menu_pos, Vec2::new(180.0, 600.0));
+
         let body_start = ui.ctx().paint.len();
         let used_h = {
             let Ui { ctx, text, .. } = ui;
@@ -72,7 +74,7 @@ pub fn context_menu_for(
             ui.ctx_mut().paint.drain(body_start..).collect();
 
         menu_rect = Rect::from_min_size(
-            Pos2::new(anchor.x, anchor.y),
+            menu_pos,
             Vec2::new(180.0, (used_h + 8.0).max(20.0)),
         );
 
