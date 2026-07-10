@@ -152,6 +152,10 @@ letting `WindowRenderer` own the swapchain.
   - [x] Hierarchy — scene tree (`hierarchy_crusty.rs`); registry-tinted
         icons, rename, context menu, visibility eye, search filter,
         drag-drop reparent/reorder, keyboard shortcuts; egui fallback intact
+  - [x] Inspector — component editing (`inspector_crusty.rs`); per-component
+        editors, DragValue fields, redesigned ColorPicker (draggable popup,
+        cached swatches, desktop-wide eyedropper via host sampler),
+        Add Component menu, filter; egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
