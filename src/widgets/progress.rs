@@ -1,13 +1,16 @@
 use crate::animation::approach_half_life;
 use crate::context::Ui;
-use crate::math::{Rect, Rounding, Vec2};
+use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
 
 pub struct ProgressBar {
     progress: f32,
     width: Option<f32>,
+    height: Option<f32>,
     smooth: bool,
+    fill: Option<Color>,
+    text: Option<String>,
 }
 
 impl ProgressBar {
@@ -15,7 +18,10 @@ impl ProgressBar {
         Self {
             progress: progress.clamp(0.0, 1.0),
             width: None,
+            height: None,
             smooth: true,
+            fill: None,
+            text: None,
         }
     }
 
@@ -24,8 +30,25 @@ impl ProgressBar {
         self
     }
 
+    pub fn height(mut self, h: f32) -> Self {
+        self.height = Some(h);
+        self
+    }
+
     pub fn smooth(mut self, smooth: bool) -> Self {
         self.smooth = smooth;
+        self
+    }
+
+    /// Override the fill color (defaults to the palette's success color).
+    pub fn fill(mut self, color: Color) -> Self {
+        self.fill = Some(color);
+        self
+    }
+
+    /// Text centered on the bar (egui `ProgressBar::text` parity).
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.text = Some(text.into());
         self
     }
 
@@ -33,7 +56,7 @@ impl ProgressBar {
         let style = ui.style();
         let id = ui.alloc_id("progress_bar");
         let width = self.width.unwrap_or(style.sizes.progress_default_width);
-        let height = style.sizes.progress_height;
+        let height = self.height.unwrap_or(style.sizes.progress_height);
         let rect = ui.allocate(Vec2::new(width, height));
 
         let dt = ui.ctx().dt();
@@ -58,9 +81,20 @@ impl ProgressBar {
         let filled_w = (rect.width() * displayed.clamp(0.0, 1.0)).max(0.0);
         if filled_w > 0.5 {
             let filled = Rect::from_min_size(rect.min, Vec2::new(filled_w, rect.height()));
-            let fill_shape =
-                RectShape::fill(filled, Rounding::same(height * 0.5), style.palette.success);
+            let fill_color = self.fill.unwrap_or(style.palette.success);
+            let fill_shape = RectShape::fill(filled, Rounding::same(height * 0.5), fill_color);
             ui.ctx_mut().paint.push(PaintCmd::Rrect(fill_shape));
+        }
+
+        if let Some(text) = &self.text {
+            let font = style.fonts.small.min(height - 2.0);
+            let size = ui.text_mut().measure(text, font, None);
+            let pos = Pos2::new(
+                rect.center().x - size.x * 0.5,
+                rect.center().y - size.y * 0.5,
+            );
+            let Ui { ctx, text: tr, .. } = ui;
+            tr.add_text(&mut ctx.paint, text, font, pos, style.palette.text, None);
         }
 
         Response {

@@ -161,6 +161,10 @@ letting `WindowRenderer` own the swapchain.
         thumbnails, rename, context menus, drag-drop, working list-view
         sort, colored type badges + asset count/refresh (improvements);
         egui fallback intact
+  - [x] Profiler — flamegraph (zoom/pan/breadcrumbs, threshold colors,
+        filter dimming), frame history + Live/Slowest modes, redesigned
+        Table and Budget views, Settings/Info/Tracy popups
+        (`profiler_crusty.rs`); egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 

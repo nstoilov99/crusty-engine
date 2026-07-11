@@ -86,11 +86,12 @@ impl<'a> Painter<'a> {
         width: f32,
         color: Color,
     ) {
-        // `RectShape::fill` needs a fill; for a pure outline we pass a
-        // transparent fill so only the stroke band renders.
-        self.paint.push(PaintCmd::Rrect(
-            RectShape::fill(rect, rounding, Color::TRANSPARENT).with_stroke(width, color),
-        ));
+        // `fill` must be `None`: `Some(TRANSPARENT)` takes the shader's glass
+        // path, which composites the opaque backdrop over the interior instead
+        // of leaving it transparent.
+        let mut shape = RectShape::fill(rect, rounding, Color::TRANSPARENT).with_stroke(width, color);
+        shape.fill = None;
+        self.paint.push(PaintCmd::Rrect(shape));
     }
 
     // ── filled shapes ────────────────────────────────────────────────────
