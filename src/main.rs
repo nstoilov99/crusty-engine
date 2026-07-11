@@ -15,7 +15,7 @@ use crusty_gui::prelude::*;
 use crusty_gui::shell::input::apply_input_event;
 use crusty_gui::shell::{DockApp, PanelFrame, Shell, ShellConfig, ShellCtl};
 use crusty_gui::widgets::Window as GuiWindow;
-use crusty_gui::widgets::{ColorPicker, DragValue};
+use crusty_gui::widgets::{ColorPicker, DragValue, Splitter};
 use crusty_gui::window::{GpuContext, WindowRenderer};
 
 use winit::event::WindowEvent;
@@ -1199,7 +1199,20 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             );
                         }
                         "Errors" => {
-                            ui.label("No errors.");
+                            Splitter::horizontal("errors_split")
+                                .default_ratio(0.35)
+                                .min_sizes(80.0, 120.0)
+                                .show(
+                                    ui,
+                                    |left| {
+                                        left.label("Sources");
+                                        left.label("compiler");
+                                        left.label("linker");
+                                    },
+                                    |right| {
+                                        right.label("No errors.");
+                                    },
+                                );
                         }
                         "Warnings" => {
                             let st = ui.style();
