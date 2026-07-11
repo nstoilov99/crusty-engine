@@ -28,6 +28,7 @@ pub struct Window<'open> {
     collapsible: bool,
     modal: bool,
     close_on_click_outside: bool,
+    auto_size: bool,
 }
 
 /// What [`Window::show`] did this frame.
@@ -49,6 +50,7 @@ impl<'open> Window<'open> {
             collapsible: true,
             modal: false,
             close_on_click_outside: false,
+            auto_size: false,
         }
     }
 
@@ -71,6 +73,15 @@ impl<'open> Window<'open> {
 
     pub fn resizable(mut self, v: bool) -> Self {
         self.resizable = v;
+        self
+    }
+
+    /// Fit the window height to its content every frame (measured with a
+    /// one-frame lag, like all immediate-mode geometry). Width still comes
+    /// from [`default_size`](Self::default_size). Overrides manual resizing
+    /// of the height, so it is usually paired with `resizable(false)`.
+    pub fn auto_size(mut self, v: bool) -> Self {
+        self.auto_size = v;
         self
     }
 
@@ -388,6 +399,7 @@ impl<'open> Window<'open> {
         // Body (clipped so mid-collapse and undersized windows truncate
         // cleanly instead of spilling).
         let mut inner = None;
+        let mut content_bottom = None;
         if body_h > 1.0 {
             ui.ctx_mut().paint.push(PaintCmd::PushClip(body_rect));
             let opts = UiOptions {
@@ -405,7 +417,17 @@ impl<'open> Window<'open> {
             );
             body_ui.set_area(Some(id));
             inner = Some(body(&mut body_ui));
+            content_bottom = Some(body_ui.cursor().y);
             ui.ctx_mut().paint.push(PaintCmd::PopClip);
+        }
+
+        // Fit height to the measured content (applies next frame).
+        if let (true, Some(bottom)) = (self.auto_size, content_bottom) {
+            let content_h =
+                (bottom - body_rect.min.y) - style.spacing.item + style.spacing.padding;
+            size.y = (title_h + content_h.max(0.0))
+                .max(min_size.y)
+                .min(screen.height().max(min_size.y));
         }
 
         // Resize grip.

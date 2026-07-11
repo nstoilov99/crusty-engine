@@ -124,10 +124,11 @@ impl Context {
         }
         // The engine seam: does the UI claim this frame's pointer/keyboard,
         // or may the host route them to the scene underneath?
-        let wants_pointer = self.hovered_area.is_some()
+        let owns_pointer = self.hovered_area.is_some()
             || self.memory.active_widget.is_some()
-            || self.dnd.is_dragging()
-            || self.memory.any_widget_contains(self.input.pointer_pos);
+            || self.dnd.is_dragging();
+        let wants_pointer =
+            owns_pointer || self.memory.any_widget_contains(self.input.pointer_pos);
         let wants_keyboard = self.memory.focused_widget.is_some();
         self.memory.end_frame(8);
         self.inside_frame = false;
@@ -153,6 +154,7 @@ impl Context {
             screen_rect: self.screen_rect,
             paint,
             wants_pointer,
+            owns_pointer,
             wants_keyboard,
             cursor_icon: self.cursor_icon,
             repaint_after: self.repaint_after,
@@ -250,6 +252,13 @@ pub struct FrameOutput {
     /// floating area, or a widget/drag is holding it. A host embedding the
     /// UI over a scene should not forward pointer input to the scene.
     pub wants_pointer: bool,
+    /// Stronger than `wants_pointer`: the pointer is over a *floating*
+    /// layer (popup/window), a pressed widget is holding it, or a
+    /// drag-and-drop is active. A host stacking this UI over another UI
+    /// toolkit (not just a scene) must withhold pointer events from the
+    /// UI beneath while this is set, or clicks/drags on floating crusty
+    /// windows leak through them.
+    pub owns_pointer: bool,
     /// A widget has keyboard focus; the host should not treat keys as
     /// scene/game input.
     pub wants_keyboard: bool,
