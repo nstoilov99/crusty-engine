@@ -454,6 +454,13 @@ impl<'a> Ui<'a> {
         (result, child.used_rect())
     }
 
+    /// Override the gap inserted between consecutive items. Scoped to the
+    /// current [`horizontal`](Self::horizontal)/[`vertical`](Self::vertical)
+    /// group when called inside one.
+    pub fn set_spacing(&mut self, spacing: f32) {
+        self.spacing = spacing;
+    }
+
     /// Run `f` in a nested left-to-right layout starting at the current
     /// cursor. The cursor advances in the parent direction by the bounding
     /// box of whatever the children produced.
@@ -474,6 +481,7 @@ impl<'a> Ui<'a> {
         let saved_cursor = self.cursor;
         let saved_direction = self.direction;
         let saved_used = self.used;
+        let saved_spacing = self.spacing;
 
         self.direction = new_dir;
         self.used = Rect::from_min_size(saved_cursor, Vec2::ZERO);
@@ -486,6 +494,7 @@ impl<'a> Ui<'a> {
         self.cursor = saved_cursor;
         self.direction = saved_direction;
         self.used = saved_used;
+        self.spacing = saved_spacing;
 
         // Advance the parent cursor by the child's bounding box.
         let child_size = child_used.size();

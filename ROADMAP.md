@@ -156,6 +156,11 @@ letting `WindowRenderer` own the swapchain.
         editors, DragValue fields, redesigned ColorPicker (draggable popup,
         cached swatches, desktop-wide eyedropper via host sampler),
         Add Component menu, filter; egui fallback intact
+  - [x] Asset Browser — grid/list views (`asset_browser_crusty.rs`);
+        folder tree + Splitter, breadcrumb, search/type filter, GPU
+        thumbnails, rename, context menus, drag-drop, working list-view
+        sort, colored type badges + asset count/refresh (improvements);
+        egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 

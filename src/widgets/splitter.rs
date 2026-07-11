@@ -119,9 +119,15 @@ impl Splitter {
             0.0
         };
         let color = lerp_color(style.palette.stroke, style.palette.accent, highlight);
+        // Idle: subtle 1px divider; hover/drag: the full grab bar lights up.
+        let visual = if highlight > 0.0 {
+            bar
+        } else {
+            thin_bar(bar, self.side_by_side)
+        };
         ui.ctx_mut()
             .paint
-            .push(PaintCmd::Rrect(RectShape::fill(bar, 0.0, color)));
+            .push(PaintCmd::Rrect(RectShape::fill(visual, 0.0, color)));
 
         let opts = UiOptions { padding: Vec2::ZERO, spacing: style.spacing.item };
         let parent_clip = ui.clip_rect();
@@ -159,6 +165,16 @@ fn bar_rect(rect: Rect, side_by_side: bool, ratio: f32) -> Rect {
             Pos2::new(rect.min.x, y - half),
             Pos2::new(rect.max.x, y + half),
         )
+    }
+}
+
+fn thin_bar(bar: Rect, side_by_side: bool) -> Rect {
+    if side_by_side {
+        let x = bar.center().x;
+        Rect::from_min_max(Pos2::new(x - 0.5, bar.min.y), Pos2::new(x + 0.5, bar.max.y))
+    } else {
+        let y = bar.center().y;
+        Rect::from_min_max(Pos2::new(bar.min.x, y - 0.5), Pos2::new(bar.max.x, y + 0.5))
     }
 }
 
