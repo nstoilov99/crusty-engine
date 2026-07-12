@@ -181,6 +181,9 @@ impl ComboBox {
             // ── Close conditions
             if ui.ctx().memory.popup_close_requested {
                 is_open = false;
+                // Consume the flag: selecting a combo option closes only
+                // this popup, not an enclosing menu chain.
+                ui.ctx_mut().memory.popup_close_requested = false;
             }
             if ui.ctx().input.key_pressed(Key::Escape) {
                 is_open = false;

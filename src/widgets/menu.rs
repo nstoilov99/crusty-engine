@@ -43,7 +43,7 @@ impl Ui<'_> {
         let id = self.alloc_id(("menu_button", label));
 
         let text_size = self.text_mut().measure(label, style.fonts.body, None);
-        let pad = Vec2::new(10.0, 5.0);
+        let pad = Vec2::new(8.0, 5.0);
         let rect = self.allocate(Vec2::new(
             text_size.x + pad.x * 2.0,
             text_size.y + pad.y * 2.0,
@@ -86,8 +86,8 @@ impl Ui<'_> {
         }
 
         if is_open {
-            let anchor = Pos2::new(rect.min.x, rect.max.y + 2.0);
-            if menu_panel(self, id.with("panel"), anchor, rect, body) {
+            let anchor = Pos2::new(rect.min.x, rect.max.y);
+            if menu_panel(self, id.with("panel"), anchor, rect, MENU_WIDTH, body) {
                 is_open = false;
             }
         }
@@ -100,6 +100,17 @@ impl Ui<'_> {
     /// A submenu row inside a menu body. Click toggles a flyout panel to the
     /// right whose contents come from `body`.
     pub fn submenu(&mut self, label: impl AsRef<str>, body: impl FnOnce(&mut Ui)) {
+        self.submenu_width(label, MENU_WIDTH, body);
+    }
+
+    /// [`submenu`](Ui::submenu) with an explicit flyout panel width, for
+    /// bodies wider than the default (embedded editors, forms).
+    pub fn submenu_width(
+        &mut self,
+        label: impl AsRef<str>,
+        width: f32,
+        body: impl FnOnce(&mut Ui),
+    ) {
         let label = label.as_ref();
         let style = self.style();
         let id = self.alloc_id(("submenu", label));
@@ -151,7 +162,7 @@ impl Ui<'_> {
 
         if is_open {
             let anchor = Pos2::new(rect.max.x + 2.0, rect.min.y - 4.0);
-            if menu_panel(self, id.with("panel"), anchor, rect, body) {
+            if menu_panel(self, id.with("panel"), anchor, rect, width, body) {
                 is_open = false;
             }
         }
@@ -164,12 +175,32 @@ impl Ui<'_> {
     /// A clickable menu entry. Returns `true` on the frame it's clicked and
     /// asks the enclosing menu chain to close.
     pub fn menu_item(&mut self, label: impl AsRef<str>) -> bool {
+        self.menu_item_enabled(label, true)
+    }
+
+    /// [`menu_item`](Ui::menu_item) that can be disabled: dimmed text, no
+    /// hover highlight, never reports a click.
+    pub fn menu_item_enabled(&mut self, label: impl AsRef<str>, enabled: bool) -> bool {
         let label = label.as_ref();
         let style = self.style();
         let id = self.alloc_id(("menu_item", label));
 
         let text_size = self.text_mut().measure(label, style.fonts.body, None);
         let rect = self.allocate(Vec2::new(self.available().width(), text_size.y + 6.0));
+
+        if !enabled {
+            let text_pos = Pos2::new(rect.min.x + 8.0, rect.min.y + 3.0);
+            let Ui { ctx, text, .. } = self;
+            text.add_text(
+                &mut ctx.paint,
+                label,
+                style.fonts.body,
+                text_pos,
+                style.palette.text_dim,
+                None,
+            );
+            return false;
+        }
 
         let hovered = self.contains_pointer(rect);
         let pointer_pressed = self.ctx().input.pointer_pressed;
@@ -227,13 +258,15 @@ fn menu_panel(
     id: Id,
     anchor: Pos2,
     trigger: Rect,
+    width: f32,
     body: impl FnOnce(&mut Ui),
 ) -> bool {
     let style = ui.style();
     let area_id = id.with("area");
-    let scratch = Rect::from_min_size(anchor, Vec2::new(MENU_WIDTH, 2000.0));
+    let scratch = Rect::from_min_size(anchor, Vec2::new(width, 2000.0));
 
     let body_start = ui.ctx().paint.len();
+    let overlay_start = ui.ctx().overlay_paint.len();
     let used_h = {
         let Ui { ctx, text, .. } = ui;
         let opts = UiOptions {
@@ -250,15 +283,20 @@ fn menu_panel(
 
     let panel = Rect::from_min_size(
         anchor,
-        Vec2::new(MENU_WIDTH, (used_h + 8.0).max(20.0)),
+        Vec2::new(width, (used_h + 8.0).max(20.0)),
     );
 
+    // Nested popups (submenus, combo dropdowns) pushed into `overlay_paint`
+    // while the body ran; they must render above this panel's bg/shadow, so
+    // pull them out, paint the panel, then re-append them.
+    let children: Vec<PaintCmd> = ui.ctx_mut().overlay_paint.drain(overlay_start..).collect();
     ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
         RectShape::fill(panel, style.rounding.widget, style.palette.surface_hover)
             .with_stroke(1.0, style.palette.stroke)
             .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
     ));
     ui.ctx_mut().overlay_paint.extend(drained);
+    ui.ctx_mut().overlay_paint.extend(children);
 
     let area = ui.ctx_mut().memory.area_entry(area_id, panel.min, Order::Tooltip);
     area.pos = panel.min;
@@ -268,7 +306,10 @@ fn menu_panel(
         || ui.ctx().input.key_pressed(Key::Escape);
     if ui.ctx().input.pointer_pressed {
         if let Some(p) = ui.ctx().input.pointer_pos {
-            if !panel.contains(p) && !trigger.contains(p) {
+            // A click in ANY topmost area (this panel, a nested flyout, a
+            // combo popup) is not an outside-click — otherwise clicking a
+            // child popup would collapse the whole menu chain.
+            if !trigger.contains(p) && !ui.ctx().memory.topmost_area_contains(p) {
                 closed = true;
             }
         }

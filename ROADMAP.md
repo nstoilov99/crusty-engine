@@ -170,6 +170,11 @@ letting `WindowRenderer` own the swapchain.
         icons), grid/snap/camera-speed popovers, transform gizmo overlay
         via `PaintCmd::Mesh`, play-mode bar, keyboard shortcuts
         (`viewport_crusty.rs`); egui fallback intact
+  - [x] Editor chrome — menu bar (File/Edit/View/Debug/Help, Build Game
+        flyout, play controls with SVG icons), status bar, toasts
+        (`menu_bar_crusty.rs`, `status_bar_crusty.rs`, `toasts_crusty.rs`);
+        egui panels only reserve the strips; scene tabs deferred to the
+        dock swap; egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 

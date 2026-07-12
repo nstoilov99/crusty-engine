@@ -355,6 +355,16 @@ impl Memory {
             .any(|w| w.seen_this_frame && w.last_rect.contains(p))
     }
 
+    /// True if `p` lies inside any topmost (`Order::Tooltip`) area alive
+    /// this frame. Menu panels, submenu flyouts, and combo popups all file
+    /// `Tooltip` areas, so outside-click close checks use this to avoid
+    /// closing a parent menu when the click lands in a nested popup.
+    pub fn topmost_area_contains(&self, p: Pos2) -> bool {
+        self.areas
+            .values()
+            .any(|a| a.order == Order::Tooltip && a.seen_this_frame && a.rect().contains(p))
+    }
+
     /// Run at the start of each frame, before any widget code runs.
     /// Marks every entry as not-yet-seen so we can detect dead widgets.
     pub fn begin_frame(&mut self) {
