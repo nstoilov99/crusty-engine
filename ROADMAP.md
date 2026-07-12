@@ -165,6 +165,11 @@ letting `WindowRenderer` own the swapchain.
         filter dimming), frame history + Live/Slowest modes, redesigned
         Table and Budget views, Settings/Info/Tracy popups
         (`profiler_crusty.rs`); egui fallback intact
+  - [x] Viewport — scene texture drawn via registered native TextureId,
+        toolbar as its own strip above the image (uniform padded SVG
+        icons), grid/snap/camera-speed popovers, transform gizmo overlay
+        via `PaintCmd::Mesh`, play-mode bar, keyboard shortcuts
+        (`viewport_crusty.rs`); egui fallback intact
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 

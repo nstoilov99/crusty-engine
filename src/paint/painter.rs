@@ -109,6 +109,13 @@ impl<'a> Painter<'a> {
         self.paint.push(PaintCmd::ConvexPolygon { points, color });
     }
 
+    /// Pre-triangulated indexed geometry with per-vertex colors (drawn
+    /// flat, no texture). For externally tessellated shapes that are
+    /// neither convex nor single-colored.
+    pub fn mesh(&mut self, vertices: Vec<(Pos2, Color)>, indices: Vec<u32>) {
+        self.paint.push(PaintCmd::Mesh { vertices, indices });
+    }
+
     /// A filled circle approximated by an n-gon whose vertex count scales
     /// with `radius` so it stays smooth at any size.
     pub fn circle_filled(&mut self, center: Pos2, radius: f32, color: Color) {

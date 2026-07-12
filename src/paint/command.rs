@@ -65,6 +65,15 @@ pub enum PaintCmd {
         uv_max: Pos2,
         alpha: f32,
     },
+    /// Pre-triangulated indexed mesh with per-vertex colors, drawn flat
+    /// (no texture). Escape hatch for externally tessellated geometry —
+    /// e.g. 3D transform-gizmo draw data — that is neither convex nor
+    /// single-colored. Indices reference `vertices`; triangle winding is
+    /// not checked.
+    Mesh {
+        vertices: Vec<(Pos2, Color)>,
+        indices: Vec<u32>,
+    },
     /// Push a clip rect; subsequent commands are scissored to its intersection
     /// with the current clip until [`PaintCmd::PopClip`].
     PushClip(Rect),
@@ -85,6 +94,11 @@ pub fn scale_alpha(cmds: &mut [PaintCmd], k: f32) {
             }
             PaintCmd::Line { color, .. } => color.a *= k,
             PaintCmd::ConvexPolygon { color, .. } => color.a *= k,
+            PaintCmd::Mesh { vertices, .. } => {
+                for (_, c) in vertices {
+                    c.a *= k;
+                }
+            }
             PaintCmd::Glyph { color, .. } => color.a *= k,
             PaintCmd::Image { tint, .. } => tint.a *= k,
             PaintCmd::ColorGlyph { alpha, .. } => *alpha *= k,

@@ -61,6 +61,9 @@ impl Tessellator {
                 PaintCmd::ConvexPolygon { points, color } => {
                     self.push_convex_polygon(mesh, points, *color);
                 }
+                PaintCmd::Mesh { vertices, indices } => {
+                    self.push_mesh(mesh, vertices, indices);
+                }
                 PaintCmd::Glyph {
                     rect,
                     uv_min,
@@ -252,6 +255,21 @@ impl Tessellator {
         }
     }
 
+    /// Copy pre-triangulated geometry (per-vertex colors) in `MODE_SOLID`.
+    fn push_mesh(&mut self, mesh: &mut Mesh, vertices: &[(Pos2, Color)], indices: &[u32]) {
+        let base = mesh.vertices.len() as u32;
+        for (p, c) in vertices {
+            mesh.vertices.push(Vertex {
+                pos: [p.x, p.y],
+                uv: [0.0, 0.0],
+                color: c.to_array(),
+                params: [0.0, 0.0, 0.0, MODE_SOLID],
+                ..Vertex::ZERO
+            });
+        }
+        mesh.indices.extend(indices.iter().map(|i| base + i));
+    }
+
     /// Quad with per-corner colors (tl, tr, br, bl) in `MODE_SOLID`.
     fn push_gradient_quad(&mut self, mesh: &mut Mesh, rect: Rect, colors: [Color; 4]) {
         let base = mesh.vertices.len() as u32;
@@ -406,4 +424,36 @@ fn push_quad(
     mesh.indices.extend_from_slice(&[
         base, base + 1, base + 2, base, base + 2, base + 3,
     ]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mesh_cmd_copies_indexed_geometry_with_base_offset() {
+        let mut tess = Tessellator::new();
+        let mut mesh = Mesh::default();
+        tess.reset(&mut mesh);
+        let cmds = [
+            PaintCmd::Rect {
+                rect: Rect::from_min_size(Pos2::new(0.0, 0.0), crate::math::Vec2::new(1.0, 1.0)),
+                color: Color::WHITE,
+            },
+            PaintCmd::Mesh {
+                vertices: vec![
+                    (Pos2::new(0.0, 0.0), Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                    (Pos2::new(2.0, 0.0), Color::rgba(0.0, 1.0, 0.0, 0.5)),
+                    (Pos2::new(0.0, 2.0), Color::rgba(0.0, 0.0, 1.0, 1.0)),
+                ],
+                indices: vec![0, 1, 2],
+            },
+        ];
+        tess.tessellate(&cmds, &mut mesh);
+        // 4 quad vertices, then the 3 mesh vertices; indices rebased past the quad.
+        assert_eq!(mesh.vertices.len(), 7);
+        assert_eq!(&mesh.indices[6..], &[4, 5, 6]);
+        assert_eq!(mesh.vertices[5].color, [0.0, 1.0, 0.0, 0.5]);
+        assert_eq!(mesh.vertices[4].params[3], MODE_SOLID);
+    }
 }
