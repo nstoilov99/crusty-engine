@@ -49,10 +49,22 @@ impl Ui<'_> {
             text_size.y + pad.y * 2.0,
         ));
 
+        // Shared slot naming the currently open top-level menu, so sibling
+        // buttons can hover-switch (standard menu-mode behavior).
+        let bar_key = Id::ROOT.with("menu_bar_open");
+        let open_sibling = self.ctx().memory.data_get::<Id>(bar_key).copied();
+
         let hovered = self.contains_pointer(rect);
         let mut is_open = self.ctx().memory.get(id).map_or(false, |m| m.bool_state);
+        // Another menu took over (hover-switch) since last frame: close.
+        if is_open && open_sibling.is_some_and(|o| o != id) {
+            is_open = false;
+        }
         if self.ctx().input.pointer_pressed && hovered {
             is_open = !is_open;
+        } else if hovered && !is_open && open_sibling.is_some_and(|o| o != id) {
+            // With a sibling menu open, hovering this button switches to it.
+            is_open = true;
         }
 
         let fill = if is_open {
@@ -90,6 +102,12 @@ impl Ui<'_> {
             if menu_panel(self, id.with("panel"), anchor, rect, MENU_WIDTH, body) {
                 is_open = false;
             }
+        }
+
+        if is_open {
+            self.ctx_mut().memory.data_insert(bar_key, id);
+        } else if open_sibling == Some(id) {
+            self.ctx_mut().memory.data_remove::<Id>(bar_key);
         }
 
         let mem = self.ctx_mut().memory.get_or_default(id);
