@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::context::{Context, CursorIcon, Direction, Ui, UiOptions};
 use crate::dock::tree::{DockNode, Leaf, SplitDirection, TabId};
 use crate::id::Id;
@@ -8,6 +10,8 @@ use crate::text::TextRenderer;
 const SPLITTER_THICKNESS: f32 = 5.0;
 const SPLITTER_HIT_PADDING: f32 = 2.0;
 const DRAG_ACTIVATION_PX: f32 = 4.0;
+/// Extra tab width reserved for the × close button when enabled.
+const CLOSE_BUTTON_W: f32 = 14.0;
 
 /// Persistent dock state — drag-in-progress info that has to survive
 /// across frames. Construct once in your app, pass `&mut` to
@@ -17,6 +21,11 @@ const DRAG_ACTIVATION_PX: f32 = 4.0;
 pub struct DockState {
     #[cfg_attr(feature = "serde", serde(skip))]
     drag: Option<DragState>,
+    /// The tab whose leaf was most recently clicked (tab strip or body).
+    /// Hosts use this for "focused panel" logic — e.g. which viewport's
+    /// scene is active. Cleared automatically if the tab leaves the tree.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub focused_tab: Option<TabId>,
 }
 
 struct DragState {
@@ -91,6 +100,18 @@ pub struct DetachedTab {
     pub pointer: Pos2,
 }
 
+/// Per-leaf tab-bar geometry reported each frame so the host can place
+/// trailing widgets (e.g. a "+" new-tab button) after the last tab.
+#[derive(Clone)]
+pub struct TabBarSlot {
+    /// First tab of the leaf, identifying which leaf this bar belongs to.
+    pub anchor: TabId,
+    /// X just past the last tab — where a trailing widget should start.
+    pub end_x: f32,
+    /// The full tab-bar rect of the leaf.
+    pub bar_rect: Rect,
+}
+
 /// What [`DockArea::show`] reports back to the host after a frame.
 #[derive(Default)]
 pub struct DockResponse {
@@ -100,6 +121,37 @@ pub struct DockResponse {
     /// An [`ExternalDrag`] was committed into the tree this frame. The host
     /// can close the source OS window.
     pub docked: bool,
+    /// A tab's × close button was clicked. The tree is *not* mutated — the
+    /// host decides (veto point) and calls [`DockNode::close_tab`] to accept.
+    pub close_requested: Option<TabId>,
+    /// A tab was right-clicked this frame, at this pointer position. The
+    /// host can open a context menu there.
+    pub tab_right_clicked: Option<(TabId, Pos2)>,
+    /// One entry per leaf: where its tab strip ends, for trailing widgets.
+    pub tab_bar_slots: Vec<TabBarSlot>,
+}
+
+/// Per-show options threaded through layout, so tab geometry (width math in
+/// render, reorder, and drop-caret paths) stays consistent everywhere.
+struct LayoutOpts<'t> {
+    titles: Option<&'t HashMap<TabId, String>>,
+    tab_bar_h: f32,
+    min_tab_width: f32,
+    close_buttons: bool,
+}
+
+impl LayoutOpts<'_> {
+    fn title<'a>(&'a self, tab: &'a str) -> &'a str {
+        self.titles
+            .and_then(|m| m.get(tab))
+            .map_or(tab, String::as_str)
+    }
+}
+
+/// Single source of truth for a tab's width.
+fn tab_width(text: &mut TextRenderer, title: &str, font: f32, opts: &LayoutOpts) -> f32 {
+    let close_w = if opts.close_buttons { CLOSE_BUTTON_W } else { 0.0 };
+    (text.measure(title, font, None).x + 18.0 + close_w).max(opts.min_tab_width)
 }
 
 pub struct DockArea<'a> {
@@ -107,6 +159,10 @@ pub struct DockArea<'a> {
     state: &'a mut DockState,
     external: Option<ExternalDrag>,
     lone_tearoff: bool,
+    titles: Option<&'a HashMap<TabId, String>>,
+    tab_bar_height: Option<f32>,
+    min_tab_width: f32,
+    show_close_buttons: bool,
 }
 
 impl<'a> DockArea<'a> {
@@ -116,7 +172,38 @@ impl<'a> DockArea<'a> {
             state,
             external: None,
             lone_tearoff: false,
+            titles: None,
+            tab_bar_height: None,
+            min_tab_width: 0.0,
+            show_close_buttons: false,
         }
+    }
+
+    /// Display titles per tab id. Tabs missing from the map fall back to
+    /// their id. Lets hosts keep stable ids (`"viewport:3"`) while showing
+    /// live names (`"Main Scene*"`).
+    pub fn titles(mut self, titles: &'a HashMap<TabId, String>) -> Self {
+        self.titles = Some(titles);
+        self
+    }
+
+    /// Override the tab-bar height (default: body font size + 10).
+    pub fn tab_bar_height(mut self, h: f32) -> Self {
+        self.tab_bar_height = Some(h);
+        self
+    }
+
+    /// Minimum width for each tab (default 0 = fit to label).
+    pub fn min_tab_width(mut self, w: f32) -> Self {
+        self.min_tab_width = w;
+        self
+    }
+
+    /// Draw an × close button on every tab. Clicks report
+    /// [`DockResponse::close_requested`]; the host commits the close.
+    pub fn show_close_buttons(mut self, yes: bool) -> Self {
+        self.show_close_buttons = yes;
+        self
     }
 
     /// Feed an external tab drag (from another OS window) so its drop zones
@@ -152,6 +239,15 @@ impl<'a> DockArea<'a> {
             return response;
         }
 
+        let opts = LayoutOpts {
+            titles: self.titles,
+            tab_bar_h: self
+                .tab_bar_height
+                .unwrap_or(ctx.style.fonts.body + 10.0),
+            min_tab_width: self.min_tab_width,
+            close_buttons: self.show_close_buttons,
+        };
+
         // ── Pre-recursion: refresh drag state from input.
         let pointer_now = ctx.input.pointer_pos;
         if let Some(drag) = self.state.drag.as_mut() {
@@ -173,7 +269,10 @@ impl<'a> DockArea<'a> {
         //    active, `draw_tabs` reorders the dragged tab within its own bar
         //    (browser-style) and records `home_bar`.
         let dock_root = Id::ROOT.with("dock");
-        show_node(self.root, rect, ctx, text, &mut f, dock_root, self.state);
+        show_node(
+            self.root, rect, ctx, text, &mut f, dock_root, self.state, &opts,
+            &mut response,
+        );
 
         // ── Tear-off: once the drag leaves its home tab bar, pull the tab out
         //    and report it `detached` so the host hands it to a windowless ghost
@@ -201,10 +300,9 @@ impl<'a> DockArea<'a> {
                 //   • tab bar       → dock as a tab next to the others
                 //   • N/S/E/W edge  → split the leaf in that direction
                 //   • center / body → float (becomes its own window)
-                let tab_bar_h = ctx.style.fonts.body + 10.0;
                 let tab_bar_rect = Rect::from_min_max(
                     leaf_rect.min,
-                    Pos2::new(leaf_rect.max.x, leaf_rect.min.y + tab_bar_h),
+                    Pos2::new(leaf_rect.max.x, leaf_rect.min.y + opts.tab_bar_h),
                 );
                 let over_tab_bar = tab_bar_rect.contains(ext.pointer);
                 let button = compute_drop_zone_compass(leaf_rect, ext.pointer);
@@ -228,7 +326,14 @@ impl<'a> DockArea<'a> {
                 // is explicit before release.
                 let tab_slot = if over_tab_bar {
                     find_leaf(self.root, &candidate.target_anchor).map(|leaf| {
-                        tab_drop_index(leaf, leaf_rect, ext.pointer.x, text, ctx.style.fonts.body)
+                        tab_drop_index(
+                            leaf,
+                            leaf_rect,
+                            ext.pointer.x,
+                            text,
+                            ctx.style.fonts.body,
+                            &opts,
+                        )
                     })
                 } else {
                     None
@@ -246,7 +351,7 @@ impl<'a> DockArea<'a> {
                 }
                 if ext.ghost {
                     render_external_decorator(
-                        ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f,
+                        ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f, &opts,
                     );
                 }
                 if ext.released {
@@ -291,6 +396,17 @@ impl<'a> DockArea<'a> {
             self.state.drag = None;
         }
 
+        // Focus can't outlive its tab (closed, torn off, moved to another
+        // window): drop stale entries so hosts never see a ghost focus.
+        if self
+            .state
+            .focused_tab
+            .as_deref()
+            .is_some_and(|ft| !self.root.contains_tab(ft))
+        {
+            self.state.focused_tab = None;
+        }
+
         response
     }
 }
@@ -322,6 +438,7 @@ fn locate_leaf(node: &DockNode, rect: Rect, p: Pos2) -> Option<(TabId, Rect)> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn show_node<F>(
     node: &mut DockNode,
     rect: Rect,
@@ -330,6 +447,8 @@ fn show_node<F>(
     f: &mut F,
     node_id: Id,
     state: &mut DockState,
+    opts: &LayoutOpts,
+    response: &mut DockResponse,
 ) where
     F: FnMut(&mut Ui, &str),
 {
@@ -348,15 +467,22 @@ fn show_node<F>(
             );
             draw_splitter(ctx, splitter_rect, splitter_id);
 
-            show_node(&mut split.first, rect_a, ctx, text, f, node_id.with(0), state);
-            show_node(&mut split.second, rect_b, ctx, text, f, node_id.with(1), state);
+            show_node(
+                &mut split.first, rect_a, ctx, text, f, node_id.with(0), state, opts,
+                response,
+            );
+            show_node(
+                &mut split.second, rect_b, ctx, text, f, node_id.with(1), state, opts,
+                response,
+            );
         }
         DockNode::Leaf(leaf) => {
-            show_leaf(leaf, rect, ctx, text, f, node_id, state);
+            show_leaf(leaf, rect, ctx, text, f, node_id, state, opts, response);
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn show_leaf<F>(
     leaf: &mut Leaf,
     rect: Rect,
@@ -365,11 +491,13 @@ fn show_leaf<F>(
     f: &mut F,
     node_id: Id,
     state: &mut DockState,
+    opts: &LayoutOpts,
+    response: &mut DockResponse,
 ) where
     F: FnMut(&mut Ui, &str),
 {
     let style = ctx.style;
-    let tab_bar_h = style.fonts.body + 10.0;
+    let tab_bar_h = opts.tab_bar_h;
 
     // Panel background.
     let panel_shape = RectShape::fill(rect, style.rounding.panel, style.palette.surface)
@@ -389,10 +517,19 @@ fn show_leaf<F>(
     // Clip the tabs to their bar so a leaf with more tabs than fit its width
     // can't bleed sideways over the adjacent panel.
     ctx.paint.push(PaintCmd::PushClip(tab_bar_rect));
-    draw_tabs(ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state);
+    draw_tabs(
+        ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state, opts,
+        response,
+    );
     ctx.paint.push(PaintCmd::PopClip);
 
     let active_tab = leaf.tabs[leaf.active].clone();
+
+    // Any click inside the leaf (tab strip or body) focuses its active tab —
+    // unless an overlay (floating window, popup) owns the pointer there.
+    if ctx.input.pointer_pressed && ctx.pointer_over(None, rect) {
+        state.focused_tab = Some(active_tab.clone());
+    }
     let content_rect = Rect::from_min_max(
         Pos2::new(rect.min.x, rect.min.y + tab_bar_h),
         rect.max,
@@ -489,6 +626,7 @@ fn draw_splitter(ctx: &mut Context, splitter_rect: Rect, splitter_id: Id) {
     ctx.paint.push(PaintCmd::Rrect(shape));
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_tabs(
     ctx: &mut Context,
     text: &mut TextRenderer,
@@ -496,6 +634,8 @@ fn draw_tabs(
     tabs: &mut Vec<TabId>,
     active: &mut usize,
     state: &mut DockState,
+    opts: &LayoutOpts,
+    response: &mut DockResponse,
 ) {
     let style = ctx.style;
 
@@ -521,7 +661,7 @@ fn draw_tabs(
                 let mut cx = tab_bar_rect.min.x + 6.0;
                 let mut to = tabs.len() - 1;
                 for (i, tab) in tabs.iter().enumerate() {
-                    let w = text.measure(tab, style.fonts.body, None).x + 18.0;
+                    let w = tab_width(text, opts.title(tab), style.fonts.body, opts);
                     if px < cx + w * 0.5 {
                         to = i;
                         break;
@@ -541,8 +681,9 @@ fn draw_tabs(
     let bar_h = tab_bar_rect.height();
     let active_was = *active;
     for (i, tab) in tabs.iter().enumerate() {
-        let label_size = text.measure(tab, style.fonts.body, None);
-        let tab_w = label_size.x + 18.0;
+        let title = opts.title(tab);
+        let label_size = text.measure(title, style.fonts.body, None);
+        let tab_w = tab_width(text, title, style.fonts.body, opts);
         let tab_rect = Rect::from_min_size(
             Pos2::new(x, tab_bar_rect.min.y + 1.0),
             Vec2::new(tab_w, bar_h - 1.0),
@@ -583,16 +724,67 @@ fn draw_tabs(
         };
         text.add_text(
             &mut ctx.paint,
-            tab,
+            title,
             style.fonts.body,
             text_pos,
             label_color,
             None,
         );
 
+        // × close button, right-aligned inside the tab. Clicks report a
+        // close request (host commits) and never start a tab drag.
+        let mut over_close = false;
+        if opts.close_buttons {
+            let s = 12.0;
+            let close_rect = Rect::from_center_size(
+                Pos2::new(tab_rect.max.x - 4.0 - s * 0.5, tab_rect.center().y),
+                Vec2::splat(s),
+            );
+            over_close = ctx.pointer_over(None, close_rect);
+            if over_close {
+                ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+                    close_rect,
+                    style.rounding.small,
+                    style.palette.surface_hover,
+                )));
+            }
+            let show_glyph = is_active || hovered;
+            if show_glyph {
+                let g = close_rect.shrink(3.5);
+                let col = if over_close {
+                    style.palette.text
+                } else {
+                    style.palette.text_dim
+                };
+                ctx.paint.push(PaintCmd::Line {
+                    from: g.min,
+                    to: g.max,
+                    width: 1.2,
+                    color: col,
+                });
+                ctx.paint.push(PaintCmd::Line {
+                    from: Pos2::new(g.max.x, g.min.y),
+                    to: Pos2::new(g.min.x, g.max.y),
+                    width: 1.2,
+                    color: col,
+                });
+            }
+            if ctx.input.pointer_pressed && over_close {
+                response.close_requested = Some(tab.clone());
+            }
+        }
+
+        if let Some(p) = ctx
+            .input
+            .pointer_pos
+            .filter(|_| ctx.input.right_pressed && hovered)
+        {
+            response.tab_right_clicked = Some((tab.clone(), p));
+        }
+
         // Start a drag on press (don't switch yet — switching happens
         // on release without movement).
-        if ctx.input.pointer_pressed && hovered && state.drag.is_none() {
+        if ctx.input.pointer_pressed && hovered && !over_close && state.drag.is_none() {
             if let Some(p) = ctx.input.pointer_pos {
                 state.drag = Some(DragState {
                     tab_id: tab.clone(),
@@ -604,16 +796,27 @@ fn draw_tabs(
             }
         }
 
-        // Click without drag = switch active tab.
+        // Click without drag = switch active tab (and focus it).
         if ctx.input.pointer_released && hovered {
             if let Some(drag) = state.drag.as_ref() {
                 if !drag.activated && drag.tab_id == *tab {
                     *active = i;
+                    state.focused_tab = Some(tab.clone());
                 }
             }
         }
 
         x += tab_w + 4.0;
+    }
+
+    // Report where the strip ends so the host can place trailing widgets
+    // (e.g. a "+" new-tab button) in the leftover bar space.
+    if let Some(anchor) = tabs.first() {
+        response.tab_bar_slots.push(TabBarSlot {
+            anchor: anchor.clone(),
+            end_x: x,
+            bar_rect: tab_bar_rect,
+        });
     }
 }
 
@@ -789,11 +992,12 @@ fn render_external_decorator<F>(
     pointer: Pos2,
     grab: Vec2,
     f: &mut F,
+    opts: &LayoutOpts,
 ) where
     F: FnMut(&mut Ui, &str),
 {
     let style = ctx.style;
-    let tab_bar_h = style.fonts.body + 10.0;
+    let tab_bar_h = opts.tab_bar_h;
     // Place the card so the cursor sits where the title strip was grabbed.
     let origin = Pos2::new(pointer.x - grab.x, pointer.y - grab.y);
     let rect = Rect::from_min_size(origin, DECORATOR_SIZE);
@@ -813,7 +1017,7 @@ fn render_external_decorator<F>(
     )));
     text.add_text(
         &mut ctx.paint,
-        tab_id,
+        opts.title(tab_id),
         style.fonts.body,
         Pos2::new(header.min.x + 8.0, header.min.y + 5.0),
         style.palette.text,
@@ -840,6 +1044,15 @@ fn render_external_decorator<F>(
 }
 
 // ─── tree mutation ──────────────────────────────────────────────────────────
+
+impl DockNode {
+    /// Remove `tab` from the tree, collapsing any split left with an empty
+    /// side. Returns true if the tab was found. Call this to commit a
+    /// [`DockResponse::close_requested`] (or skip it to veto the close).
+    pub fn close_tab(&mut self, tab: &str) -> bool {
+        remove_tab(self, tab)
+    }
+}
 
 /// Walk the tree, remove the first leaf-entry matching `tab_id`. If the
 /// owning leaf becomes empty, collapse the surrounding Split by replacing
@@ -1021,10 +1234,11 @@ fn tab_drop_index(
     px: f32,
     text: &mut TextRenderer,
     font: f32,
+    opts: &LayoutOpts,
 ) -> (usize, f32) {
     let mut cx = leaf_rect.min.x + 6.0;
     for (i, tab) in leaf.tabs.iter().enumerate() {
-        let w = text.measure(tab, font, None).x + 18.0;
+        let w = tab_width(text, opts.title(tab), font, opts);
         if px < cx + w * 0.5 {
             return (i, cx - 2.0);
         }

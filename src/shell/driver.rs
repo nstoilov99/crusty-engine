@@ -573,6 +573,7 @@ impl<A: DockApp> Shell<A> {
 
         let dock_response = DockArea::new(&mut self.dock_tree, &mut self.dock_state)
             .external_drag(redock_ext)
+            .show_close_buttons(true)
             .show(
                 &mut self.ctx,
                 renderer.text_mut(),
@@ -581,6 +582,14 @@ impl<A: DockApp> Shell<A> {
             );
         let detached = dock_response.detached;
         let docked = dock_response.docked;
+        // Demo close policy: accept every close except the last remaining tab.
+        if let Some(tab) = dock_response.close_requested {
+            let mut all = Vec::new();
+            self.dock_tree.collect_tabs(&mut all);
+            if all.len() > 1 {
+                self.dock_tree.close_tab(&tab);
+            }
+        }
 
         // App-owned overlay UI (floating widget windows, modals, toasts).
         self.ctx
