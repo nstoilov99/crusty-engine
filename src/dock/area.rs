@@ -222,6 +222,17 @@ impl<'a> DockArea<'a> {
         self
     }
 
+    /// [`show`](DockArea::show) from inside an existing `Ui` (e.g. a host
+    /// that drives its whole frame through one root closure), reusing its
+    /// context and text renderer.
+    pub fn show_in<F>(self, ui: &mut Ui, rect: Rect, f: F) -> DockResponse
+    where
+        F: FnMut(&mut Ui, &str),
+    {
+        let Ui { ctx, text, .. } = ui;
+        self.show(ctx, text, rect, f)
+    }
+
     pub fn show<F>(
         self,
         ctx: &mut Context,
