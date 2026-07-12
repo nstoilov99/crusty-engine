@@ -43,6 +43,11 @@ pub struct Palette {
     /// Color for progress-bar / status fills (separate from accent so a
     /// theme can use orange accent + green progress, etc.).
     pub success: Color,
+    /// Dock/window panel body background.
+    pub panel: Color,
+    /// Dock tab-strip background. Kept darker than `panel` so the active
+    /// tab (filled with `panel`) reads as connected to the body below it.
+    pub tab_bar: Color,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -106,6 +111,8 @@ impl Style {
                 stroke: Color::rgba(0.05, 0.06, 0.08, 0.85),
                 stroke_hover: Color::rgba(0.96, 0.56, 0.18, 0.75),
                 success: Color::rgba(0.42, 0.78, 0.46, 0.95),
+                panel: Color::rgba(0.16, 0.17, 0.20, 0.92),
+                tab_bar: Color::rgba(0.10, 0.11, 0.14, 0.95),
             },
             spacing: Spacing {
                 item: 4.0,
@@ -158,6 +165,8 @@ impl Style {
                 stroke: Color::rgba(1.00, 1.00, 1.00, 0.22),
                 stroke_hover: Color::rgba(1.00, 1.00, 1.00, 0.55),
                 success: Color::rgba(0.30, 0.75, 0.55, 0.95),
+                panel: Color::rgba(0.10, 0.13, 0.18, 0.75),
+                tab_bar: Color::rgba(0.08, 0.11, 0.20, 0.85),
             },
             spacing: Spacing {
                 item: 8.0,

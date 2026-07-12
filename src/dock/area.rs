@@ -521,18 +521,15 @@ fn show_leaf<F>(
     let tab_bar_h = opts.tab_bar_h;
 
     // Panel background.
-    let panel_shape = RectShape::fill(rect, style.rounding.panel, style.palette.surface)
+    let panel_shape = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
         .with_stroke(1.0, style.palette.stroke);
     ctx.paint.push(PaintCmd::Rrect(panel_shape));
 
-    // Tab bar.
+    // Tab bar — flat strip, darker than the body so the active tab (filled
+    // with the panel color) reads as connected to its content.
     let tab_bar_rect =
         Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
-    let bar_bg = RectShape::fill(
-        tab_bar_rect,
-        style.rounding.small,
-        style.palette.surface_active,
-    );
+    let bar_bg = RectShape::fill(tab_bar_rect, style.rounding.small, style.palette.tab_bar);
     ctx.paint.push(PaintCmd::Rrect(bar_bg));
 
     // Clip the tabs to their bar so a leaf with more tabs than fit its width
@@ -712,25 +709,29 @@ fn draw_tabs(
 
         let is_active = i == active_was;
         let hovered = ctx.pointer_over(None, tab_rect);
-        let fill = if is_active {
-            style.palette.surface
-        } else if hovered {
-            style.palette.surface_hover
-        } else {
-            style.palette.surface_active
-        };
-        let shape = RectShape::fill(tab_rect, style.rounding.small, fill);
-        ctx.paint.push(PaintCmd::Rrect(shape));
-
+        // Inactive tabs sit flat on the strip (no chip fill); the active tab
+        // is filled with the panel color so it merges with the body below,
+        // capped by an accent line along its top edge.
         if is_active {
-            let underline = Rect::from_min_max(
-                Pos2::new(tab_rect.min.x + 3.0, tab_rect.max.y - 2.0),
-                Pos2::new(tab_rect.max.x - 3.0, tab_rect.max.y),
+            ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+                tab_rect,
+                style.rounding.small,
+                style.palette.panel,
+            )));
+            let top_line = Rect::from_min_max(
+                tab_rect.min,
+                Pos2::new(tab_rect.max.x, tab_rect.min.y + 2.0),
             );
             ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
-                underline,
+                top_line,
                 Rounding::same(1.0),
                 style.palette.accent,
+            )));
+        } else if hovered {
+            ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+                tab_rect,
+                style.rounding.small,
+                style.palette.surface_hover,
             )));
         }
 
@@ -1036,14 +1037,14 @@ fn render_external_decorator<F>(
     let start = ctx.paint.len();
 
     // Panel body + slim header bar carrying the tab name (no window chrome).
-    let body = RectShape::fill(rect, style.rounding.panel, style.palette.surface)
+    let body = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
         .with_stroke(1.0, style.palette.accent);
     ctx.paint.push(PaintCmd::Rrect(body));
     let header = Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
     ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
         header,
         style.rounding.small,
-        style.palette.surface_active,
+        style.palette.tab_bar,
     )));
     text.add_text(
         &mut ctx.paint,
