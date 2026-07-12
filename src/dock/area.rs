@@ -689,13 +689,13 @@ fn render_drop_overlay(ctx: &mut Context, candidate: &DropCandidate) {
     let buttons = compass_button_rects(leaf_rect);
     for (zone, btn_rect) in buttons {
         let is_active = Some(zone) == candidate.zone && !candidate.via_tab_bar;
-        let mut fill = style.palette.surface_hover;
-        fill.a = if is_active { 0.95 } else { 0.78 };
-        let stroke_w = if is_active { 2.0 } else { 1.0 };
-        let mut stroke = style.palette.accent;
-        if !is_active {
-            stroke.a *= 0.55;
-        }
+        let mut fill = style.palette.surface;
+        fill.a = if is_active { 0.98 } else { 0.92 };
+        let (stroke_w, stroke) = if is_active {
+            (1.5, style.palette.accent)
+        } else {
+            (1.0, style.palette.stroke)
+        };
         ctx.paint.push(PaintCmd::Rrect(
             RectShape::fill(btn_rect, style.rounding.small, fill)
                 .with_stroke(stroke_w, stroke),
@@ -704,40 +704,72 @@ fn render_drop_overlay(ctx: &mut Context, candidate: &DropCandidate) {
     }
 }
 
-/// Draws a small directional indicator inside a compass button.
+/// egui_dock-style compass glyph: a mini window (title-bar strip + faint
+/// border) with a dashed line previewing the split axis; Center has no
+/// dashes (drop merges as a tab).
 fn draw_compass_icon(ctx: &mut Context, btn_rect: Rect, zone: DropZone, active: bool) {
     let style = ctx.style;
-    let cx = btn_rect.center();
-    let half = btn_rect.width() * 0.35;
-    let color = if active {
-        style.palette.accent
+    let ink = if active {
+        style.palette.text
     } else {
         style.palette.text_dim
     };
-    let icon_rect = match zone {
-        DropZone::Center => Rect::from_center_size(cx, Vec2::splat(half * 0.9)),
-        DropZone::North => Rect::from_center_size(
-            Pos2::new(cx.x, cx.y - half * 0.35),
-            Vec2::new(half * 1.4, half * 0.55),
+    let icon = btn_rect.shrink(7.0);
+
+    ctx.paint.push(PaintCmd::Rrect(
+        RectShape::fill(icon, Rounding::same(1.0), Color::TRANSPARENT)
+            .with_stroke(1.0, ink.with_alpha(0.35)),
+    ));
+    let bar = Rect::from_min_size(icon.min, Vec2::new(icon.width(), 4.0));
+    ctx.paint
+        .push(PaintCmd::Rrect(RectShape::fill(bar, Rounding::same(1.0), ink)));
+
+    // Dashed split preview through the window body.
+    let body = Rect::from_min_max(Pos2::new(icon.min.x, bar.max.y), icon.max);
+    let c = body.center();
+    let inset = 2.5;
+    match zone {
+        DropZone::Center => {}
+        DropZone::North | DropZone::South => dashed_line(
+            ctx,
+            Pos2::new(body.min.x + inset, c.y),
+            Pos2::new(body.max.x - inset, c.y),
+            ink,
         ),
-        DropZone::South => Rect::from_center_size(
-            Pos2::new(cx.x, cx.y + half * 0.35),
-            Vec2::new(half * 1.4, half * 0.55),
+        DropZone::East | DropZone::West => dashed_line(
+            ctx,
+            Pos2::new(c.x, body.min.y + inset),
+            Pos2::new(c.x, body.max.y - inset),
+            ink,
         ),
-        DropZone::East => Rect::from_center_size(
-            Pos2::new(cx.x + half * 0.35, cx.y),
-            Vec2::new(half * 0.55, half * 1.4),
-        ),
-        DropZone::West => Rect::from_center_size(
-            Pos2::new(cx.x - half * 0.35, cx.y),
-            Vec2::new(half * 0.55, half * 1.4),
-        ),
-    };
-    ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
-        icon_rect,
-        Rounding::same(1.5),
-        color,
-    )));
+    }
+}
+
+/// Axis-aligned dashed line built from small rect segments.
+fn dashed_line(ctx: &mut Context, from: Pos2, to: Pos2, color: Color) {
+    const DASH: f32 = 3.0;
+    const GAP: f32 = 2.5;
+    const THICK: f32 = 1.5;
+    let horizontal = (to.y - from.y).abs() < 0.5;
+    let len = if horizontal { to.x - from.x } else { to.y - from.y };
+    let mut t = 0.0;
+    while t < len {
+        let seg = DASH.min(len - t);
+        let r = if horizontal {
+            Rect::from_min_size(
+                Pos2::new(from.x + t, from.y - THICK * 0.5),
+                Vec2::new(seg, THICK),
+            )
+        } else {
+            Rect::from_min_size(
+                Pos2::new(from.x - THICK * 0.5, from.y + t),
+                Vec2::new(THICK, seg),
+            )
+        };
+        ctx.paint
+            .push(PaintCmd::Rrect(RectShape::fill(r, Rounding::ZERO, color)));
+        t += DASH + GAP;
+    }
 }
 
 /// Width/height of the translucent decorator preview shown while a whole
