@@ -175,6 +175,11 @@ letting `WindowRenderer` own the swapchain.
         (`menu_bar_crusty.rs`, `status_bar_crusty.rs`, `toasts_crusty.rs`);
         egui panels only reserve the strips; scene tabs deferred to the
         dock swap; egui fallback intact
+  - [x] Dock swap — crusty dock hosts all panels (tear-off ghost, compass
+        docking, close buttons); torn-off tabs become borderless OS float
+        windows with an Unreal-style caption (tabs in the title bar,
+        min/max/close, OS move/resize) and drag back to re-dock; engine
+        keeps rendering during OS modal move/resize loops
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
