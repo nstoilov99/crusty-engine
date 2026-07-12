@@ -180,6 +180,9 @@ letting `WindowRenderer` own the swapchain.
         windows with an Unreal-style caption (tabs in the title bar,
         min/max/close, OS move/resize) and drag back to re-dock; engine
         keeps rendering during OS modal move/resize loops
+  - [x] Scene tabs — viewport tabs in the crusty dock: focus-driven scene
+        switching, "+" new-scene button, dirty `*` prefix (active + dormant),
+        close with last-tab veto; viewport tabs never float
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
