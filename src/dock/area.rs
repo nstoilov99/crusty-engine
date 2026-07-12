@@ -259,6 +259,13 @@ impl<'a> DockArea<'a> {
             close_buttons: self.show_close_buttons,
         };
 
+        // A tab drag lives in `DockState`, not `Memory`, so the context
+        // doesn't know the UI owns the pointer — claim it explicitly or the
+        // host routes the held button to the scene under the ghost.
+        if self.state.drag.is_some() || self.external.is_some() {
+            ctx.claim_pointer();
+        }
+
         // ── Pre-recursion: refresh drag state from input.
         let pointer_now = ctx.input.pointer_pos;
         if let Some(drag) = self.state.drag.as_mut() {
@@ -331,7 +338,15 @@ impl<'a> DockArea<'a> {
                     zone: vis_zone,
                     via_tab_bar,
                 };
-                render_drop_overlay(ctx, &candidate);
+                // Paint order: zone preview under the ghost card, compass and
+                // insertion caret above it, so drop targets stay visible.
+                render_drop_preview(ctx, &candidate);
+                if ext.ghost {
+                    render_external_decorator(
+                        ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f, &opts,
+                    );
+                }
+                render_compass(ctx, &candidate);
                 // Over the tab bar: figure out which slot the drop lands in from
                 // the cursor x and draw an insertion caret there so the position
                 // is explicit before release.
@@ -359,11 +374,6 @@ impl<'a> DockArea<'a> {
                         Rounding::same(1.0),
                         ctx.style.palette.accent,
                     )));
-                }
-                if ext.ghost {
-                    render_external_decorator(
-                        ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f, &opts,
-                    );
                 }
                 if ext.released {
                     if over_tab_bar {
@@ -879,28 +889,37 @@ fn preview_rect_for_zone(leaf: Rect, zone: DropZone) -> Rect {
     }
 }
 
-fn render_drop_overlay(ctx: &mut Context, candidate: &DropCandidate) {
+/// Translucent zone-preview fill; drawn below the drag decorator so the
+/// ghost card isn't tinted.
+fn render_drop_preview(ctx: &mut Context, candidate: &DropCandidate) {
     let style = ctx.style;
-    let leaf_rect = candidate.target_rect;
-
-    // ── 1. Preview overlay (rendered first, so the compass sits on top).
     if candidate.via_tab_bar {
         // Drop on tab bar = add as a tab here — the exact insertion slot is
         // shown by the caret drawn in the caller, so don't tint the whole bar.
     } else if let Some(zone) = candidate.zone {
-        let preview = preview_rect_for_zone(leaf_rect, zone);
+        let preview = preview_rect_for_zone(candidate.target_rect, zone);
         let mut tint = style.palette.accent;
         tint.a = 0.22;
         let mut stroke = style.palette.accent;
         stroke.a = 0.95;
-        ctx.paint.push(PaintCmd::Rrect(
-            RectShape::fill(preview, style.rounding.widget, tint)
-                .with_stroke(2.0, stroke),
-        ));
+        // Plain quad, not an rrect fill: translucent rrect fills take the
+        // shader's glass path, which composites the backdrop opaquely.
+        ctx.paint.push(PaintCmd::Rect {
+            rect: preview,
+            color: tint,
+        });
+        let mut border = RectShape::fill(preview, style.rounding.widget, stroke)
+            .with_stroke(2.0, stroke);
+        border.fill = None;
+        ctx.paint.push(PaintCmd::Rrect(border));
     }
+}
 
-    // ── 2. Compass buttons.
-    let buttons = compass_button_rects(leaf_rect);
+/// Compass buttons; drawn above the drag decorator so the drop targets stay
+/// visible under the ghost card.
+fn render_compass(ctx: &mut Context, candidate: &DropCandidate) {
+    let style = ctx.style;
+    let buttons = compass_button_rects(candidate.target_rect);
     for (zone, btn_rect) in buttons {
         let is_active = Some(zone) == candidate.zone && !candidate.via_tab_bar;
         let mut fill = style.palette.surface;

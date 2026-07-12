@@ -56,6 +56,10 @@ pub struct Context {
     /// Area owning the pointer this frame (topmost at the pointer using
     /// last-frame rects; modal-aware). `None` = the root UI.
     hovered_area: Option<Id>,
+    /// Explicit pointer claim for this frame (e.g. a dock tab drag whose
+    /// state lives outside `Memory`); reset at begin_frame, OR-ed into
+    /// [`FrameOutput::owns_pointer`].
+    pointer_claimed: bool,
     /// Cursor requested by widgets this frame; reset to `Default` at
     /// begin_frame, reported through [`FrameOutput::cursor_icon`].
     cursor_icon: CursorIcon,
@@ -94,6 +98,7 @@ impl Context {
         self.layer_stack.clear();
         self.cursor_icon = CursorIcon::Default;
         self.repaint_after = None;
+        self.pointer_claimed = false;
         self.memory.popup_close_requested = false;
         // Uses last frame's `seen` flags, so this must run before
         // `memory.begin_frame()` clears them.
@@ -124,7 +129,8 @@ impl Context {
         }
         // The engine seam: does the UI claim this frame's pointer/keyboard,
         // or may the host route them to the scene underneath?
-        let owns_pointer = self.hovered_area.is_some()
+        let owns_pointer = self.pointer_claimed
+            || self.hovered_area.is_some()
             || self.memory.active_widget.is_some()
             || self.dnd.is_dragging();
         let wants_pointer =
@@ -190,6 +196,15 @@ impl Context {
     #[inline]
     pub fn set_cursor_icon(&mut self, icon: CursorIcon) {
         self.cursor_icon = icon;
+    }
+
+    /// Claim this frame's pointer for the UI (reported through
+    /// [`FrameOutput::owns_pointer`]) even when no widget is active or
+    /// hovered — e.g. a dock tab drag whose state lives outside `Memory`.
+    /// Resets every frame.
+    #[inline]
+    pub fn claim_pointer(&mut self) {
+        self.pointer_claimed = true;
     }
 
     /// Ask the host to repaint immediately (an animation is running).
