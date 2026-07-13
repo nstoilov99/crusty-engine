@@ -143,8 +143,8 @@ letting `WindowRenderer` own the swapchain.
 
 ## Phase 16 — Swap & hardening
 
-- [ ] Define a `GuiBackend` trait in rust-engine mirroring the current
-      `Gui` / `EguiRenderer` seam; implement for crusty-gui
+- [x] ~~Define a `GuiBackend` trait~~ — skipped: cfg-gating already covers
+      coexistence, and a one-impl trait is dead weight once egui is deleted
 - [ ] Port panels one at a time (start with **console** — simplest)
   - [x] Console — crusty panel draws into the egui dock tab's rect
         (`console_crusty.rs`); filters + counts, stick-to-bottom log,
@@ -183,6 +183,15 @@ letting `WindowRenderer` own the swapchain.
   - [x] Scene tabs — viewport tabs in the crusty dock: focus-driven scene
         switching, "+" new-scene button, dirty `*` prefix (active + dormant),
         close with last-tab veto; viewport tabs never float
+  - [x] Modal dialogs — dialog stack (Ok/OkCancel/SaveDiscardCancel),
+        model import dialog, Save Scene As, file-drop overlay
+        (`dialogs_crusty.rs`); center-anchored crusty `Window`s; egui
+        fallback intact
+  - [ ] Command palette
+  - [ ] Input settings / action / context editors
+  - [ ] Mesh editor + secondary preview OS windows
+  - [ ] Delete egui: fallback panels, app.rs/main.rs branches, egui render
+        pass, FramePacket egui types, Cargo deps
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
