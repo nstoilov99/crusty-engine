@@ -191,7 +191,9 @@ letting `WindowRenderer` own the swapchain.
         selection highlight, focus-on-open search
         (`command_palette_crusty.rs`); also fixed engine hotkeys on
         non-Latin keyboard layouts (physical-key fallback)
-  - [ ] Input settings / action / context editors
+  - [x] Input settings / action / context editors — dock + float tabs,
+        listen-for-input overlay, grouped key combos
+        (`input_editors_crusty.rs`); egui fallback intact
   - [ ] Mesh editor + secondary preview OS windows
   - [ ] Delete egui: fallback panels, app.rs/main.rs branches, egui render
         pass, FramePacket egui types, Cargo deps
