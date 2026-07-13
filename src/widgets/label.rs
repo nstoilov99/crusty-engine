@@ -7,6 +7,7 @@ pub struct Label {
     text: String,
     size: Option<f32>,
     color: Option<Color>,
+    wrap: bool,
 }
 
 impl Label {
@@ -15,7 +16,16 @@ impl Label {
             text: text.into(),
             size: None,
             color: None,
+            wrap: true,
         }
+    }
+
+    /// Disable wrapping: the label takes its natural single-line width even
+    /// when the available width is smaller (useful in [`Grid`](crate::widgets::Grid)
+    /// key columns, whose measured width would otherwise never grow).
+    pub fn wrap(mut self, wrap: bool) -> Self {
+        self.wrap = wrap;
+        self
     }
 
     pub fn size(mut self, size_px: f32) -> Self {
@@ -34,7 +44,7 @@ impl Label {
         let color = self.color.unwrap_or(style.palette.text);
 
         let id = ui.alloc_id(&self.text);
-        let max_width = Some(ui.available_size().x);
+        let max_width = self.wrap.then(|| ui.available_size().x);
         let measured = ui.text_mut().measure(&self.text, size, max_width);
         let rect = ui.allocate(measured);
 

@@ -29,6 +29,7 @@ pub struct Window<'open> {
     modal: bool,
     close_on_click_outside: bool,
     auto_size: bool,
+    anchor_center: bool,
 }
 
 /// What [`Window::show`] did this frame.
@@ -51,6 +52,7 @@ impl<'open> Window<'open> {
             modal: false,
             close_on_click_outside: false,
             auto_size: false,
+            anchor_center: false,
         }
     }
 
@@ -104,6 +106,13 @@ impl<'open> Window<'open> {
         self
     }
 
+    /// Pin the window to the screen center every frame (dialogs). Disables
+    /// moving it by the title bar.
+    pub fn anchor_center(mut self, v: bool) -> Self {
+        self.anchor_center = v;
+        self
+    }
+
     pub fn show<R>(
         self,
         ui: &mut Ui,
@@ -138,6 +147,12 @@ impl<'open> Window<'open> {
             (area.pos, area.size)
         };
         size = size.max(min_size);
+        if self.anchor_center {
+            pos = Pos2::new(
+                screen.center().x - size.x * 0.5,
+                screen.center().y - size.y * 0.5,
+            );
+        }
 
         let state_id = id.with("state");
         let first_time = ui.ctx().memory.get(state_id).is_none();
@@ -216,7 +231,12 @@ impl<'open> Window<'open> {
         }
 
         // Move via title bar (excluding the chevron / close buttons).
-        if pointer_pressed && on_window && active != Some(resize_id) && !resizing {
+        if pointer_pressed
+            && on_window
+            && active != Some(resize_id)
+            && !resizing
+            && !self.anchor_center
+        {
             if let Some(p) = pointer_pos {
                 let on_buttons = (self.collapsible && chev_rect.contains(p))
                     || (self.open.is_some() && close_rect.contains(p));
@@ -239,6 +259,12 @@ impl<'open> Window<'open> {
             }
         }
 
+        if self.anchor_center {
+            pos = Pos2::new(
+                screen.center().x - size.x * 0.5,
+                screen.center().y - size.y * 0.5,
+            );
+        }
         // Keep the whole window inside the screen.
         if screen.width() > 0.0 {
             pos.x = pos.x.clamp(screen.min.x, (screen.max.x - size.x).max(screen.min.x));
