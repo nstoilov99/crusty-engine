@@ -344,6 +344,9 @@ pub struct InputState {
     /// TextEdit for Backspace / Enter / arrows). Filtered to printable
     /// non-letter keys plus modifiers when needed.
     pub key_presses: Vec<KeyPress>,
+    /// Mouse buttons that transitioned to "pressed" this frame,
+    /// including non-primary buttons (middle, back, forward).
+    pub button_presses: Vec<MouseButton>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -362,6 +365,7 @@ impl InputState {
         self.scroll_delta = crate::math::Vec2::ZERO;
         self.typed_text.clear();
         self.key_presses.clear();
+        self.button_presses.clear();
     }
 
     /// Classify this frame's press (if any) as the second of a
@@ -407,6 +411,9 @@ impl InputState {
                 ..
             } => {
                 self.pointer_pos = Some(*pos);
+                if *pressed {
+                    self.button_presses.push(*button);
+                }
                 if matches!(button, MouseButton::Primary) {
                     if *pressed && !self.pointer_down {
                         self.pointer_pressed = true;

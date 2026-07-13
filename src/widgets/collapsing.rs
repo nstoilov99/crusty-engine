@@ -9,6 +9,9 @@ use crate::response::Response;
 pub struct CollapsingHeader {
     label: String,
     default_open: bool,
+    text_size: Option<f32>,
+    text_color: Option<crate::math::Color>,
+    fit_width: bool,
 }
 
 impl CollapsingHeader {
@@ -16,11 +19,33 @@ impl CollapsingHeader {
         Self {
             label: label.into(),
             default_open: false,
+            text_size: None,
+            text_color: None,
+            fit_width: false,
         }
     }
 
     pub fn default_open(mut self, open: bool) -> Self {
         self.default_open = open;
+        self
+    }
+
+    /// Override the header label's font size (default: body). The body
+    /// indent stays keyed to the body font so nesting depth is uniform.
+    pub fn text_size(mut self, size: f32) -> Self {
+        self.text_size = Some(size);
+        self
+    }
+
+    pub fn text_color(mut self, color: crate::math::Color) -> Self {
+        self.text_color = Some(color);
+        self
+    }
+
+    /// Allocate only the chevron + label width instead of the full
+    /// available width, so enclosing content-fitted frames stay compact.
+    pub fn fit_width(mut self, fit: bool) -> Self {
+        self.fit_width = fit;
         self
     }
 
@@ -40,12 +65,17 @@ impl CollapsingHeader {
             mem.aux_anim = if self.default_open { 1.0 } else { 0.0 };
         }
 
-        let chevron_size = style.fonts.body;
+        let font = self.text_size.unwrap_or(style.fonts.body);
+        let chevron_size = font;
         let gap = style.spacing.box_label_gap;
-        let label_size = ui.text_mut().measure(&self.label, style.fonts.body, None);
+        let label_size = ui.text_mut().measure(&self.label, font, None);
         let row_h = label_size.y.max(chevron_size) + 4.0;
-        let header_rect =
-            ui.allocate(Vec2::new(ui.available().width(), row_h));
+        let header_w = if self.fit_width {
+            chevron_size + gap + label_size.x + 4.0
+        } else {
+            ui.available().width()
+        };
+        let header_rect = ui.allocate(Vec2::new(header_w, row_h));
 
         let hovered = ui.contains_pointer(header_rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
@@ -110,21 +140,21 @@ impl CollapsingHeader {
         crate::widgets::paint_chevron(
             &mut ui.ctx_mut().paint,
             center,
-            style.fonts.body * 0.30,
-            (style.fonts.body * 0.12).max(1.5),
+            font * 0.30,
+            (font * 0.12).max(1.5),
             is_open,
             chev_color,
         );
 
         let label_x = header_rect.min.x + chevron_size + gap;
         let label_y = header_rect.min.y + (row_h - label_size.y) * 0.5;
-        let label_color = style.palette.text;
+        let label_color = self.text_color.unwrap_or(style.palette.text);
         {
             let Ui { ctx, text, .. } = ui;
             text.add_text(
                 &mut ctx.paint,
                 &self.label,
-                style.fonts.body,
+                font,
                 Pos2::new(label_x, label_y),
                 label_color,
                 None,
@@ -137,7 +167,7 @@ impl CollapsingHeader {
             // ~1.6× the chevron width — children sit visibly to the
             // right of the parent's label, matching Unity/Unreal-style
             // outliners.
-            let indent = (chevron_size + gap) * 1.6;
+            let indent = (style.fonts.body + gap) * 1.6;
             ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.add_space(indent);

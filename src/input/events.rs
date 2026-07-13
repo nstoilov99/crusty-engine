@@ -42,6 +42,8 @@ pub enum MouseButton {
     Primary,
     Secondary,
     Middle,
+    Back,
+    Forward,
     Other(u16),
 }
 

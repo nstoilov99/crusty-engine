@@ -15,6 +15,7 @@ pub struct ComboBox {
     id_source: String,
     selected_text: String,
     width: Option<f32>,
+    max_popup_height: f32,
 }
 
 impl ComboBox {
@@ -23,6 +24,7 @@ impl ComboBox {
             id_source: id_source.into(),
             selected_text: String::new(),
             width: None,
+            max_popup_height: 200.0,
         }
     }
 
@@ -33,6 +35,12 @@ impl ComboBox {
 
     pub fn width(mut self, w: f32) -> Self {
         self.width = Some(w);
+        self
+    }
+
+    /// Cap the dropdown's height (default 200); taller content scrolls.
+    pub fn max_popup_height(mut self, h: f32) -> Self {
+        self.max_popup_height = h;
         self
     }
 
@@ -104,6 +112,7 @@ impl ComboBox {
         }
 
         // ── Dropdown render (overlay)
+        let mut measured_h = None;
         if is_open {
             let dropdown_root = id.with("popup");
             let popup_area_id = id.with("popup_area");
@@ -117,8 +126,9 @@ impl ComboBox {
             );
             // Reserve a generous max height; the dropdown will be tighter
             // than this after we measure the body.
+            let scratch_h = 600.0_f32.max(self.max_popup_height + 16.0);
             let scratch_rect =
-                Rect::from_min_size(dropdown_pos, Vec2::new(width, 600.0));
+                Rect::from_min_size(dropdown_pos, Vec2::new(width, scratch_h));
 
             // We need the body's commands to land *between* the dropdown
             // background and any later overlay commands, so they:
@@ -129,7 +139,15 @@ impl ComboBox {
             // background underneath.
             let body_start_main = ui.ctx().paint.len();
 
+            // Content taller than the cap scrolls. The raw height is only
+            // known after an unscrolled render, so it's remembered from the
+            // last such frame (`aux_anim`): the first open of an oversized
+            // popup renders raw once, then scrolls from the next frame on.
+            let prev_content_h =
+                ui.ctx().memory.get(id).map(|m| m.aux_anim).unwrap_or(0.0);
+            let needs_scroll = prev_content_h > self.max_popup_height + 0.5;
             let used_h = {
+                let max_h = self.max_popup_height;
                 let Ui { ctx, text, .. } = ui;
                 let opts = UiOptions {
                     padding: Vec2::new(4.0, 4.0),
@@ -144,7 +162,18 @@ impl ComboBox {
                     dropdown_root,
                 );
                 inner.set_area(Some(popup_area_id));
-                body(&mut inner);
+                if needs_scroll {
+                    super::ScrollArea::new(max_h)
+                        .auto_shrink(false)
+                        .inset(0.0)
+                        .spacing(2.0)
+                        .show(&mut inner, |ui| {
+                            body(ui);
+                        });
+                } else {
+                    body(&mut inner);
+                    measured_h = Some(inner.used_rect().height());
+                }
                 inner.used_rect().height()
             };
 
@@ -203,6 +232,9 @@ impl ComboBox {
         mem.seen_this_frame = true;
         mem.last_rect = trigger_rect;
         mem.bool_state = is_open;
+        if let Some(h) = measured_h {
+            mem.aux_anim = h;
+        }
 
         Response {
             id,
