@@ -187,7 +187,10 @@ letting `WindowRenderer` own the swapchain.
         model import dialog, Save Scene As, file-drop overlay
         (`dialogs_crusty.rs`); center-anchored crusty `Window`s; egui
         fallback intact
-  - [ ] Command palette
+  - [x] Command palette — movable/resizable crusty `Window`, muted
+        selection highlight, focus-on-open search
+        (`command_palette_crusty.rs`); also fixed engine hotkeys on
+        non-Latin keyboard layouts (physical-key fallback)
   - [ ] Input settings / action / context editors
   - [ ] Mesh editor + secondary preview OS windows
   - [ ] Delete egui: fallback panels, app.rs/main.rs branches, egui render
