@@ -194,7 +194,11 @@ letting `WindowRenderer` own the swapchain.
   - [x] Input settings / action / context editors — dock + float tabs,
         listen-for-input overlay, grouped key combos
         (`input_editors_crusty.rs`); egui fallback intact
-  - [ ] Mesh editor + secondary preview OS windows
+  - [x] Mesh editor + secondary preview OS windows — Unreal-style material
+        slots (thumbnail + searchable/tree dropdown, DnD assign, slot
+        add/remove/reset, Save bar) in `mesh_editor_crusty.rs`; mesh
+        undocking now creates crusty float windows (egui secondary
+        window path removed for mesh)
   - [ ] Delete egui: fallback panels, app.rs/main.rs branches, egui render
         pass, FramePacket egui types, Cargo deps
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
@@ -222,6 +226,9 @@ Phases 9–16 reach parity. Everything after is about making crusty-gui
       tabs animating into place), enter/exit animations — builds on the
       existing `approach()` foundation
 - [ ] Hot-reloadable theming (style files, not code) — editor QoL
+- [ ] Theme selection in an editor-settings panel (rust-engine side) —
+      the current crusty editor theme reads darker than the egui one;
+      make brightness/palette a user choice instead of hand-tuned parity
 - [ ] Custom font fallback chains, color emoji, subpixel AA option
 
 ## Phase 19 — Accessibility & i18n
