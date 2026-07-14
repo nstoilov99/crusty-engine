@@ -199,8 +199,11 @@ letting `WindowRenderer` own the swapchain.
         add/remove/reset, Save bar) in `mesh_editor_crusty.rs`; mesh
         undocking now creates crusty float windows (egui secondary
         window path removed for mesh)
-  - [ ] Delete egui: fallback panels, app.rs/main.rs branches, egui render
-        pass, FramePacket egui types, Cargo deps
+  - [x] Delete egui: fallback panels, app.rs/main.rs branches, egui render
+        pass, FramePacket egui types, Cargo deps — zero egui references
+        remain; theme/panel types migrated to crusty math/input, gizmo on
+        the core transform-gizmo crate, `crusty` feature is now an alias
+        of `editor`
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
 - [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
 
