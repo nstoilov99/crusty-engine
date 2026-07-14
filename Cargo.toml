@@ -41,5 +41,8 @@ serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 env_logger = { version = "0.11", optional = true }
 
+[dev-dependencies]
+png = "0.17"
+
 [build-dependencies]
 naga = { version = "22", features = ["wgsl-in", "spv-out"] }

@@ -205,7 +205,12 @@ letting `WindowRenderer` own the swapchain.
         the core transform-gizmo crate, `crusty` feature is now an alias
         of `editor`
 - [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
-- [ ] Snapshot tests (render-to-image compare) + unit tests for layout/input
+- [x] Snapshot tests (render-to-image compare) + unit tests for layout/input —
+      headless-GPU harness (`tests/common/mod.rs`) renders scenes through
+      `TargetRenderer` and compares against golden PNGs in `tests/snapshots/`
+      (`UPDATE_SNAPSHOTS=1` regenerates; bundled DejaVu Sans + injected time
+      for determinism); 7 snapshot scenes, plus `tests/layout.rs` and
+      `tests/input.rs` unit tests
 
 ---
 
