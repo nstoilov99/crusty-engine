@@ -1,3 +1,5 @@
+use std::hash::Hasher;
+
 use crate::math::{Color, Pos2, Rect, Rounding};
 use crate::paint::TextureId;
 
@@ -118,6 +120,182 @@ pub fn scale_alpha(cmds: &mut [PaintCmd], k: f32) {
             }
             PaintCmd::PushClip(_) | PaintCmd::PopClip => {}
         }
+    }
+}
+
+/// Order-sensitive content hash of a paint list.
+///
+/// Renderers compare it against the previous frame's value to skip
+/// re-tessellation and vertex re-upload when nothing changed;
+/// [`Context::end_frame`](crate::context::Context::end_frame) uses it to
+/// report [`FrameOutput::paint_changed`](crate::context::FrameOutput).
+/// Every field of every variant is destructured on purpose so that adding a
+/// variant or field breaks this function instead of silently going unhashed.
+pub fn paint_hash(cmds: &[PaintCmd]) -> u64 {
+    let mut h = PaintHasher(ahash::AHasher::default());
+    h.0.write_usize(cmds.len());
+    for cmd in cmds {
+        match cmd {
+            PaintCmd::Rect { rect, color } => {
+                h.tag(0);
+                h.rect(*rect);
+                h.color(*color);
+            }
+            PaintCmd::Rrect(shape) => {
+                let RectShape {
+                    rect,
+                    rounding: Rounding { nw, ne, sw, se },
+                    fill,
+                    stroke,
+                    shadow,
+                    glow,
+                } = shape;
+                h.tag(1);
+                h.rect(*rect);
+                for r in [nw, ne, sw, se] {
+                    h.f32(*r);
+                }
+                match fill {
+                    Some(c) => {
+                        h.tag(1);
+                        h.color(*c);
+                    }
+                    None => h.tag(0),
+                }
+                match stroke {
+                    Some(Stroke { width, color }) => {
+                        h.tag(1);
+                        h.f32(*width);
+                        h.color(*color);
+                    }
+                    None => h.tag(0),
+                }
+                match shadow {
+                    Some(Shadow { spread, color }) => {
+                        h.tag(1);
+                        h.f32(*spread);
+                        h.color(*color);
+                    }
+                    None => h.tag(0),
+                }
+                match glow {
+                    Some(Glow { size, color }) => {
+                        h.tag(1);
+                        h.f32(*size);
+                        h.color(*color);
+                    }
+                    None => h.tag(0),
+                }
+            }
+            PaintCmd::Line {
+                from,
+                to,
+                width,
+                color,
+            } => {
+                h.tag(2);
+                h.pos(*from);
+                h.pos(*to);
+                h.f32(*width);
+                h.color(*color);
+            }
+            PaintCmd::GradientQuad { rect, colors } => {
+                h.tag(3);
+                h.rect(*rect);
+                for c in colors {
+                    h.color(*c);
+                }
+            }
+            PaintCmd::ConvexPolygon { points, color } => {
+                h.tag(4);
+                h.0.write_usize(points.len());
+                for p in points {
+                    h.pos(*p);
+                }
+                h.color(*color);
+            }
+            PaintCmd::Glyph {
+                rect,
+                uv_min,
+                uv_max,
+                color,
+            } => {
+                h.tag(5);
+                h.rect(*rect);
+                h.pos(*uv_min);
+                h.pos(*uv_max);
+                h.color(*color);
+            }
+            PaintCmd::Image {
+                rect,
+                uv_min,
+                uv_max,
+                tint,
+                texture,
+            } => {
+                h.tag(6);
+                h.rect(*rect);
+                h.pos(*uv_min);
+                h.pos(*uv_max);
+                h.color(*tint);
+                h.0.write_u64(texture.0);
+            }
+            PaintCmd::ColorGlyph {
+                rect,
+                uv_min,
+                uv_max,
+                alpha,
+            } => {
+                h.tag(7);
+                h.rect(*rect);
+                h.pos(*uv_min);
+                h.pos(*uv_max);
+                h.f32(*alpha);
+            }
+            PaintCmd::Mesh { vertices, indices } => {
+                h.tag(8);
+                h.0.write_usize(vertices.len());
+                for (p, c) in vertices {
+                    h.pos(*p);
+                    h.color(*c);
+                }
+                h.0.write_usize(indices.len());
+                for i in indices {
+                    h.0.write_u32(*i);
+                }
+            }
+            PaintCmd::PushClip(rect) => {
+                h.tag(9);
+                h.rect(*rect);
+            }
+            PaintCmd::PopClip => h.tag(10),
+        }
+    }
+    h.0.finish()
+}
+
+struct PaintHasher(ahash::AHasher);
+
+impl PaintHasher {
+    fn tag(&mut self, t: u8) {
+        self.0.write_u8(t);
+    }
+    fn f32(&mut self, v: f32) {
+        self.0.write_u32(v.to_bits());
+    }
+    fn pos(&mut self, p: Pos2) {
+        self.f32(p.x);
+        self.f32(p.y);
+    }
+    fn rect(&mut self, r: Rect) {
+        self.pos(r.min);
+        self.pos(r.max);
+    }
+    fn color(&mut self, c: Color) {
+        self.f32(c.r);
+        self.f32(c.g);
+        self.f32(c.b);
+        self.f32(c.a);
     }
 }
 

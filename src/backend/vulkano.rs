@@ -593,15 +593,32 @@ impl UiRenderer {
         }
     }
 
-    /// Record the UI mesh. `backdrop`/`atlas` are the glassmorphism backdrop
-    /// and R8 glyph atlas (constant for the mesh). `color_atlas` is the
-    /// optional RGBA color-glyph page (`None` → dummy). `registry` resolves
-    /// per-draw [`TextureId`]s for `MODE_IMAGE` quads.
+    /// Upload a tessellated mesh into fresh stream buffers. Returns `None`
+    /// for an empty mesh. Callers cache the result across frames (keyed by
+    /// the paint-list hash) so an unchanged UI skips the re-upload; holding
+    /// a [`UiBuffers`] keeps its allocator arena alive, which is safe under
+    /// the renderers' existing frame fencing.
+    pub fn upload(&self, mesh: &Mesh) -> Option<UiBuffers> {
+        if mesh.is_empty() {
+            return None;
+        }
+        Some(UiBuffers {
+            vertices: self.upload_vertices(&mesh.vertices),
+            indices: self.upload_indices(&mesh.indices),
+        })
+    }
+
+    /// Record the UI mesh from previously [`upload`](Self::upload)ed buffers
+    /// (`buffers` must match `mesh`). `backdrop`/`atlas` are the
+    /// glassmorphism backdrop and R8 glyph atlas (constant for the mesh).
+    /// `color_atlas` is the optional RGBA color-glyph page (`None` → dummy).
+    /// `registry` resolves per-draw [`TextureId`]s for `MODE_IMAGE` quads.
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
         mesh: &Mesh,
+        buffers: &UiBuffers,
         screen_size: [f32; 2],
         backdrop: Arc<ImageView>,
         backdrop_sampler: Arc<Sampler>,
@@ -614,9 +631,6 @@ impl UiRenderer {
         if mesh.is_empty() {
             return;
         }
-
-        let vertex_buffer = self.upload_vertices(&mesh.vertices);
-        let index_buffer = self.upload_indices(&mesh.indices);
 
         let color_atlas = color_atlas.unwrap_or_else(|| self.dummy_view.clone());
         let color_atlas_sampler =
@@ -642,9 +656,9 @@ impl UiRenderer {
                 },
             )
             .expect("push_constants failed")
-            .bind_vertex_buffers(0, vertex_buffer)
+            .bind_vertex_buffers(0, buffers.vertices.clone())
             .expect("bind_vertex_buffers failed")
-            .bind_index_buffer(index_buffer)
+            .bind_index_buffer(buffers.indices.clone())
             .expect("bind_index_buffer failed");
 
         // The image slot (binding 4/5) is the only descriptor that varies
@@ -742,6 +756,13 @@ impl UiRenderer {
             .copy_from_slice(indices);
         buf
     }
+}
+
+/// GPU vertex/index buffers for one uploaded UI mesh — see
+/// [`UiRenderer::upload`].
+pub struct UiBuffers {
+    vertices: Subbuffer<[Vertex]>,
+    indices: Subbuffer<[u32]>,
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────

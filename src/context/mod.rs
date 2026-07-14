@@ -66,6 +66,9 @@ pub struct Context {
     /// Earliest repaint request made this frame (`None` = only repaint on
     /// new input). Reported through [`FrameOutput::repaint_after`].
     repaint_after: Option<Duration>,
+    /// Content hash of the previous frame's merged paint list; compared at
+    /// end_frame to report [`FrameOutput::paint_changed`].
+    last_paint_hash: Option<u64>,
 }
 
 impl Context {
@@ -156,9 +159,13 @@ impl Context {
             paint.extend(cmds);
         }
         paint.extend(overlay);
+        let paint_hash = crate::paint::paint_hash(&paint);
+        let paint_changed = self.last_paint_hash != Some(paint_hash);
+        self.last_paint_hash = Some(paint_hash);
         FrameOutput {
             screen_rect: self.screen_rect,
             paint,
+            paint_changed,
             wants_pointer,
             owns_pointer,
             wants_keyboard,
@@ -263,6 +270,10 @@ impl Context {
 pub struct FrameOutput {
     pub screen_rect: Rect,
     pub paint: Vec<PaintCmd>,
+    /// The merged paint list differs from the previous frame's (content
+    /// hash). When false and `repaint_after` is `None`, the host can keep
+    /// presenting the last rendered image instead of re-rendering.
+    pub paint_changed: bool,
     /// The UI claims the pointer this frame: it is over a widget or a
     /// floating area, or a widget/drag is holding it. A host embedding the
     /// UI over a scene should not forward pointer input to the scene.

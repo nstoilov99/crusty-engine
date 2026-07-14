@@ -33,6 +33,9 @@ fn widgets_basic() {
         ui.progress_bar(0.6);
     });
     h.snapshot("widgets_basic", &paint);
+    // Render the identical paint again: the renderer's hash-skip path must
+    // reuse the cached mesh/buffers and still produce identical pixels.
+    h.snapshot("widgets_basic", &paint);
 }
 
 #[test]

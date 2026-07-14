@@ -14,7 +14,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::backend::vulkano::{BlurRenderer, OffscreenTargets, TextureRegistry, UiRenderer};
+use crate::backend::vulkano::{
+    BlurRenderer, OffscreenTargets, TextureRegistry, UiBuffers, UiRenderer,
+};
 use crate::paint::{Mesh, PaintCmd, Tessellator};
 use crate::text::TextRenderer;
 
@@ -147,6 +149,12 @@ pub struct WindowRenderer {
     tessellator: Tessellator,
     scene_mesh: Mesh,
     ui_mesh: Mesh,
+    /// Paint-list hashes the meshes/buffers were built from; a matching
+    /// hash next frame skips that mesh's tessellation and upload.
+    scene_paint_hash: Option<u64>,
+    ui_paint_hash: Option<u64>,
+    scene_buffers: Option<UiBuffers>,
+    ui_buffers: Option<UiBuffers>,
     tess_us: f32,
     /// Per-pixel-transparent presentation (the drag decorator). The swapchain
     /// uses a premultiplied composite-alpha mode and `render` clears to a fully
@@ -337,6 +345,10 @@ impl WindowRenderer {
             tessellator: Tessellator::new(),
             scene_mesh: Mesh::default(),
             ui_mesh: Mesh::default(),
+            scene_paint_hash: None,
+            ui_paint_hash: None,
+            scene_buffers: None,
+            ui_buffers: None,
             tess_us: 0.0,
             transparent,
         }
@@ -467,13 +479,34 @@ impl WindowRenderer {
         // Flush any glyph bitmaps queued by widget code.
         self.text.atlas_mut().flush_uploads(&mut builder);
 
+        // Re-tessellate and re-upload each mesh only when its paint changed
+        // (content hash — also covers caller-side mutation like
+        // `scale_alpha`). Cached meshes survive resizes: positions are in
+        // points and the screen size is a push constant.
         let tess_start = Instant::now();
-        self.tessellator.reset(&mut self.scene_mesh);
-        self.tessellator.tessellate(scene_paint, &mut self.scene_mesh);
-        self.tessellator.reset(&mut self.ui_mesh);
-        self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
-        let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
-        self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
+        let scene_hash = crate::paint::paint_hash(scene_paint);
+        let mut tessellated = false;
+        if self.scene_paint_hash != Some(scene_hash) {
+            self.scene_paint_hash = Some(scene_hash);
+            self.tessellator.reset(&mut self.scene_mesh);
+            self.tessellator.tessellate(scene_paint, &mut self.scene_mesh);
+            self.scene_buffers = self.ui.upload(&self.scene_mesh);
+            tessellated = true;
+        }
+        let ui_hash = crate::paint::paint_hash(ui_paint);
+        if self.ui_paint_hash != Some(ui_hash) {
+            self.ui_paint_hash = Some(ui_hash);
+            self.tessellator.reset(&mut self.ui_mesh);
+            self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
+            self.ui_buffers = self.ui.upload(&self.ui_mesh);
+            tessellated = true;
+        }
+        if tessellated {
+            let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
+            self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
+        } else {
+            self.tess_us *= 0.9;
+        }
 
         let screen_size = [inner_size[0] as f32, inner_size[1] as f32];
         // Transparent (decorator) windows clear to fully transparent and skip
@@ -499,18 +532,21 @@ impl WindowRenderer {
                 },
             )
             .expect("begin scene render pass failed");
-        self.ui.draw(
-            &mut builder,
-            &self.scene_mesh,
-            screen_size,
-            self.offscreen.dummy_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.text.atlas().view().clone(),
-            self.text.atlas().sampler().clone(),
-            self.text.atlas().rgba_view().cloned(),
-            Some(self.text.atlas().sampler().clone()),
-            &self.registry,
-        );
+        if let Some(buffers) = &self.scene_buffers {
+            self.ui.draw(
+                &mut builder,
+                &self.scene_mesh,
+                buffers,
+                screen_size,
+                self.offscreen.dummy_view().clone(),
+                self.offscreen.sampler().clone(),
+                self.text.atlas().view().clone(),
+                self.text.atlas().sampler().clone(),
+                self.text.atlas().rgba_view().cloned(),
+                Some(self.text.atlas().sampler().clone()),
+                &self.registry,
+            );
+        }
         builder
             .end_render_pass(Default::default())
             .expect("end scene render pass failed");
@@ -588,18 +624,21 @@ impl WindowRenderer {
                 0.0,
             );
         }
-        self.ui.draw(
-            &mut builder,
-            &self.ui_mesh,
-            screen_size,
-            self.offscreen.blur_b_view().clone(),
-            self.offscreen.sampler().clone(),
-            self.text.atlas().view().clone(),
-            self.text.atlas().sampler().clone(),
-            self.text.atlas().rgba_view().cloned(),
-            Some(self.text.atlas().sampler().clone()),
-            &self.registry,
-        );
+        if let Some(buffers) = &self.ui_buffers {
+            self.ui.draw(
+                &mut builder,
+                &self.ui_mesh,
+                buffers,
+                screen_size,
+                self.offscreen.blur_b_view().clone(),
+                self.offscreen.sampler().clone(),
+                self.text.atlas().view().clone(),
+                self.text.atlas().sampler().clone(),
+                self.text.atlas().rgba_view().cloned(),
+                Some(self.text.atlas().sampler().clone()),
+                &self.registry,
+            );
+        }
         builder
             .end_render_pass(Default::default())
             .expect("end present render pass failed");

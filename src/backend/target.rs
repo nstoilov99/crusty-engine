@@ -33,7 +33,7 @@ use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass, Subpa
 use crate::paint::{Mesh, PaintCmd, Tessellator};
 use crate::text::TextRenderer;
 
-use super::vulkano::{BlurRenderer, OffscreenTargets, TextureRegistry, UiRenderer};
+use super::vulkano::{BlurRenderer, OffscreenTargets, TextureRegistry, UiBuffers, UiRenderer};
 
 /// Renders UI paint lists into caller-owned images, one command buffer per
 /// frame. Owns per-target GPU resources (texture registry, blur targets,
@@ -61,6 +61,10 @@ pub struct TargetRenderer {
     registry: TextureRegistry,
     tessellator: Tessellator,
     ui_mesh: Mesh,
+    /// Hash of the paint list `ui_mesh`/`ui_buffers` were built from; when
+    /// the next frame hashes the same, tessellation and upload are skipped.
+    ui_paint_hash: Option<u64>,
+    ui_buffers: Option<UiBuffers>,
     tess_us: f32,
 }
 
@@ -133,6 +137,8 @@ impl TargetRenderer {
             registry,
             tessellator: Tessellator::new(),
             ui_mesh: Mesh::default(),
+            ui_paint_hash: None,
+            ui_buffers: None,
             tess_us: 0.0,
         }
     }
@@ -196,11 +202,22 @@ impl TargetRenderer {
         // Flush any glyph bitmaps queued by widget code.
         text.atlas_mut().flush_uploads(&mut builder);
 
-        let tess_start = Instant::now();
-        self.tessellator.reset(&mut self.ui_mesh);
-        self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
-        let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
-        self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
+        // Re-tessellate and re-upload only when the paint actually changed
+        // (the hash is over content, so this also covers host-side mutation
+        // like `scale_alpha`). The cached mesh is resolution-independent:
+        // positions are in points and the screen size is a push constant.
+        let paint_hash = crate::paint::paint_hash(ui_paint);
+        if self.ui_paint_hash != Some(paint_hash) {
+            self.ui_paint_hash = Some(paint_hash);
+            let tess_start = Instant::now();
+            self.tessellator.reset(&mut self.ui_mesh);
+            self.tessellator.tessellate(ui_paint, &mut self.ui_mesh);
+            self.ui_buffers = self.ui.upload(&self.ui_mesh);
+            let tess_us = tess_start.elapsed().as_secs_f32() * 1e6;
+            self.tess_us = self.tess_us * 0.9 + tess_us * 0.1;
+        } else {
+            self.tess_us *= 0.9;
+        }
 
         let screen_size = [extent[0] as f32, extent[1] as f32];
         let zero_clear = [0.0_f32, 0.0, 0.0, 1.0];
@@ -259,18 +276,21 @@ impl TargetRenderer {
         } else {
             self.offscreen.dummy_view().clone()
         };
-        self.ui.draw(
-            &mut builder,
-            &self.ui_mesh,
-            screen_size,
-            glass_backdrop,
-            self.offscreen.sampler().clone(),
-            text.atlas().view().clone(),
-            text.atlas().sampler().clone(),
-            text.atlas().rgba_view().cloned(),
-            Some(text.atlas().sampler().clone()),
-            &self.registry,
-        );
+        if let Some(buffers) = &self.ui_buffers {
+            self.ui.draw(
+                &mut builder,
+                &self.ui_mesh,
+                buffers,
+                screen_size,
+                glass_backdrop,
+                self.offscreen.sampler().clone(),
+                text.atlas().view().clone(),
+                text.atlas().sampler().clone(),
+                text.atlas().rgba_view().cloned(),
+                Some(text.atlas().sampler().clone()),
+                &self.registry,
+            );
+        }
         builder
             .end_render_pass(Default::default())
             .expect("end target render pass failed");
