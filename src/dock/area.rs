@@ -314,10 +314,11 @@ impl<'a> DockArea<'a> {
         //    up drop zones at the translated cursor and re-dock on release.
         if let Some(ext) = &self.external {
             if let Some((anchor, leaf_rect)) = locate_leaf(self.root, rect, ext.pointer) {
-                // Unreal-style drop semantics, with the full compass visible:
-                //   • tab bar       → dock as a tab next to the others
-                //   • N/S/E/W edge  → split the leaf in that direction
-                //   • center / body → float (becomes its own window)
+                // Drop semantics, with the full compass visible:
+                //   • tab bar        → dock as a tab next to the others
+                //   • N/S/E/W button → split the leaf in that direction
+                //   • center button  → dock as a tab into the leaf
+                //   • leaf body      → float (becomes its own window)
                 let tab_bar_rect = Rect::from_min_max(
                     leaf_rect.min,
                     Pos2::new(leaf_rect.max.x, leaf_rect.min.y + opts.tab_bar_h),
@@ -385,18 +386,9 @@ impl<'a> DockArea<'a> {
                             tab_slot.map(|(idx, _)| idx),
                         );
                         response.docked = true;
-                    } else if let Some(edge) = button {
-                        // Center button drops fall through to the float path.
-                        if edge != DropZone::Center {
-                            insert_at(
-                                self.root,
-                                &candidate.target_anchor,
-                                &ext.tab_id,
-                                edge,
-                                None,
-                            );
-                            response.docked = true;
-                        }
+                    } else if let Some(zone) = button {
+                        insert_at(self.root, &candidate.target_anchor, &ext.tab_id, zone, None);
+                        response.docked = true;
                     }
                 }
             } else if ext.released && ext.force {

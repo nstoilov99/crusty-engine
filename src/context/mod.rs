@@ -334,6 +334,8 @@ pub struct InputState {
     /// Secondary pointer button transitioned to "down" this frame
     /// (right-click — used to open context menus).
     pub right_pressed: bool,
+    /// Middle pointer button is currently held (orbit-pan style drags).
+    pub middle_down: bool,
     pub scroll_delta: crate::math::Vec2,
     pub modifiers: Modifiers,
     /// Characters typed this frame (composed text, IME-friendly when
@@ -425,6 +427,9 @@ impl InputState {
                 }
                 if matches!(button, MouseButton::Secondary) && *pressed {
                     self.right_pressed = true;
+                }
+                if matches!(button, MouseButton::Middle) {
+                    self.middle_down = *pressed;
                 }
             }
             Event::Scroll(delta) => {

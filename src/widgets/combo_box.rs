@@ -15,6 +15,7 @@ pub struct ComboBox {
     id_source: String,
     selected_text: String,
     width: Option<f32>,
+    popup_width: Option<f32>,
     max_popup_height: f32,
 }
 
@@ -24,6 +25,7 @@ impl ComboBox {
             id_source: id_source.into(),
             selected_text: String::new(),
             width: None,
+            popup_width: None,
             max_popup_height: 200.0,
         }
     }
@@ -41,6 +43,13 @@ impl ComboBox {
     /// Cap the dropdown's height (default 200); taller content scrolls.
     pub fn max_popup_height(mut self, h: f32) -> Self {
         self.max_popup_height = h;
+        self
+    }
+
+    /// Dropdown width (defaults to the trigger's width). Useful when the
+    /// options are longer than the trigger can afford to be.
+    pub fn popup_width(mut self, w: f32) -> Self {
+        self.popup_width = Some(w);
         self
     }
 
@@ -83,6 +92,8 @@ impl ComboBox {
         // Selected text + ▼ arrow
         let arrow_str = "\u{25BC}".to_string();
         let arrow_size = ui.text_mut().measure(&arrow_str, style.fonts.body, None);
+        let text_max_w = width - 16.0 - arrow_size.x - 4.0;
+        let selected_text = elide(ui, &self.selected_text, style.fonts.body, text_max_w);
         let selected_pos = Pos2::new(
             trigger_rect.min.x + 8.0,
             trigger_rect.min.y + (trigger_h - style.fonts.body) * 0.5,
@@ -95,7 +106,7 @@ impl ComboBox {
             let Ui { ctx, text, .. } = ui;
             text.add_text(
                 &mut ctx.paint,
-                &self.selected_text,
+                &selected_text,
                 style.fonts.body,
                 selected_pos,
                 style.palette.text,
@@ -114,13 +125,14 @@ impl ComboBox {
         // ── Dropdown render (overlay)
         let mut measured_h = None;
         if is_open {
+            let popup_w = self.popup_width.unwrap_or(width);
             let dropdown_root = id.with("popup");
             let popup_area_id = id.with("popup_area");
             let dropdown_pos = super::popup_pos(
                 ui,
                 popup_area_id,
                 trigger_rect,
-                width,
+                popup_w,
                 trigger_h,
                 2.0,
             );
@@ -128,7 +140,7 @@ impl ComboBox {
             // than this after we measure the body.
             let scratch_h = 600.0_f32.max(self.max_popup_height + 16.0);
             let scratch_rect =
-                Rect::from_min_size(dropdown_pos, Vec2::new(width, scratch_h));
+                Rect::from_min_size(dropdown_pos, Vec2::new(popup_w, scratch_h));
 
             // We need the body's commands to land *between* the dropdown
             // background and any later overlay commands, so they:
@@ -182,7 +194,7 @@ impl ComboBox {
 
             let dropdown_rect = Rect::from_min_size(
                 dropdown_pos,
-                Vec2::new(width, (used_h + 8.0).max(trigger_h)),
+                Vec2::new(popup_w, (used_h + 8.0).max(trigger_h)),
             );
 
             // Now push background + drained body into overlay.
@@ -246,4 +258,19 @@ impl ComboBox {
             press_anim: 0.0,
         }
     }
+}
+
+fn elide(ui: &mut Ui, text: &str, size: f32, max_w: f32) -> String {
+    if ui.text_mut().measure(text, size, None).x <= max_w {
+        return text.to_string();
+    }
+    let mut s: String = text.to_string();
+    while !s.is_empty() {
+        s.pop();
+        let candidate = format!("{s}\u{2026}");
+        if ui.text_mut().measure(&candidate, size, None).x <= max_w {
+            return candidate;
+        }
+    }
+    "\u{2026}".into()
 }
