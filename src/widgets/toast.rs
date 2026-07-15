@@ -88,6 +88,11 @@ impl Ui<'_> {
             t.age += dt;
         }
         items.retain(|t| t.age < t.ttl);
+        // Ages are dt-driven: keep frames coming while any toast is alive so
+        // fades and expiry don't stall on a static UI.
+        if !items.is_empty() {
+            self.ctx_mut().request_repaint();
+        }
 
         let style = self.style();
         let screen = self.ctx().screen_rect();

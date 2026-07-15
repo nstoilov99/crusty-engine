@@ -266,6 +266,10 @@ struct EditorState {
     settings_open: bool,
     about_open: bool,
     open_mesh_requested: bool,
+    /// Timing figures as currently displayed (frame ms, ui µs, tess µs) —
+    /// refreshed at 4 Hz so the labels don't change paint every frame.
+    stats_shown: (f32, f32, f32),
+    stats_shown_at: f64,
 }
 
 impl Default for EditorState {
@@ -306,6 +310,8 @@ impl Default for EditorState {
             settings_open: true,
             about_open: false,
             open_mesh_requested: false,
+            stats_shown: (0.0, 0.0, 0.0),
+            stats_shown_at: -1.0,
         }
     }
 }
@@ -647,7 +653,11 @@ impl Editor {
                 });
                 let output = self.mesh_ctx.end_frame();
                 renderer.render(&[], &output.paint);
-                renderer.window().request_redraw();
+                // The spinning triangle changes the paint every frame, so this
+                // gate keeps it animating while letting a static window idle.
+                if output.paint_changed || output.repaint_after.is_some() {
+                    renderer.window().request_redraw();
+                }
             }
             other => apply_input_event(
                 other,
@@ -662,6 +672,17 @@ impl Editor {
 /// Render one dock panel's content. Shared by the main window's dock and
 /// popped-out OS windows, so a torn-off panel shows its real UI.
 fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelStats) {
+    // Refresh the displayed timing figures at most 4×/sec. Displaying the raw
+    // per-frame numbers would change the paint every frame, and with damage
+    // tracking that self-sustains: the jittering label alone keeps the redraw
+    // chain alive forever. Quantized, the paint stabilizes and the UI idles.
+    // The first frame after an idle stretch reports the clamped 100ms idle
+    // gap as its dt — not a real frame time, so don't display it.
+    let now = ui.ctx().time();
+    if now - ed.stats_shown_at >= 0.25 && stats.frame_time_ms < 99.0 {
+        ed.stats_shown_at = now;
+        ed.stats_shown = (stats.frame_time_ms, stats.ui_us, stats.tess_us);
+    }
     let volume = &mut ed.volume;
     let brightness = &mut ed.brightness;
     let preview_enabled = &mut ed.preview_enabled;
@@ -681,9 +702,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let settings_open = &mut ed.settings_open;
     let about_open = &mut ed.about_open;
     let open_mesh = &mut ed.open_mesh_requested;
-    let frame_time_ms = stats.frame_time_ms;
-    let ui_us = stats.ui_us;
-    let tess_us = stats.tess_us;
+    let (frame_time_ms, ui_us, tess_us) = ed.stats_shown;
     let gpu_name = &stats.gpu_name;
     let demo_texture = stats.demo_texture;
     let mesh_already_open = stats.mesh_already_open;

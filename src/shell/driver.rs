@@ -5,12 +5,12 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId, WindowLevel};
 
 use crate::context::{Context, CursorIcon, Direction, Ui, UiOptions};
@@ -178,6 +178,12 @@ pub struct Shell<A: DockApp> {
     /// compass lingers as a stale framebuffer. Pumping a few trailing frames
     /// flushes it. Set on resolution, counted down in `about_to_wait`.
     drag_settle: u32,
+    /// Hash of the last main-window `scene_paint`; a changed scene keeps the
+    /// redraw chain alive even when the UI paint is static.
+    scene_paint_hash: Option<u64>,
+    /// Earliest pending timed repaint (`FrameOutput::repaint_after` — caret
+    /// blink, toasts). Serviced in `about_to_wait` via `ControlFlow::WaitUntil`.
+    repaint_at: Option<Instant>,
 }
 
 impl<A: DockApp> Shell<A> {
@@ -217,6 +223,40 @@ impl<A: DockApp> Shell<A> {
             decorator_pool: None,
             demoted_host: None,
             drag_settle: 0,
+            scene_paint_hash: None,
+            repaint_at: None,
+        }
+    }
+
+    /// Reactive redraw scheduling: keep the frame chain alive only while
+    /// something is actually animating (`changed` — this frame's paint
+    /// differs, so the *next* frame may too) or an immediate repaint was
+    /// requested; park timed requests for `about_to_wait` to service.
+    fn schedule_redraw(&mut self, window: &winit::window::Window, changed: bool, repaint_after: Option<Duration>) {
+        if changed || repaint_after == Some(Duration::ZERO) {
+            window.request_redraw();
+        } else if let Some(after) = repaint_after {
+            let at = Instant::now() + after;
+            self.repaint_at = Some(self.repaint_at.map_or(at, |t| t.min(at)));
+        }
+    }
+
+    /// Windows' OS modal move/resize loop starves `about_to_wait` and
+    /// coalesces redraw requests, so a plain `request_redraw` from
+    /// `Moved`/`Resized` renders erratically (~100ms gaps) while the window
+    /// is dragged. Render synchronously from the event instead, gated to
+    /// ~8ms so event bursts don't outpace the display.
+    fn pump_modal_frame(&mut self, event_loop: &ActiveEventLoop) {
+        let time = self
+            .start
+            .map(|t| t.elapsed().as_secs_f64())
+            .unwrap_or_default();
+        if time - self.last_frame_time >= 0.008 {
+            self.render_main(event_loop);
+        } else if let Some(main) = self.main_window.as_ref() {
+            // Too soon: park a redraw so the final event of the drag still
+            // produces an up-to-date frame once the modal loop ends.
+            main.window().request_redraw();
         }
     }
 
@@ -350,9 +390,10 @@ impl<A: DockApp> ApplicationHandler for Shell<A> {
             WindowEvent::Resized(_) => {
                 if let Some(renderer) = self.main_window.as_mut() {
                     renderer.request_rebuild();
-                    renderer.window().request_redraw();
                 }
+                self.pump_modal_frame(event_loop);
             }
+            WindowEvent::Moved(_) => self.pump_modal_frame(event_loop),
             WindowEvent::CursorMoved { position, .. } => {
                 let pos = Pos2::new(position.x as f32, position.y as f32);
                 // Driving a tab tear-off: the main window holds the OS capture,
@@ -432,6 +473,13 @@ impl<A: DockApp> ApplicationHandler for Shell<A> {
             WindowEvent::RedrawRequested => self.render_main(event_loop),
             _ => {}
         }
+        // Redraws are gated on paint changes now, so queued input must wake
+        // the frame loop itself.
+        if !self.pending_events.is_empty()
+            && let Some(main) = self.main_window.as_ref()
+        {
+            main.window().request_redraw();
+        }
     }
 
     /// Backstop for the rare frame where a drag resolves without an immediate
@@ -439,7 +487,27 @@ impl<A: DockApp> ApplicationHandler for Shell<A> {
     /// overlay-bearing host repainting for a few settle frames so a stale compass
     /// can't linger. The decorator card is never touched — it deliberately freezes
     /// to trail the cursor via DWM compositing.
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Service timed repaints (caret blink, toasts) parked by
+        // `schedule_redraw`. Due deadlines wake every non-decorator window —
+        // unchanged ones re-idle after one cheap hash-skipped frame.
+        match self.repaint_at {
+            Some(at) if at <= Instant::now() => {
+                self.repaint_at = None;
+                if let Some(main) = self.main_window.as_ref() {
+                    main.window().request_redraw();
+                }
+                for h in self.panel_windows.iter() {
+                    if !h.is_decorator {
+                        h.renderer.window().request_redraw();
+                    }
+                }
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+            Some(at) => event_loop.set_control_flow(ControlFlow::WaitUntil(at)),
+            None => event_loop.set_control_flow(ControlFlow::Wait),
+        }
+
         let drag_active = self.tab_drag.is_some()
             || self.window_drag.is_some()
             || self.main_driving_tearoff
@@ -602,8 +670,16 @@ impl<A: DockApp> Shell<A> {
         renderer.window().set_cursor(winit_cursor(output.cursor_icon));
         let inner_size: [u32; 2] = size.into();
         let scene_paint = self.app.scene_paint(inner_size);
+        let scene_hash = crate::paint::paint_hash(&scene_paint);
+        let scene_changed = self.scene_paint_hash != Some(scene_hash);
+        self.scene_paint_hash = Some(scene_hash);
         renderer.render(&scene_paint, &output.paint);
-        renderer.window().request_redraw();
+        let main_win = renderer.window().clone();
+        self.schedule_redraw(
+            &main_win,
+            output.paint_changed || scene_changed,
+            output.repaint_after,
+        );
 
         // Opening another window pulls OS focus off the main window, so its
         // own deferred redraw is dropped by Windows and the just-closed menu
@@ -1150,10 +1226,10 @@ impl<A: DockApp> Shell<A> {
                 self.panel_windows.remove(idx);
             }
             WindowEvent::Resized(_) => {
-                let pw = &mut self.panel_windows[idx];
-                pw.renderer.request_rebuild();
-                pw.renderer.window().request_redraw();
+                self.panel_windows[idx].renderer.request_rebuild();
+                self.pump_host_modal_frame(event_loop, idx);
             }
+            WindowEvent::Moved(_) => self.pump_host_modal_frame(event_loop, idx),
             WindowEvent::RedrawRequested => {
                 if self.panel_windows[idx].is_decorator {
                     // The decorator is a transparent cursor card, not a real dock
@@ -1241,6 +1317,24 @@ impl<A: DockApp> Shell<A> {
                 pw.renderer.window().request_redraw();
             }
         }
+    }
+
+    /// Same modal-loop pump as [`pump_modal_frame`](Self::pump_modal_frame),
+    /// for a floating dock host. Decorators are exempt — they deliberately
+    /// freeze and trail the cursor via DWM compositing.
+    fn pump_host_modal_frame(&mut self, event_loop: &ActiveEventLoop, idx: usize) {
+        let pw = &self.panel_windows[idx];
+        if pw.is_decorator {
+            pw.renderer.window().request_redraw();
+            return;
+        }
+        let time = pw.start.elapsed().as_secs_f64();
+        if time - pw.last_frame_time < 0.008 {
+            pw.renderer.window().request_redraw();
+            return;
+        }
+        let (resp, drop_released) = self.render_dock_host(idx);
+        self.resolve_host_frame(event_loop, idx, resp, drop_released);
     }
 
     /// While the title strip is held, re-dock the whole window: capture its tabs,
@@ -1492,7 +1586,8 @@ impl<A: DockApp> Shell<A> {
         let output = pw.ctx.end_frame();
         pw.renderer.window().set_cursor(winit_cursor(output.cursor_icon));
         pw.renderer.render(&[], &output.paint);
-        pw.renderer.window().request_redraw();
+        let win = pw.renderer.window().clone();
+        self.schedule_redraw(&win, output.paint_changed, output.repaint_after);
         (resp, drop_released)
     }
 

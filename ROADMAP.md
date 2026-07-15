@@ -204,7 +204,12 @@ letting `WindowRenderer` own the swapchain.
         remain; theme/panel types migrated to crusty math/input, gizmo on
         the core transform-gizmo crate, `crusty` feature is now an alias
         of `editor`
-- [ ] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse
+- [x] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse —
+      paint-hash gating end to end: renderers skip tessellation/upload and
+      reuse cached GPU buffers on identical paint (`d936c15`); the shell only
+      redraws on paint change, input, or timed wakeups (`FrameOutput::
+      paint_changed` + `repaint_after` via `ControlFlow::WaitUntil`), with a
+      synchronous frame pump for Windows' modal move/resize loop
 - [x] Snapshot tests (render-to-image compare) + unit tests for layout/input —
       headless-GPU harness (`tests/common/mod.rs`) renders scenes through
       `TargetRenderer` and compares against golden PNGs in `tests/snapshots/`

@@ -354,7 +354,14 @@ impl<'a> TextEdit<'a> {
 
         // Caret. Blinks while focused.
         if focused {
-            let blink_on = ((ui.ctx().time() * 2.0).fract()) < 0.55;
+            let phase = (ui.ctx().time() * 2.0).fract();
+            let blink_on = phase < 0.55;
+            // Wake the host exactly at the next on/off toggle (phase advances
+            // 2/sec); without this a static frame would freeze the blink.
+            let to_boundary = if blink_on { 0.55 - phase } else { 1.0 - phase };
+            ui.ctx_mut().request_repaint_after(std::time::Duration::from_secs_f64(
+                to_boundary / 2.0 + 0.005,
+            ));
             if blink_on {
                 let caret_x = text_x + caret_off + 1.0;
                 let caret_rect = Rect::from_min_size(
