@@ -100,13 +100,15 @@ impl Popup {
                 is_open = false;
             }
             // Click outside anchor AND popup closes (the anchor's own click
-            // is the caller's toggle).
+            // is the caller's toggle). A click in any topmost area (e.g. a
+            // combo dropdown overflowing the panel) is not an outside-click
+            // — same rule as menu_panel, or child popups would collapse us.
             if ui.ctx().input.pointer_pressed
-                && ui
-                    .ctx()
-                    .input
-                    .pointer_pos
-                    .is_some_and(|p| !self.anchor.contains(p) && !popup_rect.contains(p))
+                && ui.ctx().input.pointer_pos.is_some_and(|p| {
+                    !self.anchor.contains(p)
+                        && !popup_rect.contains(p)
+                        && !ui.ctx().memory.topmost_area_contains(p)
+                })
             {
                 is_open = false;
             }
