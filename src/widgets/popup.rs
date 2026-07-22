@@ -56,7 +56,11 @@ impl Popup {
 
             // Body commands go to the main list first, then move to the
             // overlay above a background fill (same trick as ComboBox).
+            // Overlay commands a child emits meanwhile (e.g. a combo's
+            // dropdown list) must land *above* the popup's own fill, so
+            // they are drained too and re-appended last.
             let body_start = ui.ctx().paint.len();
+            let overlay_start = ui.ctx().overlay_paint.len();
             let used_h = {
                 let Ui { ctx, text, .. } = ui;
                 let opts = UiOptions {
@@ -76,6 +80,8 @@ impl Popup {
                 inner.used_rect().height()
             };
             let drained: Vec<PaintCmd> = ui.ctx_mut().paint.drain(body_start..).collect();
+            let overlay_drained: Vec<PaintCmd> =
+                ui.ctx_mut().overlay_paint.drain(overlay_start..).collect();
 
             let popup_rect = Rect::from_min_size(pos, Vec2::new(self.width, used_h + 8.0));
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
@@ -84,6 +90,7 @@ impl Popup {
                     .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
             ));
             ui.ctx_mut().overlay_paint.extend(drained);
+            ui.ctx_mut().overlay_paint.extend(overlay_drained);
 
             // Top-order interaction area so items win pointer priority.
             let area = ui
