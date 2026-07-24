@@ -132,6 +132,13 @@ impl Ui<'_> {
         Label::new(text).show(self)
     }
 
+    /// Label in the bundled mono family, at the style's mono size —
+    /// values, paths, shortcuts, logs.
+    pub fn mono_label(&mut self, text: impl Into<String>) -> Response {
+        let size = self.style().fonts.mono;
+        Label::new(text).mono().size(size).show(self)
+    }
+
     pub fn button(&mut self, text: impl Into<String>) -> Response {
         Button::new(text).show(self)
     }

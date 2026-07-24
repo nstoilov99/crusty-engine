@@ -36,6 +36,7 @@ pub mod prelude {
     pub use crate::response::Response;
     pub use crate::dock::{DockArea, DockNode, SplitDirection};
     pub use crate::style::Style;
+    pub use crate::text::FontFamily;
     pub use crate::widgets::{
         Area, Button, Checkbox, CollapsingHeader, Column, ComboBox, Grid, GridUi, Image,
         ImageButton, Label, ProgressBar, Radio, ScrollArea, SelectableValue, Slider, SortDir,

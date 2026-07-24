@@ -45,6 +45,24 @@ struct ShapedText {
     last_used: u64,
 }
 
+/// Which bundled font family a text run shapes with.
+///
+/// `Ui` is IBM Plex Sans; `Mono` is JetBrains Mono — per the design
+/// system, mono is used wherever a value can change width (numbers,
+/// paths, shortcuts, logs) to stop layout jitter. If the mono face
+/// failed to load, `Mono` falls back to the UI family.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum FontFamily {
+    #[default]
+    Ui,
+    Mono,
+}
+
+// Bundled fonts (SIL OFL 1.1 — licenses alongside in fonts/).
+const FONT_UI_REGULAR: &[u8] = include_bytes!("../../fonts/IBMPlexSans-Regular.ttf");
+const FONT_UI_MEDIUM: &[u8] = include_bytes!("../../fonts/IBMPlexSans-Medium.ttf");
+const FONT_MONO: &[u8] = include_bytes!("../../fonts/JetBrainsMono-Regular.ttf");
+
 pub struct TextRenderer {
     font_system: FontSystem,
     swash_cache: SwashCache,
@@ -52,7 +70,8 @@ pub struct TextRenderer {
     cache: HashMap<u64, Option<CachedGlyph>, std::hash::BuildHasherDefault<AHasher>>,
     shape_cache: HashMap<u64, ShapedText, std::hash::BuildHasherDefault<AHasher>>,
     frame: u64,
-    default_family: Option<String>,
+    ui_family: Option<String>,
+    mono_family: Option<String>,
 }
 
 impl TextRenderer {
@@ -62,15 +81,20 @@ impl TextRenderer {
         let font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
         let atlas = GlyphAtlas::new(memory_allocator, device, atlas_extent);
-        Self {
+        let mut this = Self {
             font_system,
             swash_cache,
             atlas,
             cache: HashMap::default(),
             shape_cache: HashMap::default(),
             frame: 0,
-            default_family: None,
-        }
+            ui_family: None,
+            mono_family: None,
+        };
+        this.ui_family = this.load_font(FONT_UI_REGULAR.to_vec());
+        this.load_font(FONT_UI_MEDIUM.to_vec());
+        this.mono_family = this.load_font(FONT_MONO.to_vec());
+        this
     }
 
     /// Register a font from raw TTF/OTF bytes and return its family name
@@ -86,10 +110,16 @@ impl TextRenderer {
         face.families.first().map(|(name, _)| name.clone())
     }
 
-    /// Shape all subsequent text with this font family instead of the
-    /// system default. Clears the shape cache so existing labels reflow.
+    /// Override the UI font family (replaces the bundled IBM Plex Sans).
+    /// Clears the shape cache so existing labels reflow.
     pub fn set_default_family(&mut self, name: impl Into<String>) {
-        self.default_family = Some(name.into());
+        self.ui_family = Some(name.into());
+        self.shape_cache.clear();
+    }
+
+    /// Override the mono font family (replaces the bundled JetBrains Mono).
+    pub fn set_mono_family(&mut self, name: impl Into<String>) {
+        self.mono_family = Some(name.into());
         self.shape_cache.clear();
     }
 
@@ -103,8 +133,14 @@ impl TextRenderer {
     }
 
     /// Shape `text` (or reuse a cached layout) and return the cache key.
-    fn ensure_shaped(&mut self, text: &str, size_px: f32, max_width: Option<f32>) -> u64 {
-        let hash = shape_key_hash(text, size_px, max_width);
+    fn ensure_shaped(
+        &mut self,
+        text: &str,
+        size_px: f32,
+        max_width: Option<f32>,
+        family: FontFamily,
+    ) -> u64 {
+        let hash = shape_key_hash(text, size_px, max_width, family);
         if let Some(s) = self.shape_cache.get_mut(&hash) {
             s.last_used = self.frame;
             return hash;
@@ -114,7 +150,11 @@ impl TextRenderer {
         let metrics = Metrics::new(size_px, line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
         buffer.set_size(&mut self.font_system, max_width, None);
-        let attrs = match self.default_family.as_deref() {
+        let name = match family {
+            FontFamily::Ui => self.ui_family.as_deref(),
+            FontFamily::Mono => self.mono_family.as_deref().or(self.ui_family.as_deref()),
+        };
+        let attrs = match name {
             Some(name) => Attrs::new().family(Family::Name(name)),
             None => Attrs::new(),
         };
@@ -144,15 +184,27 @@ impl TextRenderer {
     /// Shape `text` and return its tight bounding-box size in physical
     /// pixels. Does not rasterise or upload glyphs — pair with a
     /// subsequent [`add_text`](Self::add_text) at the same parameters to
-    /// emit paint commands.
+    /// emit paint commands. Uses the UI family.
     pub fn measure(&mut self, text: &str, size_px: f32, max_width: Option<f32>) -> Vec2 {
-        let hash = self.ensure_shaped(text, size_px, max_width);
+        self.measure_family(text, size_px, max_width, FontFamily::Ui)
+    }
+
+    /// [`measure`](Self::measure) with an explicit font family.
+    pub fn measure_family(
+        &mut self,
+        text: &str,
+        size_px: f32,
+        max_width: Option<f32>,
+        family: FontFamily,
+    ) -> Vec2 {
+        let hash = self.ensure_shaped(text, size_px, max_width, family);
         self.shape_cache[&hash].size
     }
 
     /// Shape `text` at `size_px` and append a [`PaintCmd::Glyph`] for
     /// every glyph. `position` is the top-left corner of the layout box.
-    /// `max_width` constrains line breaks (`None` = unbounded).
+    /// `max_width` constrains line breaks (`None` = unbounded). Uses the
+    /// UI family.
     pub fn add_text(
         &mut self,
         paint: &mut Vec<PaintCmd>,
@@ -162,7 +214,22 @@ impl TextRenderer {
         color: Color,
         max_width: Option<f32>,
     ) {
-        let hash = self.ensure_shaped(text, size_px, max_width);
+        self.add_text_family(paint, text, size_px, position, color, max_width, FontFamily::Ui)
+    }
+
+    /// [`add_text`](Self::add_text) with an explicit font family.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_text_family(
+        &mut self,
+        paint: &mut Vec<PaintCmd>,
+        text: &str,
+        size_px: f32,
+        position: Pos2,
+        color: Color,
+        max_width: Option<f32>,
+        family: FontFamily,
+    ) {
+        let hash = self.ensure_shaped(text, size_px, max_width, family);
 
         // Collect physical glyph placements first (borrows the shaped
         // buffer), then rasterise — `ensure_cached` needs `&mut self`.
@@ -294,12 +361,13 @@ fn measure_buffer(buffer: &Buffer, size_px: f32) -> Vec2 {
     Vec2::new(max_x.ceil(), height.ceil())
 }
 
-fn shape_key_hash(text: &str, size_px: f32, max_width: Option<f32>) -> u64 {
+fn shape_key_hash(text: &str, size_px: f32, max_width: Option<f32>, family: FontFamily) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = AHasher::default();
     text.hash(&mut h);
     size_px.to_bits().hash(&mut h);
     max_width.map(|w| w.to_bits()).hash(&mut h);
+    family.hash(&mut h);
     h.finish()
 }
 

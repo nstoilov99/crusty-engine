@@ -78,6 +78,8 @@ pub struct Fonts {
     pub body: f32,
     pub title: f32,
     pub small: f32,
+    /// Size for the bundled mono family (values, paths, shortcuts, logs).
+    pub mono: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -133,6 +135,7 @@ impl Style {
                 body: 13.0,
                 title: 18.0,
                 small: 11.0,
+                mono: 12.0,
             },
             rounding: RoundingSet {
                 panel: Rounding::same(4.0),
@@ -187,6 +190,7 @@ impl Style {
                 body: 16.0,
                 title: 40.0,
                 small: 13.0,
+                mono: 13.0,
             },
             rounding: RoundingSet {
                 panel: Rounding::same(20.0),

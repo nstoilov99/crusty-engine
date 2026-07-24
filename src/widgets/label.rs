@@ -2,12 +2,14 @@ use crate::animation::approach_half_life;
 use crate::context::Ui;
 use crate::math::Color;
 use crate::response::Response;
+use crate::text::FontFamily;
 
 pub struct Label {
     text: String,
     size: Option<f32>,
     color: Option<Color>,
     wrap: bool,
+    family: FontFamily,
 }
 
 impl Label {
@@ -17,7 +19,15 @@ impl Label {
             size: None,
             color: None,
             wrap: true,
+            family: FontFamily::Ui,
         }
+    }
+
+    /// Render with the bundled mono family (values, paths, shortcuts —
+    /// anything whose width shouldn't jitter as it changes).
+    pub fn mono(mut self) -> Self {
+        self.family = FontFamily::Mono;
+        self
     }
 
     /// Disable wrapping: the label takes its natural single-line width even
@@ -45,7 +55,9 @@ impl Label {
 
         let id = ui.alloc_id(&self.text);
         let max_width = self.wrap.then(|| ui.available_size().x);
-        let measured = ui.text_mut().measure(&self.text, size, max_width);
+        let measured = ui
+            .text_mut()
+            .measure_family(&self.text, size, max_width, self.family);
         let rect = ui.allocate(measured);
 
         let dt = ui.ctx().dt();
@@ -58,7 +70,15 @@ impl Label {
         let press_anim = mem.press_anim;
 
         let Ui { ctx, text, .. } = ui;
-        text.add_text(&mut ctx.paint, &self.text, size, rect.min, color, max_width);
+        text.add_text_family(
+            &mut ctx.paint,
+            &self.text,
+            size,
+            rect.min,
+            color,
+            max_width,
+            self.family,
+        );
 
         Response {
             id,
