@@ -42,6 +42,12 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;
+        }
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if activated {
+            clicked = true;
+        }
+        if clicked {
             *self.selection = self.option;
         }
 
@@ -72,7 +78,11 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
             style.palette.text_disabled,
             hover_anim,
         );
-        let outline = lerp_color(off_outline, style.palette.accent_active, check_anim);
+        let outline = if focused {
+            style.palette.focus_ring
+        } else {
+            lerp_color(off_outline, style.palette.accent_active, check_anim)
+        };
         let outer = RectShape::fill(outer_rect, Rounding::same(box_size * 0.5), fill)
             .with_stroke(style.metrics.border, outline);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(outer));

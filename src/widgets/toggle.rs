@@ -58,6 +58,12 @@ impl<'a> Toggle<'a> {
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;
+        }
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if self.enabled && activated {
+            clicked = true;
+        }
+        if clicked {
             *self.value = !*self.value;
         }
 
@@ -90,13 +96,18 @@ impl<'a> Toggle<'a> {
                 p.stroke_strong,
             )
         } else {
-            (
-                lerp_color(p.hover, p.accent_active, on_anim),
+            let stroke = if focused {
+                p.focus_ring
+            } else {
                 lerp_color(
                     lerp_color(p.stroke, p.stroke_strong, hover_anim),
                     p.accent_active,
                     on_anim,
-                ),
+                )
+            };
+            (
+                lerp_color(p.hover, p.accent_active, on_anim),
+                stroke,
                 p.text_secondary,
                 crate::math::Color::WHITE,
             )

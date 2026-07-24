@@ -132,6 +132,10 @@ impl Button {
         if pointer_released && is_active && hovered {
             clicked = true;
         }
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if self.enabled && activated {
+            clicked = true;
+        }
 
         let dt = ui.ctx().dt();
         let mem = ui.ctx_mut().memory.get_or_default(id);
@@ -215,7 +219,11 @@ impl Button {
 
         let mut fill = lerp_color(c.base, c.hover, hover_anim);
         fill = lerp_color(fill, c.press, press_anim);
-        let stroke = lerp_color(c.border, c.border_hover, hover_anim);
+        let stroke = if focused && self.enabled {
+            p.focus_ring
+        } else {
+            lerp_color(c.border, c.border_hover, hover_anim)
+        };
         let shape = RectShape::fill(rect, style.rounding.widget, fill)
             .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));

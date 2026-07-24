@@ -43,9 +43,23 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;
+        }
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if activated {
+            clicked = true;
+        }
+        if clicked {
             *self.value = self.option;
             // Ask any enclosing popup to close itself.
             ui.ctx_mut().memory.popup_close_requested = true;
+        }
+        if focused {
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowDown) {
+                ui.ctx_mut().memory.focus_move_requested = Some(false);
+            }
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowUp) {
+                ui.ctx_mut().memory.focus_move_requested = Some(true);
+            }
         }
 
         let is_selected = *self.value == self.option;
@@ -57,12 +71,13 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
             Color::TRANSPARENT
         };
 
-        if fill.a > 0.0 {
-            ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
-                rect,
-                style.rounding.small,
-                fill,
-            )));
+        if fill.a > 0.0 || focused {
+            let mut shape = RectShape::fill(rect, style.rounding.small, fill);
+            if focused {
+                shape = shape
+                    .with_stroke(style.metrics.border, style.palette.focus_ring);
+            }
+            ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
         }
 
         let text_color = if is_selected {

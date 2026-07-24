@@ -101,6 +101,24 @@ pub(crate) fn popup_pos(
     Pos2::new(x, y)
 }
 
+/// Shared keyboard-focus plumbing: registers `id` as focusable in the
+/// Ui's scope, claims focus when clicked, and reports Enter/Space
+/// activation while focused. Call after pointer click detection and merge
+/// the returned `activated` into the click handling. Returns
+/// `(focused, activated)`.
+pub(crate) fn focus_interact(ui: &mut Ui, id: crate::id::Id, clicked: bool) -> (bool, bool) {
+    let scope = ui.area();
+    ui.ctx_mut().memory.register_focusable(id, scope);
+    if clicked {
+        ui.ctx_mut().memory.focused_widget = Some(id);
+    }
+    let focused = ui.ctx().memory.focused_widget == Some(id);
+    let activated = focused
+        && (ui.ctx().input.key_pressed(crate::input::Key::Enter)
+            || ui.ctx().input.key_pressed(crate::input::Key::Space));
+    (focused, activated)
+}
+
 /// Append a disclosure chevron centered at `center`. `half` is the
 /// half-extent of the glyph; `width` the stroke width. Drawn as two strokes
 /// (a down "v" when `open`, a right ">" when closed) so it never depends on

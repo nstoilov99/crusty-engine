@@ -57,6 +57,12 @@ impl<'a> Checkbox<'a> {
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;
+        }
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if self.enabled && activated {
+            clicked = true;
+        }
+        if clicked {
             // A mixed box resolves to checked on the first click.
             *self.value = if self.mixed { true } else { !*self.value };
         }
@@ -93,9 +99,14 @@ impl<'a> Checkbox<'a> {
             )
         } else {
             let off_outline = lerp_color(p.stroke_strong, p.text_disabled, hover_anim);
+            let outline = if focused {
+                p.focus_ring
+            } else {
+                lerp_color(off_outline, p.accent_active, check_anim)
+            };
             (
                 lerp_color(p.input, p.accent_active, check_anim),
-                lerp_color(off_outline, p.accent_active, check_anim),
+                outline,
                 p.accent_text,
                 p.text,
             )

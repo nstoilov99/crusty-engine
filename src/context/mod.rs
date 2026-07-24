@@ -154,7 +154,14 @@ impl Context {
         // built, so the focus order is complete; the change lands next frame.
         if let Some(tab) = self.input.key_presses.iter().find(|k| k.key == Key::Tab) {
             let backward = tab.modifiers.contains(Modifiers::SHIFT);
-            self.memory.focus_next(backward);
+            self.memory.focus_next(backward, self.hovered_area);
+        }
+        // Widget-requested focus moves (arrow-key list navigation, combo
+        // "enter the dropdown"); same deferred handling as Tab.
+        if let Some(scope) = self.memory.focus_scope_requested.take() {
+            self.memory.focus_first_in_scope(scope);
+        } else if let Some(backward) = self.memory.focus_move_requested.take() {
+            self.memory.focus_next(backward, self.hovered_area);
         }
         // The engine seam: does the UI claim this frame's pointer/keyboard,
         // or may the host route them to the scene underneath?

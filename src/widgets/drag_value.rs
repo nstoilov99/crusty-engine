@@ -258,6 +258,26 @@ impl<'a> DragValue<'a> {
             }
         }
 
+        let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+        if activated {
+            clicked = true;
+            ui.ctx_mut().memory.data_insert(
+                id,
+                EditState {
+                    text: format_value(*self.value, min_dec, max_dec, ""),
+                    just_opened: true,
+                },
+            );
+        } else if focused {
+            let step = self.caps_step.unwrap_or(self.speed as f32);
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowUp) {
+                *self.value = self.clamp(*self.value + step);
+            }
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowDown) {
+                *self.value = self.clamp(*self.value - step);
+            }
+        }
+
         if scrubbing || hovered {
             ui.ctx_mut().set_cursor_icon(CursorIcon::ResizeEw);
         }
@@ -282,7 +302,11 @@ impl<'a> DragValue<'a> {
         let press_anim = mem.press_anim;
 
         let fill = self.fill.unwrap_or(style.palette.input);
-        let stroke = lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
+        let stroke = if focused {
+            style.palette.focus_ring
+        } else {
+            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim)
+        };
         let shape = RectShape::fill(rect, style.rounding.widget, fill)
             .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));

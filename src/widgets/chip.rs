@@ -41,10 +41,10 @@ impl CountChip {
             pad + dot + gap + label_size.x + pad,
             height,
         ));
-        let response = chip_interact(ui, id, rect);
+        let (response, focused) = chip_interact(ui, id, rect);
 
         let p = &style.palette;
-        let (fill, border, dot_color, text_color) = if self.active {
+        let (fill, mut border, dot_color, text_color) = if self.active {
             (
                 self.color.with_alpha(0.13),
                 self.color.with_alpha(0.5),
@@ -59,6 +59,9 @@ impl CountChip {
                 p.text_disabled,
             )
         };
+        if focused {
+            border = p.focus_ring;
+        }
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
             RectShape::fill(rect, Rounding::same(height * 0.5), fill)
                 .with_stroke(style.metrics.border, border),
@@ -110,16 +113,19 @@ impl FilterChip {
         let id = ui.alloc_id(("filter_chip", &self.label));
         let label_size = ui.text_mut().measure(&self.label, font, None);
         let rect = ui.allocate(Vec2::new(pad + label_size.x + pad, height));
-        let response = chip_interact(ui, id, rect);
+        let (response, focused) = chip_interact(ui, id, rect);
 
         let p = &style.palette;
-        let (fill, border, text_color) = if self.active {
+        let (fill, mut border, text_color) = if self.active {
             (p.active, p.stroke_strong, p.text)
         } else if response.hovered {
             (p.hover, p.stroke, p.text_secondary)
         } else {
             (crate::math::Color::TRANSPARENT, p.stroke, p.text_secondary)
         };
+        if focused {
+            border = p.focus_ring;
+        }
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
             RectShape::fill(rect, style.rounding.small, fill)
                 .with_stroke(style.metrics.border, border),
@@ -134,7 +140,7 @@ impl FilterChip {
     }
 }
 
-fn chip_interact(ui: &mut Ui, id: crate::id::Id, rect: Rect) -> Response {
+fn chip_interact(ui: &mut Ui, id: crate::id::Id, rect: Rect) -> (Response, bool) {
     let hovered = ui.contains_pointer(rect);
     let pointer_pressed = ui.ctx().input.pointer_pressed;
     let pointer_released = ui.ctx().input.pointer_released;
@@ -145,17 +151,24 @@ fn chip_interact(ui: &mut Ui, id: crate::id::Id, rect: Rect) -> Response {
     }
     let is_active = active_id == Some(id) || (pointer_pressed && hovered);
     let pressed = is_active && pointer_down;
-    let clicked = pointer_released && is_active && hovered;
+    let mut clicked = pointer_released && is_active && hovered;
+    let (focused, activated) = crate::widgets::focus_interact(ui, id, clicked);
+    if activated {
+        clicked = true;
+    }
     let mem = ui.ctx_mut().memory.get_or_default(id);
     mem.seen_this_frame = true;
     mem.last_rect = rect;
-    Response {
-        id,
-        rect,
-        hovered,
-        pressed,
-        clicked,
-        hover_anim: if hovered { 1.0 } else { 0.0 },
-        press_anim: if pressed { 1.0 } else { 0.0 },
-    }
+    (
+        Response {
+            id,
+            rect,
+            hovered,
+            pressed,
+            clicked,
+            hover_anim: if hovered { 1.0 } else { 0.0 },
+            press_anim: if pressed { 1.0 } else { 0.0 },
+        },
+        focused,
+    )
 }

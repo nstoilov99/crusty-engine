@@ -178,3 +178,51 @@ fn collapsing_open_and_closed() {
     });
     h.snapshot("collapsing_sections", &paint);
 }
+
+#[test]
+fn tab_focus_ring_in_floating_window() {
+    use crusty_gui::input::{Key, Modifiers};
+    use crusty_gui::widgets::Window as GuiWindow;
+    let mut h = Harness::new([420, 340]);
+    let mut open = true;
+    let mut checked = false;
+    let build = |ui: &mut Ui, open: &mut bool, checked: &mut bool| {
+        ui.label("root line");
+        let _ = ui.button("Root button");
+        GuiWindow::new("Focus window")
+            .open(open)
+            .default_pos(Pos2::new(80.0, 60.0))
+            .default_size(Vec2::new(260.0, 180.0))
+            .show(ui, |ui| {
+                let _ = ui.button("First");
+                let _ = ui.button("Second");
+                ui.checkbox(checked, "Check me");
+            });
+    };
+    // Settle, then hover inside the window so its scope is the Tab target.
+    for _ in 0..3 {
+        h.frame(Vec::new(), |ui| build(ui, &mut open, &mut checked));
+    }
+    h.frame(
+        vec![Event::PointerMoved(Pos2::new(200.0, 150.0))],
+        |ui| build(ui, &mut open, &mut checked),
+    );
+    let tab = Event::Key {
+        key: Key::Tab,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::empty(),
+    };
+    // Two Tabs: focus lands on "Second". Ring renders from the next frame.
+    h.frame(vec![tab.clone()], |ui| build(ui, &mut open, &mut checked));
+    assert!(
+        h.ctx.memory.focused_widget.is_some(),
+        "Tab over a hovered window focuses its first widget"
+    );
+    h.frame(vec![tab], |ui| build(ui, &mut open, &mut checked));
+    let mut paint = Vec::new();
+    for _ in 0..30 {
+        paint = h.frame(Vec::new(), |ui| build(ui, &mut open, &mut checked));
+    }
+    h.snapshot("tab_focus_ring_window", &paint);
+}

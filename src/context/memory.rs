@@ -127,10 +127,19 @@ pub struct Memory {
     /// Cleared at the start of every frame.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub popup_close_requested: bool,
-    /// Focusable widget ids in declaration order, rebuilt every frame.
-    /// Drives Tab / Shift-Tab focus traversal.
+    /// Focusable `(id, scope)` pairs in declaration order, rebuilt every
+    /// frame. Drives Tab / Shift-Tab traversal; scope = the widget's Ui
+    /// area, so Tab inside a floating window/popup cycles that surface only.
     #[cfg_attr(feature = "serde", serde(skip))]
-    focusable: Vec<Id>,
+    focusable: Vec<(Id, Option<Id>)>,
+    /// Focus step requested by a widget this frame (arrow-key list nav);
+    /// `true` = backward. Handled at end_frame like Tab.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub focus_move_requested: Option<bool>,
+    /// Request to focus the first focusable registered under this scope
+    /// (e.g. ComboBox ArrowDown enters its dropdown list).
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub focus_scope_requested: Option<Id>,
 }
 
 /// Serde adapter: persist a `HashMap<Id, V>` as a `Vec<(Id, V)>` so it works
@@ -168,30 +177,50 @@ impl Memory {
         self.widgets.get(&id)
     }
 
-    /// Register `id` as focusable this frame (call once per frame, in
-    /// layout order). Order determines Tab / Shift-Tab traversal.
-    pub fn register_focusable(&mut self, id: Id) {
-        self.focusable.push(id);
+    /// Register `id` as focusable this frame under `scope` (call once per
+    /// frame, in layout order). Order determines Tab / Shift-Tab traversal;
+    /// traversal cycles within a single scope.
+    pub fn register_focusable(&mut self, id: Id, scope: Option<Id>) {
+        self.focusable.push((id, scope));
     }
 
     /// Move keyboard focus to the next (or previous, when `backward`)
-    /// registered focusable widget, wrapping around. With nothing focused,
-    /// focuses the first (or last) entry.
-    pub fn focus_next(&mut self, backward: bool) {
-        let n = self.focusable.len();
+    /// focusable widget within the focused widget's scope, wrapping around.
+    /// With nothing focused, cycles `fallback_scope` (the hovered area)
+    /// starting at its first (or last) entry.
+    pub fn focus_next(&mut self, backward: bool, fallback_scope: Option<Id>) {
+        let scope = self
+            .focused_widget
+            .and_then(|f| self.focusable.iter().find(|(i, _)| *i == f))
+            .map(|(_, s)| *s)
+            .unwrap_or(fallback_scope);
+        let list: Vec<Id> = self
+            .focusable
+            .iter()
+            .filter(|(_, s)| *s == scope)
+            .map(|(i, _)| *i)
+            .collect();
+        let n = list.len();
         if n == 0 {
             return;
         }
         let cur = self
             .focused_widget
-            .and_then(|f| self.focusable.iter().position(|&i| i == f));
+            .and_then(|f| list.iter().position(|&i| i == f));
         let next = match cur {
             Some(i) if backward => (i + n - 1) % n,
             Some(i) => (i + 1) % n,
             None if backward => n - 1,
             None => 0,
         };
-        self.focused_widget = Some(self.focusable[next]);
+        self.focused_widget = Some(list[next]);
+    }
+
+    /// Focus the first focusable widget registered under `scope`.
+    pub fn focus_first_in_scope(&mut self, scope: Id) {
+        if let Some((id, _)) = self.focusable.iter().find(|(_, s)| *s == Some(scope)) {
+            self.focused_widget = Some(*id);
+        }
     }
 
     pub fn get_or_default(&mut self, id: Id) -> &mut WidgetMemory {
@@ -369,6 +398,8 @@ impl Memory {
     /// Marks every entry as not-yet-seen so we can detect dead widgets.
     pub fn begin_frame(&mut self) {
         self.focusable.clear();
+        self.focus_move_requested = None;
+        self.focus_scope_requested = None;
         for entry in self.widgets.values_mut() {
             entry.seen_this_frame = false;
         }

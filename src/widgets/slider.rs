@@ -68,6 +68,16 @@ impl<'a> Slider<'a> {
         if pointer_released && is_active && hovered {
             clicked = true;
         }
+        let (focused, _) = crate::widgets::focus_interact(ui, id, clicked);
+        if focused {
+            let step = span * 0.01;
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowLeft) {
+                *self.value = (*self.value - step).clamp(min, max);
+            }
+            if ui.ctx().input.key_pressed(crate::input::Key::ArrowRight) {
+                *self.value = (*self.value + step).clamp(min, max);
+            }
+        }
 
         let value = self.value.clamp(min, max);
         let t = ((value - min) / span).clamp(0.0, 1.0);
@@ -117,8 +127,13 @@ impl<'a> Slider<'a> {
         let handle_rect =
             Rect::from_center_size(handle_center, Vec2::splat(handle_radius * 2.0));
         let handle_fill = lerp_color(style.palette.text_mono, Color::WHITE, hover_anim);
+        let handle_stroke = if focused {
+            style.palette.focus_ring
+        } else {
+            style.palette.window
+        };
         let handle_shape = RectShape::fill(handle_rect, Rounding::same(handle_radius), handle_fill)
-            .with_stroke(style.metrics.border, style.palette.window);
+            .with_stroke(style.metrics.border, handle_stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(handle_shape));
 
         Response {

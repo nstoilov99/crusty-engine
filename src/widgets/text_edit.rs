@@ -115,7 +115,8 @@ impl<'a> TextEdit<'a> {
         let rect = ui.allocate(Vec2::new(width, height));
         let text_pad = 6.0;
         let text_x = rect.min.x + text_pad;
-        ui.ctx_mut().memory.register_focusable(id);
+        let scope = ui.area();
+        ui.ctx_mut().memory.register_focusable(id, scope);
         if self.request_focus {
             ui.ctx_mut().memory.focused_widget = Some(id);
         }

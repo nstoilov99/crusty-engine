@@ -72,6 +72,15 @@ impl ComboBox {
         if pointer_pressed && hovered {
             is_open = !is_open;
         }
+        let (focused, activated) =
+            crate::widgets::focus_interact(ui, id, pointer_pressed && hovered);
+        if activated {
+            is_open = !is_open;
+        }
+        // ArrowDown moves keyboard focus into the open dropdown's rows.
+        if is_open && focused && ui.ctx().input.key_pressed(Key::ArrowDown) {
+            ui.ctx_mut().memory.focus_scope_requested = Some(id.with("popup_area"));
+        }
 
         // ── Trigger render
         let fill = if hovered {
@@ -79,7 +88,7 @@ impl ComboBox {
         } else {
             style.palette.header
         };
-        let stroke = if is_open {
+        let stroke = if is_open || focused {
             style.palette.focus_ring
         } else if hovered {
             style.palette.stroke_strong

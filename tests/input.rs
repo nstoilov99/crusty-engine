@@ -216,3 +216,105 @@ fn click_clears_keyboard_focus() {
     );
     ctx.end_frame();
 }
+
+fn tab(shift: bool) -> Event {
+    Event::Key {
+        key: Key::Tab,
+        pressed: true,
+        repeat: false,
+        modifiers: if shift { Modifiers::SHIFT } else { Modifiers::empty() },
+    }
+}
+
+#[test]
+fn tab_cycles_focus_in_registration_order() {
+    let mut ctx = Context::new();
+    let ids: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|s| crusty_gui::id::Id::new(s))
+        .collect();
+
+    // Tab with nothing focused lands on the first widget.
+    ctx.begin_frame(input_at(0.0, vec![tab(false)]));
+    for id in &ids {
+        ctx.memory.register_focusable(*id, None);
+    }
+    ctx.end_frame();
+    assert_eq!(ctx.memory.focused_widget, Some(ids[0]));
+
+    // Next Tab advances; wrap after the last.
+    for expected in [ids[1], ids[2], ids[0]] {
+        ctx.begin_frame(input_at(0.1, vec![tab(false)]));
+        for id in &ids {
+            ctx.memory.register_focusable(*id, None);
+        }
+        ctx.end_frame();
+        assert_eq!(ctx.memory.focused_widget, Some(expected));
+    }
+
+    // Shift-Tab goes back.
+    ctx.begin_frame(input_at(0.2, vec![tab(true)]));
+    for id in &ids {
+        ctx.memory.register_focusable(*id, None);
+    }
+    ctx.end_frame();
+    assert_eq!(ctx.memory.focused_widget, Some(ids[2]));
+}
+
+#[test]
+fn tab_traversal_stays_within_the_focused_scope() {
+    let mut ctx = Context::new();
+    let root_a = crusty_gui::id::Id::new("root_a");
+    let root_b = crusty_gui::id::Id::new("root_b");
+    let win = crusty_gui::id::Id::new("win");
+    let win_a = crusty_gui::id::Id::new("win_a");
+    let win_b = crusty_gui::id::Id::new("win_b");
+    ctx.memory.focused_widget = Some(win_a);
+
+    ctx.begin_frame(input_at(0.0, vec![tab(false)]));
+    ctx.memory.register_focusable(root_a, None);
+    ctx.memory.register_focusable(win_a, Some(win));
+    ctx.memory.register_focusable(win_b, Some(win));
+    ctx.memory.register_focusable(root_b, None);
+    ctx.end_frame();
+    assert_eq!(
+        ctx.memory.focused_widget,
+        Some(win_b),
+        "Tab from a window widget skips root widgets"
+    );
+
+    // Wraps within the window scope, never escaping to root.
+    ctx.begin_frame(input_at(0.1, vec![tab(false)]));
+    ctx.memory.register_focusable(root_a, None);
+    ctx.memory.register_focusable(win_a, Some(win));
+    ctx.memory.register_focusable(win_b, Some(win));
+    ctx.memory.register_focusable(root_b, None);
+    ctx.end_frame();
+    assert_eq!(ctx.memory.focused_widget, Some(win_a));
+}
+
+#[test]
+fn widget_focus_requests_move_and_enter_scope() {
+    let mut ctx = Context::new();
+    let a = crusty_gui::id::Id::new("a");
+    let b = crusty_gui::id::Id::new("b");
+    let popup = crusty_gui::id::Id::new("popup");
+    let row = crusty_gui::id::Id::new("row");
+    ctx.memory.focused_widget = Some(a);
+
+    // Arrow-key style request: step forward without a Tab press.
+    ctx.begin_frame(input_at(0.0, vec![]));
+    ctx.memory.register_focusable(a, None);
+    ctx.memory.register_focusable(b, None);
+    ctx.memory.focus_move_requested = Some(false);
+    ctx.end_frame();
+    assert_eq!(ctx.memory.focused_widget, Some(b));
+
+    // Scope request (combo ArrowDown): first widget of the popup scope.
+    ctx.begin_frame(input_at(0.1, vec![]));
+    ctx.memory.register_focusable(a, None);
+    ctx.memory.register_focusable(row, Some(popup));
+    ctx.memory.focus_scope_requested = Some(popup);
+    ctx.end_frame();
+    assert_eq!(ctx.memory.focused_widget, Some(row));
+}
