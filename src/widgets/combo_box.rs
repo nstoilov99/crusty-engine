@@ -1,7 +1,7 @@
 use crate::context::{Direction, Ui, UiOptions};
 use crate::input::Key;
 use crate::layer::Order;
-use crate::math::{Color, Pos2, Rect, Vec2};
+use crate::math::{Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
 
@@ -75,12 +75,12 @@ impl ComboBox {
 
         // ── Trigger render
         let fill = if hovered {
-            style.palette.surface_hover
+            style.palette.hover
         } else {
-            style.palette.surface
+            style.palette.header
         };
         let stroke = if is_open {
-            style.palette.accent
+            style.palette.accent_active
         } else {
             style.palette.stroke
         };
@@ -117,7 +117,7 @@ impl ComboBox {
                 &arrow_str,
                 style.fonts.body,
                 arrow_pos,
-                style.palette.text_dim,
+                style.palette.text_secondary,
                 None,
             );
         }
@@ -201,11 +201,10 @@ impl ComboBox {
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
                 RectShape::fill(
                     dropdown_rect,
-                    style.rounding.widget,
-                    style.palette.surface_hover,
+                    style.rounding.panel,
+                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
                 )
-                .with_stroke(1.0, style.palette.stroke)
-                .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
+                .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
             ui.ctx_mut().overlay_paint.extend(drained);
 

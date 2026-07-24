@@ -189,11 +189,11 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
 
         // ── Render
         let bg_color = if is_selected {
-            let mut c = style.palette.accent;
+            let mut c = style.palette.accent_active;
             c.a = 0.75;
             c
         } else if row_hovered {
-            style.palette.surface_hover
+            style.palette.hover
         } else {
             Color::TRANSPARENT
         };
@@ -211,7 +211,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
         let chev_color = if is_selected {
             Color::rgba(0.10, 0.10, 0.12, 0.95)
         } else {
-            style.palette.text_dim
+            style.palette.text_secondary
         };
         if !self.leaf {
             let center = Pos2::new(
@@ -265,7 +265,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
                 TreeDropPos::Into
             };
 
-            let accent = style.palette.accent;
+            let accent = style.palette.accent_active;
             let indicator = match pos {
                 TreeDropPos::Before => PaintCmd::Rrect(RectShape::fill(
                     Rect::from_min_size(
@@ -287,7 +287,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
                     RectShape::fill(
                         row_rect,
                         style.rounding.small,
-                        style.palette.accent_glow,
+                        style.palette.accent_soft,
                     )
                     .with_stroke(1.5, accent),
                 ),

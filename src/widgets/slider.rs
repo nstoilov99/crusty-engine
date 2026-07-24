@@ -94,7 +94,7 @@ impl<'a> Slider<'a> {
         let track_shape = RectShape::fill(
             track,
             Rounding::same(track_h * 0.5),
-            style.palette.surface_active,
+            style.palette.active,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
@@ -104,7 +104,7 @@ impl<'a> Slider<'a> {
             let filled_shape = RectShape::fill(
                 filled,
                 Rounding::same(track_h * 0.5),
-                style.palette.accent,
+                style.palette.accent_active,
             );
             ui.ctx_mut().paint.push(PaintCmd::Rrect(filled_shape));
         }
@@ -114,14 +114,14 @@ impl<'a> Slider<'a> {
         let handle_center = Pos2::new(handle_x, rect.min.y + rect.height() * 0.5);
         let handle_rect =
             Rect::from_center_size(handle_center, Vec2::splat(handle_radius * 2.0));
-        let handle_fill = lerp_color(style.palette.text, style.palette.text_dim, press_anim);
+        let handle_fill = lerp_color(style.palette.text, style.palette.text_secondary, press_anim);
         let handle_shape = RectShape::fill(handle_rect, Rounding::same(handle_radius), handle_fill)
             .with_stroke(
                 1.0,
-                lerp_color(style.palette.stroke, style.palette.accent, hover_anim),
+                lerp_color(style.palette.stroke, style.palette.accent_active, hover_anim),
             );
-        let handle_shape = if hover_anim > 0.0 && style.palette.accent_glow.a > 0.0 {
-            let mut glow = style.palette.accent_glow;
+        let handle_shape = if hover_anim > 0.0 && style.palette.accent_soft.a > 0.0 {
+            let mut glow = style.palette.accent_soft;
             glow.a *= hover_anim;
             handle_shape.with_glow(6.0 + 4.0 * hover_anim, glow)
         } else {

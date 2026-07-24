@@ -118,7 +118,7 @@ impl CollapsingHeader {
         // computed for any caller that wants it via `Response`.
         let _ = hover_anim;
         if hovered {
-            let tint = style.palette.surface_hover;
+            let tint = style.palette.hover;
             ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
                 header_rect,
                 style.rounding.small,
@@ -129,9 +129,9 @@ impl CollapsingHeader {
         // Disclosure chevron: down "v" when open, right ">" when closed.
         // Driven by the raw bool — no animation lag.
         let chev_color = if hovered {
-            style.palette.accent
+            style.palette.accent_active
         } else {
-            style.palette.text_dim
+            style.palette.text_secondary
         };
         let center = Pos2::new(
             header_rect.min.x + chevron_size * 0.5,

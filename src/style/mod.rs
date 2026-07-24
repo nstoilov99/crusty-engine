@@ -1,18 +1,22 @@
 //! Themed styling tokens read by every widget.
 //!
-//! Phase 5 introduces a single [`Style`] struct that bundles the colour
-//! palette, spacing, default widget sizes, font sizes, rounding values
-//! and animation timing the rest of the library uses to draw itself.
-//! Widgets no longer hard-code these — they pull from
-//! [`Ui::style`](crate::context::Ui::style).
+//! M10 rebuilds [`Style`] around the Crusty Design System's semantic
+//! tokens: an opaque surface stack (depth = lighter fill + 1px border,
+//! never shadows), job-split accents, a preset-invariant selection pair,
+//! and metric tokens. Widgets never hard-code a color that exists here —
+//! "if you type a hex value in widget code, it's a bug."
 //!
-//! Two ready-made themes ship:
-//! * [`Style::editor_dark`] — dense slate-gray palette modelled on
-//!   game-engine property panels (Unreal/Unity-style). New default.
-//! * [`Style::glassmorphism`] — translucent navy-blue panels with bigger
-//!   defaults and vivid accents, matching the look from Phase 1.5.
+//! [`Style::steel`] is the built-in default (Steel preset). The engine
+//! feeds full preset themes through this struct at runtime; crusty-gui
+//! itself ships only Steel.
 
 use crate::math::{Color, Rounding, Vec2};
+
+/// sRGB 8-bit shorthand for palette literals.
+#[inline]
+fn rgb(r: u8, g: u8, b: u8) -> Color {
+    Color::from_srgb_u8(r, g, b, 255)
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Style {
@@ -21,33 +25,57 @@ pub struct Style {
     pub sizes: Sizes,
     pub fonts: Fonts,
     pub rounding: RoundingSet,
+    pub metrics: Metrics,
     pub motion: Motion,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Palette {
-    /// Quiet surface used for widget backgrounds (button fill, slider
-    /// track, checkbox box).
-    pub surface: Color,
-    pub surface_hover: Color,
-    pub surface_active: Color,
-    /// Vivid colour used for selection states (checkbox check, slider
-    /// fill, radio dot, focus outline).
-    pub accent: Color,
-    /// Same accent at low alpha — used for hover glow / soft highlights.
-    pub accent_glow: Color,
-    pub text: Color,
-    pub text_dim: Color,
-    pub stroke: Color,
-    pub stroke_hover: Color,
-    /// Color for progress-bar / status fills (separate from accent so a
-    /// theme can use orange accent + green progress, etc.).
-    pub success: Color,
-    /// Dock/window panel body background.
+    // --- Opaque surface stack, darkest → lightest -------------------------
+    /// Editable fields (TextEdit, DragValue, spinbox) — darkest, reads inset.
+    pub input: Color,
+    /// Main window background, tab strips, status bar.
+    pub window: Color,
+    /// Panel bodies.
     pub panel: Color,
-    /// Dock tab-strip background. Kept darker than `panel` so the active
-    /// tab (filled with `panel`) reads as connected to the body below it.
-    pub tab_bar: Color,
+    /// Section headers, spinbox caps, quiet widget fills.
+    pub header: Color,
+    /// Popovers, dialogs, toasts, dropdown lists (E3/E4).
+    pub elevated: Color,
+    /// Pointer-over fill for rows, menu items, ghost buttons.
+    pub hover: Color,
+    /// Pressed/active neutral fill.
+    pub active: Color,
+    /// 1px default border.
+    pub stroke: Color,
+    /// 1px border for hovered controls + popover/dialog outlines.
+    pub stroke_strong: Color,
+    // --- Accents — one job per token --------------------------------------
+    /// Active tab underline, toggled tools, checked states, slider/progress
+    /// fill.
+    pub accent_active: Color,
+    /// Focused inputs & keyboard nav: 1px border swap, no glow.
+    pub focus_ring: Color,
+    /// `accent_active` at ~15% alpha: fill behind toggled tool buttons,
+    /// active filter chips.
+    pub accent_soft: Color,
+    // --- Preset-invariant selection ---------------------------------------
+    /// Hierarchy rows, asset tiles, dropdown current value.
+    pub selection_fill: Color,
+    /// Text/icons on top of `selection_fill`.
+    pub selection_text: Color,
+    // --- Text --------------------------------------------------------------
+    pub text: Color,
+    pub text_secondary: Color,
+    pub text_disabled: Color,
+    /// Numeric values, paths, logs (mono runs).
+    pub text_mono: Color,
+    // --- Transient-surface alphas ------------------------------------------
+    /// Alpha for transient surfaces (menus, dropdowns, tooltips) only.
+    /// 1.0 disables translucency. Simple alpha — no blur, no shadows.
+    pub popover_alpha: f32,
+    /// Scrim behind modals.
+    pub scrim_alpha: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -89,6 +117,21 @@ pub struct RoundingSet {
     pub small: Rounding,
 }
 
+/// Non-color metric tokens (Comfortable density baseline).
+#[derive(Clone, Copy, Debug)]
+pub struct Metrics {
+    /// The only border width.
+    pub border: f32,
+    /// Reserved: active-tab top edge + asset-tile type edge.
+    pub edge_accent: f32,
+    /// List/tree/menu row height.
+    pub row_height: f32,
+    /// Buttons, inputs, dropdowns.
+    pub control_height: f32,
+    /// Tree indent per level.
+    pub indent: f32,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Motion {
     pub hover_half_life: f32,
@@ -97,29 +140,36 @@ pub struct Motion {
 }
 
 impl Style {
-    /// Dense slate-gray palette aimed at game-engine property panels.
-    /// Smaller defaults than the glassmorphism theme, sharper corners,
-    /// warm orange accent reminiscent of Unreal's selection highlight.
-    pub fn editor_dark() -> Self {
+    /// Steel — the design system's default preset. Cool neutral surfaces,
+    /// steel-blue accent.
+    pub fn steel() -> Self {
         Self {
             palette: Palette {
-                surface: Color::rgba(0.16, 0.17, 0.20, 0.92),
-                surface_hover: Color::rgba(0.22, 0.24, 0.28, 0.95),
-                surface_active: Color::rgba(0.12, 0.13, 0.16, 0.95),
-                accent: Color::rgba(0.96, 0.56, 0.18, 0.95),
-                accent_glow: Color::rgba(0.96, 0.56, 0.18, 0.25),
-                text: Color::rgba(0.92, 0.93, 0.95, 0.96),
-                text_dim: Color::rgba(0.62, 0.66, 0.72, 0.85),
-                stroke: Color::rgba(0.05, 0.06, 0.08, 0.85),
-                stroke_hover: Color::rgba(0.96, 0.56, 0.18, 0.75),
-                success: Color::rgba(0.42, 0.78, 0.46, 0.95),
-                panel: Color::rgba(0.16, 0.17, 0.20, 0.92),
-                tab_bar: Color::rgba(0.10, 0.11, 0.14, 0.95),
+                input: rgb(14, 14, 17),
+                window: rgb(18, 18, 21),
+                panel: rgb(24, 24, 28),
+                header: rgb(30, 31, 35),
+                elevated: rgb(34, 35, 39),
+                hover: rgb(48, 49, 54),
+                active: rgb(60, 62, 68),
+                stroke: rgb(55, 57, 63),
+                stroke_strong: rgb(74, 77, 85),
+                accent_active: rgb(79, 163, 232),
+                focus_ring: rgb(122, 187, 240),
+                accent_soft: rgb(79, 163, 232).with_alpha(0.15),
+                selection_fill: rgb(60, 70, 84),
+                selection_text: Color::WHITE,
+                text: rgb(232, 234, 237),
+                text_secondary: rgb(170, 176, 182),
+                text_disabled: rgb(116, 122, 128),
+                text_mono: rgb(198, 203, 211),
+                popover_alpha: 0.96,
+                scrim_alpha: 0.45,
             },
             spacing: Spacing {
                 item: 4.0,
                 padding: 8.0,
-                button_padding: Vec2::new(10.0, 5.0),
+                button_padding: Vec2::new(12.0, 4.0),
                 box_label_gap: 6.0,
             },
             sizes: Sizes {
@@ -132,75 +182,30 @@ impl Style {
                 progress_default_width: 180.0,
             },
             fonts: Fonts {
-                body: 13.0,
+                body: 12.0,
                 title: 18.0,
-                small: 11.0,
+                small: 10.5,
                 mono: 12.0,
             },
             rounding: RoundingSet {
-                panel: Rounding::same(4.0),
+                panel: Rounding::same(6.0),
                 widget: Rounding::same(3.0),
                 small: Rounding::same(2.0),
             },
+            metrics: Metrics {
+                border: 1.0,
+                edge_accent: 2.0,
+                row_height: 22.0,
+                control_height: 24.0,
+                indent: 18.0,
+            },
             motion: Motion {
                 // Editor rows / buttons want near-instant hover/press
-                // feedback (Unity/Unreal-style). Smooth state transitions
-                // (check, collapse) stay slower for polish.
+                // feedback. Smooth state transitions (check, collapse)
+                // stay slower for polish.
                 hover_half_life: 0.012,
                 press_half_life: 0.012,
                 state_half_life: 0.06,
-            },
-        }
-    }
-
-    /// Translucent navy panels with vivid blue accents and generous
-    /// spacing. The look the demo has been showing since Phase 1.5.
-    pub fn glassmorphism() -> Self {
-        Self {
-            palette: Palette {
-                surface: Color::rgba(0.10, 0.13, 0.18, 0.75),
-                surface_hover: Color::rgba(0.18, 0.30, 0.55, 0.80),
-                surface_active: Color::rgba(0.12, 0.22, 0.45, 0.85),
-                accent: Color::rgba(0.30, 0.55, 0.95, 0.90),
-                accent_glow: Color::rgba(0.45, 0.65, 1.0, 0.25),
-                text: Color::rgba(0.96, 0.97, 1.00, 0.95),
-                text_dim: Color::rgba(0.78, 0.86, 1.00, 0.80),
-                stroke: Color::rgba(1.00, 1.00, 1.00, 0.22),
-                stroke_hover: Color::rgba(1.00, 1.00, 1.00, 0.55),
-                success: Color::rgba(0.30, 0.75, 0.55, 0.95),
-                panel: Color::rgba(0.10, 0.13, 0.18, 0.75),
-                tab_bar: Color::rgba(0.08, 0.11, 0.20, 0.85),
-            },
-            spacing: Spacing {
-                item: 8.0,
-                padding: 12.0,
-                button_padding: Vec2::new(16.0, 10.0),
-                box_label_gap: 8.0,
-            },
-            sizes: Sizes {
-                checkbox: 18.0,
-                radio: 18.0,
-                slider_height: 22.0,
-                slider_default_width: 220.0,
-                slider_track_ratio: 0.32,
-                progress_height: 14.0,
-                progress_default_width: 220.0,
-            },
-            fonts: Fonts {
-                body: 16.0,
-                title: 40.0,
-                small: 13.0,
-                mono: 13.0,
-            },
-            rounding: RoundingSet {
-                panel: Rounding::same(20.0),
-                widget: Rounding::same(8.0),
-                small: Rounding::same(4.0),
-            },
-            motion: Motion {
-                hover_half_life: 0.025,
-                press_half_life: 0.020,
-                state_half_life: 0.08,
             },
         }
     }
@@ -208,6 +213,6 @@ impl Style {
 
 impl Default for Style {
     fn default() -> Self {
-        Self::editor_dark()
+        Self::steel()
     }
 }

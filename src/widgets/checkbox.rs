@@ -63,9 +63,9 @@ impl<'a> Checkbox<'a> {
         let box_rect =
             Rect::from_min_size(Pos2::new(rect.min.x, box_top), Vec2::splat(box_size));
 
-        let fill = lerp_color(style.palette.surface, style.palette.accent, check_anim);
+        let fill = lerp_color(style.palette.header, style.palette.accent_active, check_anim);
         let outline =
-            lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim);
+            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
         let shape = RectShape::fill(box_rect, style.rounding.small, fill)
             .with_stroke(1.0 + hover_anim * 0.4, outline);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));

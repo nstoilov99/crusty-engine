@@ -148,7 +148,7 @@ impl ScrollArea {
                 Pos2::new(outer_rect.max.x - scrollbar_w, outer_rect.min.y),
                 Vec2::new(scrollbar_w, outer_rect.height()),
             );
-            let mut track_color = style.palette.surface_active;
+            let mut track_color = style.palette.active;
             track_color.a = 0.6;
             ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
                 track_rect,
@@ -205,8 +205,8 @@ impl ScrollArea {
             let hover_anim = thumb_mem.hover_anim;
 
             let thumb_color = lerp_color(
-                style.palette.text_dim,
-                style.palette.accent,
+                style.palette.text_secondary,
+                style.palette.accent_active,
                 hover_anim,
             );
             ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(

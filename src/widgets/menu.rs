@@ -30,7 +30,7 @@ impl Ui<'_> {
         self.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
             strip,
             style.rounding.small,
-            style.palette.surface,
+            style.palette.header,
         )));
         self.horizontal(body);
     }
@@ -68,9 +68,9 @@ impl Ui<'_> {
         }
 
         let fill = if is_open {
-            style.palette.surface_active
+            style.palette.active
         } else if hovered {
-            style.palette.surface_hover
+            style.palette.hover
         } else {
             Color::TRANSPARENT
         };
@@ -143,7 +143,7 @@ impl Ui<'_> {
         }
 
         let fill = if hovered || is_open {
-            style.palette.surface_active
+            style.palette.active
         } else {
             Color::TRANSPARENT
         };
@@ -175,7 +175,7 @@ impl Ui<'_> {
             4.0,
             1.5,
             false,
-            style.palette.text_dim,
+            style.palette.text_secondary,
         );
 
         if is_open {
@@ -214,7 +214,7 @@ impl Ui<'_> {
                 label,
                 style.fonts.body,
                 text_pos,
-                style.palette.text_dim,
+                style.palette.text_secondary,
                 None,
             );
             return false;
@@ -239,9 +239,9 @@ impl Ui<'_> {
         // hover and an accent wash while the button is pressed so the user
         // gets clear hover *and* click feedback.
         let highlight = if is_active {
-            Some(style.palette.accent.with_alpha(0.45))
+            Some(style.palette.accent_active.with_alpha(0.45))
         } else if hovered {
-            Some(style.palette.surface_active)
+            Some(style.palette.active)
         } else {
             None
         };
@@ -309,9 +309,12 @@ fn menu_panel(
     // pull them out, paint the panel, then re-append them.
     let children: Vec<PaintCmd> = ui.ctx_mut().overlay_paint.drain(overlay_start..).collect();
     ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-        RectShape::fill(panel, style.rounding.widget, style.palette.surface_hover)
-            .with_stroke(1.0, style.palette.stroke)
-            .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
+        RectShape::fill(
+            panel,
+            style.rounding.panel,
+            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+        )
+        .with_stroke(style.metrics.border, style.palette.stroke_strong),
     ));
     ui.ctx_mut().overlay_paint.extend(drained);
     ui.ctx_mut().overlay_paint.extend(children);

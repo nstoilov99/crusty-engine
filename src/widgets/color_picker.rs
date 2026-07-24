@@ -179,9 +179,9 @@ impl<'a> ColorPicker<'a> {
             push_checker(&mut ui.ctx_mut().paint, trigger_rect.shrink(1.0), 5.0);
         }
         let stroke = if is_open {
-            style.palette.accent
+            style.palette.accent_active
         } else if hovered {
-            style.palette.text_dim
+            style.palette.text_secondary
         } else {
             style.palette.stroke
         };
@@ -300,9 +300,12 @@ impl<'a> ColorPicker<'a> {
                 Vec2::new(popup_w, GRIP_H + used_h + 16.0),
             );
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-                RectShape::fill(popup_rect, style.rounding.widget, style.palette.surface_hover)
-                    .with_stroke(1.0, style.palette.stroke)
-                    .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
+                RectShape::fill(
+                    popup_rect,
+                    style.rounding.panel,
+                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                )
+                .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
             // Grip bar: darker strip with a centered drag handle.
             let grip_rect =
@@ -310,7 +313,7 @@ impl<'a> ColorPicker<'a> {
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(RectShape::fill(
                 grip_rect.shrink(1.0),
                 style.rounding.widget,
-                style.palette.surface_active,
+                style.palette.active,
             )));
             let c = grip_rect.center();
             for dy in [-2.0, 2.0] {
@@ -318,7 +321,7 @@ impl<'a> ColorPicker<'a> {
                     from: Pos2::new(c.x - 12.0, c.y + dy),
                     to: Pos2::new(c.x + 12.0, c.y + dy),
                     width: 1.0,
-                    color: style.palette.text_dim,
+                    color: style.palette.text_secondary,
                 });
             }
             ui.ctx_mut().overlay_paint.extend(drained);
@@ -394,7 +397,7 @@ impl<'a> ColorPicker<'a> {
 
     fn popup_body(&mut self, ui: &mut Ui, id: crate::id::Id, hsv: &mut PickerHsv) {
         let style = ui.style();
-        let text_dim = style.palette.text_dim;
+        let text_dim = style.palette.text_secondary;
 
         // ── SV square.
         let sq = ui.allocate(Vec2::new(SV_W, SV_H));
@@ -525,14 +528,14 @@ impl<'a> ColorPicker<'a> {
                         .set_cursor_icon(crate::context::CursorIcon::Pointer);
                 }
                 let fill = if eye.active || resp.pressed {
-                    style.palette.accent.with_alpha(0.35)
+                    style.palette.accent_active.with_alpha(0.35)
                 } else if resp.hovered {
-                    style.palette.surface_active
+                    style.palette.active
                 } else {
-                    style.palette.surface_hover
+                    style.palette.hover
                 };
                 let stroke = if eye.active {
-                    style.palette.accent
+                    style.palette.accent_active
                 } else {
                     style.palette.stroke
                 };
@@ -597,9 +600,9 @@ impl<'a> ColorPicker<'a> {
             let save = chip_rect(0);
             let save_resp = ui.interact(id.with("swatch_save"), save);
             let fill = if save_resp.hovered {
-                style.palette.surface_hover
+                style.palette.hover
             } else {
-                style.palette.surface_active
+                style.palette.active
             };
             ui.ctx_mut().paint.push(PaintCmd::Rrect(
                 RectShape::fill(save, Rounding::same(3.0), fill)
@@ -636,7 +639,7 @@ impl<'a> ColorPicker<'a> {
                     push_checker(&mut ui.ctx_mut().paint, rect.shrink(1.0), 4.0);
                 }
                 let stroke = if resp.hovered {
-                    style.palette.accent
+                    style.palette.accent_active
                 } else {
                     style.palette.stroke
                 };
@@ -696,9 +699,12 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
     let rect = Rect::from_min_size(Pos2::new(x, y), size);
 
     ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-        RectShape::fill(rect, Rounding::same(4.0), style.palette.surface_hover)
-            .with_stroke(1.0, style.palette.stroke)
-            .with_shadow(16.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
+        RectShape::fill(
+            rect,
+            style.rounding.panel,
+            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+        )
+        .with_stroke(style.metrics.border, style.palette.stroke_strong),
     ));
 
     let grid_min = Pos2::new(rect.min.x + PAD, rect.min.y + PAD);

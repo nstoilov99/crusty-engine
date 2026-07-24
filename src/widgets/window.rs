@@ -336,19 +336,20 @@ impl<'open> Window<'open> {
         if self.modal {
             ui.ctx_mut().paint.push(PaintCmd::Rect {
                 rect: screen,
-                color: Color::rgba(0.0, 0.0, 0.0, 0.45),
+                color: Color::rgba(0.0, 0.0, 0.0, style.palette.scrim_alpha),
             });
         }
 
         let stroke_color = if is_front {
-            style.palette.stroke_hover
+            style.palette.stroke_strong
         } else {
             style.palette.stroke
         };
+        // E4: opaque elevated surface, no shadow — depth reads from the
+        // scrim (modals) or the strong front stroke (floating windows).
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
-            RectShape::fill(rect, style.rounding.panel, style.palette.surface)
-                .with_stroke(1.0, stroke_color)
-                .with_shadow(if is_front { 30.0 } else { 18.0 }, Color::rgba(0.0, 0.0, 0.0, 0.5)),
+            RectShape::fill(rect, style.rounding.panel, style.palette.elevated)
+                .with_stroke(style.metrics.border, stroke_color),
         ));
 
         // Title bar: round only the top corners (bottom ones too while
@@ -362,7 +363,7 @@ impl<'open> Window<'open> {
         ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
             title_rect,
             bar_round,
-            style.palette.surface_active,
+            style.palette.active,
         )));
 
         // Chevron (collapse) + title + close.
@@ -375,9 +376,9 @@ impl<'open> Window<'open> {
             let Ui { ctx, text, .. } = ui;
             if self.collapsible {
                 let chev_color = if chev_hovered {
-                    style.palette.accent
+                    style.palette.accent_active
                 } else {
-                    style.palette.text_dim
+                    style.palette.text_secondary
                 };
                 crate::widgets::paint_chevron(
                     &mut ctx.paint,
@@ -404,9 +405,9 @@ impl<'open> Window<'open> {
                 let cross = "\u{2715}";
                 let cross_size = text.measure(cross, style.fonts.small, None);
                 let cross_color = if close_hovered {
-                    style.palette.accent
+                    style.palette.accent_active
                 } else {
-                    style.palette.text_dim
+                    style.palette.text_secondary
                 };
                 text.add_text(
                     &mut ctx.paint,
@@ -461,9 +462,9 @@ impl<'open> Window<'open> {
             let grip_hovered =
                 on_window && pointer_pos.map_or(false, |p| grip_rect.contains(p));
             let grip_color = if resizing || grip_hovered {
-                style.palette.accent
+                style.palette.accent_active
             } else {
-                style.palette.text_dim
+                style.palette.text_secondary
             };
             // Three steps of a diagonal "staircase" marker.
             for i in 0..3 {

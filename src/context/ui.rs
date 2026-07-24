@@ -348,9 +348,9 @@ impl<'a> Ui<'a> {
         let origin = Pos2::new(pos.x + 8.0, pos.y - size.y * 0.5);
         let rect = Rect::from_min_size(origin, size);
 
-        let mut fill = style.palette.surface;
+        let mut fill = style.palette.header;
         fill.a = 0.7;
-        let mut stroke = style.palette.accent;
+        let mut stroke = style.palette.accent_active;
         stroke.a = 0.85;
         let shape =
             RectShape::fill(rect, style.rounding.small, fill).with_stroke(1.0, stroke);

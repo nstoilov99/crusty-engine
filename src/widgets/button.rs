@@ -104,23 +104,23 @@ impl Button {
         let (base, hover_c, active_c) = match self.fill {
             Some(c) => (c, lighten(c, 0.05), lighten(c, 0.10)),
             None => (
-                style.palette.surface,
-                style.palette.surface_hover,
-                style.palette.surface_active,
+                style.palette.header,
+                style.palette.hover,
+                style.palette.active,
             ),
         };
         let mut fill = lerp_color(base, hover_c, hover_anim);
         fill = lerp_color(fill, active_c, press_anim);
 
         let stroke =
-            lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim);
+            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
         // egui parity: 1px stroke at rest/hover, 1.5px while pressed.
         let shape = RectShape::fill(rect, style.rounding.widget, fill)
             .with_stroke(1.0 + press_anim * 0.5, stroke);
         // Zero-alpha accent_glow disables the hover glow (themes that want a
         // plain stroke outline, like the engine's egui-matching style).
-        let shape = if hover_anim > 0.0 && style.palette.accent_glow.a > 0.0 {
-            let mut glow = style.palette.accent_glow;
+        let shape = if hover_anim > 0.0 && style.palette.accent_soft.a > 0.0 {
+            let mut glow = style.palette.accent_soft;
             glow.a *= hover_anim;
             shape.with_glow(8.0 + 4.0 * hover_anim, glow)
         } else {

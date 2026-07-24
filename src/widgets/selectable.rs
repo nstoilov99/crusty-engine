@@ -50,11 +50,11 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
 
         let is_selected = *self.value == self.option;
         let fill = if is_selected {
-            let mut accent = style.palette.accent;
+            let mut accent = style.palette.accent_active;
             accent.a = 0.85;
             accent
         } else if hovered {
-            style.palette.surface_hover
+            style.palette.hover
         } else {
             Color::TRANSPARENT
         };

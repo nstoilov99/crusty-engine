@@ -114,7 +114,7 @@ impl<'a> DragValue<'a> {
         self
     }
 
-    /// Override the field background (default: `palette.surface_active`).
+    /// Override the field background (default: `palette.active`).
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
@@ -141,7 +141,7 @@ impl<'a> DragValue<'a> {
             let out = TextEdit::new(&mut edit.text)
                 .width(width)
                 .height(height)
-                .fill(self.fill.unwrap_or(style.palette.surface_active))
+                .fill(self.fill.unwrap_or(style.palette.active))
                 .request_focus(edit.just_opened)
                 .show_full(ui);
             edit.just_opened = false;
@@ -244,8 +244,8 @@ impl<'a> DragValue<'a> {
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
-        let fill = self.fill.unwrap_or(style.palette.surface_active);
-        let stroke = lerp_color(style.palette.stroke, style.palette.accent, hover_anim);
+        let fill = self.fill.unwrap_or(style.palette.active);
+        let stroke = lerp_color(style.palette.stroke, style.palette.accent_active, hover_anim);
         let shape = RectShape::fill(rect, Rounding::same(3.0), fill).with_stroke(1.0, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
 

@@ -161,7 +161,7 @@ impl Table {
         // Header background.
         ui.ctx_mut().paint.push(PaintCmd::Rect {
             rect: header_rect,
-            color: style.palette.surface_active,
+            color: style.palette.active,
         });
 
         let pointer_pos = ui.ctx().input.pointer_pos;
@@ -203,7 +203,7 @@ impl Table {
                         Pos2::new(border_x - 1.0, origin.y),
                         Vec2::new(2.0, header_h),
                     ),
-                    color: style.palette.accent,
+                    color: style.palette.accent_active,
                 });
             }
         }
@@ -255,7 +255,7 @@ impl Table {
             if state.sort_col == Some(i) {
                 let half = style.fonts.small * 0.28;
                 let width = (style.fonts.small * 0.12).max(1.5);
-                let color = style.palette.text_dim;
+                let color = style.palette.text_secondary;
                 let cx = cell.max.x - 9.0;
                 let cy = cell.min.y + header_h * 0.5;
                 // Outer arms sit on one side of `cy`, the tip on the other.
@@ -286,7 +286,7 @@ impl Table {
             max_height: self.max_height,
             striped: self.striped,
             stripe_color: {
-                let mut c = style.palette.surface_hover;
+                let mut c = style.palette.hover;
                 c.a *= 0.5;
                 c
             },

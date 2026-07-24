@@ -118,7 +118,7 @@ impl Splitter {
         } else {
             0.0
         };
-        let color = lerp_color(style.palette.stroke, style.palette.accent, highlight);
+        let color = lerp_color(style.palette.stroke, style.palette.accent_active, highlight);
         // Idle: subtle 1px divider; hover/drag: the full grab bar lights up.
         let visual = if highlight > 0.0 {
             bar

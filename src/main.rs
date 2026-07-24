@@ -222,15 +222,13 @@ const MENU_BAR_H: f32 = 32.0;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Theme {
-    EditorDark,
-    Glassmorphism,
+    Steel,
 }
 
 impl Theme {
     fn style(self) -> Style {
         match self {
-            Theme::EditorDark => Style::editor_dark(),
-            Theme::Glassmorphism => Style::glassmorphism(),
+            Theme::Steel => Style::steel(),
         }
     }
 }
@@ -281,7 +279,7 @@ impl Default for EditorState {
             preview_enabled: true,
             auto_save: false,
             quality: Quality::Medium,
-            theme: Theme::EditorDark,
+            theme: Theme::Steel,
             entity_name: "PlayerCamera".to_string(),
             asset_path: "assets/scenes/demo.scene".to_string(),
             selected_entity: "",
@@ -462,7 +460,7 @@ impl DockApp for Editor {
                 let st = ui.style();
                 Label::new("drag the title bar, resize at the\nbottom-right grip, collapse with the\nchevron, close with the cross.")
                     .size(st.fonts.small)
-                    .color(st.palette.text_dim)
+                    .color(st.palette.text_secondary)
                     .show(ui);
                 ui.add_space(st.spacing.item);
                 ui.slider(window_slider, 0.0..=1.0);
@@ -507,7 +505,7 @@ impl DockApp for Editor {
                     let st = ui.style();
                     Label::new("Modal window: the backdrop is dimmed\nand everything behind is blocked.\nClick outside or press Esc to close.")
                         .size(st.fonts.small)
-                        .color(st.palette.text_dim)
+                        .color(st.palette.text_secondary)
                         .show(ui);
                     ui.add_space(st.spacing.item);
                     if ui.button("Close").clicked() {
@@ -630,15 +628,15 @@ impl Editor {
                         "A second OS window with its own Context,\nswapchain, and glass pipeline — sharing\nthe same GPU device as the main window.",
                     )
                     .size(st.fonts.small)
-                    .color(st.palette.text_dim)
+                    .color(st.palette.text_secondary)
                     .show(ui);
                     ui.add_space(st.spacing.item);
                     // A spinning triangle via the Phase 14 painter proves the
                     // window animates off its own independent clock.
                     let canvas = ui.allocate(Vec2::new(220.0, 220.0));
                     let c = canvas.center();
-                    let accent = st.palette.accent;
-                    let surf = st.palette.surface;
+                    let accent = st.palette.accent_active;
+                    let surf = st.palette.header;
                     let mut p = ui.painter();
                     p.rect_filled(canvas, 6.0, surf);
                     let r = 78.0;
@@ -786,9 +784,9 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                 || chip_label.to_string(),
                             );
                             let chip_fill = if dragging {
-                                st.palette.surface_active
+                                st.palette.active
                             } else {
-                                st.palette.surface_hover
+                                st.palette.hover
                             };
                             ui.ctx_mut().paint.push(PaintCmd::Rrect(
                                 RectShape::fill(chip, st.rounding.small, chip_fill)
@@ -809,12 +807,12 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             }
                             ui.add_space(st.spacing.padding);
                             Label::new("Viewport")
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
                             Label::new("Scene render placeholder")
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
                             // Phase 14: a custom-drawn canvas via the public
@@ -824,9 +822,9 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             {
                                 let canvas =
                                     ui.allocate(Vec2::new(220.0, 90.0));
-                                let accent = st.palette.accent;
-                                let dim = st.palette.text_dim;
-                                let surf = st.palette.surface;
+                                let accent = st.palette.accent_active;
+                                let dim = st.palette.text_secondary;
+                                let surf = st.palette.header;
                                 let mut p = ui.painter();
                                 p.rect_filled(canvas, 4.0, surf);
                                 // Sparkline across the canvas width.
@@ -879,19 +877,19 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             ui.add_space(st.spacing.padding);
                             Label::new(format!("Frame: {:.2} ms", frame_time_ms))
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             Label::new(format!("UI pass: {:.0} µs", ui_us))
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             Label::new(format!("Tessellate: {:.0} µs", tess_us))
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             Label::new(format!("Quality: {:?}", *quality))
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
                             if ui.button("Open Settings window").clicked() {
@@ -917,12 +915,10 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             ui.scroll_area(avail, |ui| {
                                 Label::new("Theme")
                                     .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
+                                    .color(st.palette.text_secondary)
                                     .show(ui);
                                 ui.horizontal(|ui| {
-                                    ui.radio_value(theme, Theme::EditorDark, "Editor");
-                                    ui.add_space(ui.style().spacing.padding);
-                                    ui.radio_value(theme, Theme::Glassmorphism, "Glass");
+                                    ui.radio_value(theme, Theme::Steel, "Steel");
                                 });
                                 ui.add_space(st.spacing.padding);
 
@@ -930,7 +926,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                 // draggable asset chip.
                                 Label::new("Material")
                                     .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
+                                    .color(st.palette.text_secondary)
                                     .show(ui);
                                 let slot = ui.allocate(Vec2::new(
                                     ui.available().width(),
@@ -941,14 +937,14 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                     *inspector_slot = Some(name);
                                 }
                                 let slot_fill = if hovering {
-                                    let mut a = st.palette.accent;
+                                    let mut a = st.palette.accent_active;
                                     a.a = 0.30;
                                     a
                                 } else {
-                                    st.palette.surface
+                                    st.palette.header
                                 };
                                 let slot_stroke = if hovering {
-                                    st.palette.accent
+                                    st.palette.accent_active
                                 } else {
                                     st.palette.stroke
                                 };
@@ -979,7 +975,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                         g.cell(|ui| {
                                             Label::new("Name")
                                                 .size(st.fonts.small)
-                                                .color(st.palette.text_dim)
+                                                .color(st.palette.text_secondary)
                                                 .show(ui);
                                         });
                                         g.cell(|ui| {
@@ -989,7 +985,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                         g.cell(|ui| {
                                             Label::new("Source path")
                                                 .size(st.fonts.small)
-                                                .color(st.palette.text_dim)
+                                                .color(st.palette.text_secondary)
                                                 .show(ui);
                                         });
                                         g.cell(|ui| {
@@ -1018,7 +1014,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                     ui.add_space(st.spacing.item);
                                     Label::new("Render quality")
                                         .size(st.fonts.small)
-                                        .color(st.palette.text_dim)
+                                        .color(st.palette.text_secondary)
                                         .show(ui);
                                     let quality_label = match *quality {
                                         Quality::Low => "Low",
@@ -1053,7 +1049,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
 
                                 Label::new("Buffer fill")
                                     .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
+                                    .color(st.palette.text_secondary)
                                     .show(ui);
                                 ui.progress_bar(*volume);
                                 ui.add_space(st.spacing.padding);
@@ -1068,7 +1064,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                 );
                                 Label::new(format!("Buttons clicked: {}", *click_count))
                                     .size(st.fonts.small)
-                                    .color(st.palette.text_dim)
+                                    .color(st.palette.text_secondary)
                                     .show(ui);
                             });
                         }
@@ -1090,7 +1086,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                         } else if line.starts_with("[error]") {
                                             Color::rgba(0.95, 0.45, 0.45, 1.0)
                                         } else {
-                                            st.palette.text_dim
+                                            st.palette.text_secondary
                                         };
                                         Label::new(line)
                                             .size(st.fonts.small)
@@ -1155,7 +1151,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             let st = ui.style();
                             Label::new("Frame breakdown (drag a header border to resize, click to sort)")
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.padding);
 
@@ -1237,11 +1233,11 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             let st = ui.style();
                             Label::new("\u{26A0} texture 'metal.png' exceeds 2K target")
                                 .size(st.fonts.small)
-                                .color(st.palette.accent)
+                                .color(st.palette.accent_active)
                                 .show(ui);
                             Label::new("\u{26A0} 3 unused materials in scene")
                                 .size(st.fonts.small)
-                                .color(st.palette.accent)
+                                .color(st.palette.accent_active)
                                 .show(ui);
                         }
                         "Texture" => {
@@ -1249,7 +1245,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             let st = ui.style();
                             Label::new("2048 \u{00D7} 2048 \u{00B7} BC7 \u{00B7} 5.3 MB")
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.item);
                             Image::new(demo_texture, Vec2::new(200.0, 200.0)).show(ui);
@@ -1262,7 +1258,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             let st = ui.style();
                             Label::new("12,480 tris \u{00B7} 6,210 verts \u{00B7} 1 material")
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.item);
                             Image::new(demo_texture, Vec2::new(220.0, 160.0)).show(ui);
@@ -1276,7 +1272,7 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                             let st = ui.style();
                             Label::new("32 frames \u{00B7} 30 fps \u{00B7} 1.07 s \u{00B7} looping")
                                 .size(st.fonts.small)
-                                .color(st.palette.text_dim)
+                                .color(st.palette.text_secondary)
                                 .show(ui);
                             ui.add_space(st.spacing.item);
                             ui.label("Timeline");

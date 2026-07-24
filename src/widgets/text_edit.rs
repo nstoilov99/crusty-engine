@@ -60,7 +60,7 @@ impl<'a> TextEdit<'a> {
         }
     }
 
-    /// Override the field background (default: `palette.surface_active`).
+    /// Override the field background (default: `palette.active`).
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
@@ -308,10 +308,10 @@ impl<'a> TextEdit<'a> {
         let focus_anim = mem.aux_anim;
 
         // ── Background + border (accent stroke when focused).
-        let fill = self.fill.unwrap_or(style.palette.surface_active);
+        let fill = self.fill.unwrap_or(style.palette.active);
         let stroke = lerp_color(
-            lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim),
-            style.palette.accent,
+            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim),
+            style.palette.accent_active,
             focus_anim,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
@@ -324,7 +324,7 @@ impl<'a> TextEdit<'a> {
 
         // Selection highlight, drawn under the glyphs.
         if focused && sel_a != sel_b {
-            let mut hl = style.palette.accent;
+            let mut hl = style.palette.accent_active;
             hl.a = 0.30;
             let sel_rect = Rect::from_min_max(
                 Pos2::new(text_x + sel_a_off, text_y - 1.0),
@@ -341,7 +341,7 @@ impl<'a> TextEdit<'a> {
         // below the dim text color (egui's "weak" text) so it can't be
         // mistaken for a value.
         let (display_text, display_color) = if self.value.is_empty() && !focused {
-            let mut c = style.palette.text_dim;
+            let mut c = style.palette.text_secondary;
             c.a *= 0.55;
             (self.hint.as_deref().unwrap_or(""), c)
         } else {
@@ -371,7 +371,7 @@ impl<'a> TextEdit<'a> {
                 ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
                     caret_rect,
                     style.rounding.small,
-                    style.palette.accent,
+                    style.palette.accent_active,
                 )));
             }
         }

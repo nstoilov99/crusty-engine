@@ -373,7 +373,7 @@ impl<'a> DockArea<'a> {
                     ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
                         caret,
                         Rounding::same(1.0),
-                        ctx.style.palette.accent,
+                        ctx.style.palette.accent_active,
                     )));
                 }
                 if ext.released {
@@ -521,7 +521,7 @@ fn show_leaf<F>(
     // with the panel color) reads as connected to its content.
     let tab_bar_rect =
         Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
-    let bar_bg = RectShape::fill(tab_bar_rect, style.rounding.small, style.palette.tab_bar);
+    let bar_bg = RectShape::fill(tab_bar_rect, style.rounding.small, style.palette.window);
     ctx.paint.push(PaintCmd::Rrect(bar_bg));
 
     // Clip the tabs to their bar so a leaf with more tabs than fit its width
@@ -631,7 +631,7 @@ fn draw_splitter(ctx: &mut Context, splitter_rect: Rect, splitter_id: Id) {
     } else {
         0.0
     };
-    let color = lerp_color(style.palette.stroke, style.palette.accent, highlight);
+    let color = lerp_color(style.palette.stroke, style.palette.accent_active, highlight);
     let shape = RectShape::fill(splitter_rect, Rounding::ZERO, color);
     ctx.paint.push(PaintCmd::Rrect(shape));
 }
@@ -717,13 +717,13 @@ fn draw_tabs(
             ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
                 top_line,
                 Rounding::same(1.0),
-                style.palette.accent,
+                style.palette.accent_active,
             )));
         } else if hovered {
             ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
                 tab_rect,
                 style.rounding.small,
-                style.palette.surface_hover,
+                style.palette.hover,
             )));
         }
 
@@ -734,7 +734,7 @@ fn draw_tabs(
         let label_color = if is_active {
             style.palette.text
         } else {
-            style.palette.text_dim
+            style.palette.text_secondary
         };
         text.add_text(
             &mut ctx.paint,
@@ -759,7 +759,7 @@ fn draw_tabs(
                 ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
                     close_rect,
                     style.rounding.small,
-                    style.palette.surface_hover,
+                    style.palette.hover,
                 )));
             }
             let show_glyph = is_active || hovered;
@@ -768,7 +768,7 @@ fn draw_tabs(
                 let col = if over_close {
                     style.palette.text
                 } else {
-                    style.palette.text_dim
+                    style.palette.text_secondary
                 };
                 ctx.paint.push(PaintCmd::Line {
                     from: g.min,
@@ -891,9 +891,9 @@ fn render_drop_preview(ctx: &mut Context, candidate: &DropCandidate) {
         // shown by the caret drawn in the caller, so don't tint the whole bar.
     } else if let Some(zone) = candidate.zone {
         let preview = preview_rect_for_zone(candidate.target_rect, zone);
-        let mut tint = style.palette.accent;
+        let mut tint = style.palette.accent_active;
         tint.a = 0.22;
-        let mut stroke = style.palette.accent;
+        let mut stroke = style.palette.accent_active;
         stroke.a = 0.95;
         // Plain quad, not an rrect fill: translucent rrect fills take the
         // shader's glass path, which composites the backdrop opaquely.
@@ -915,10 +915,10 @@ fn render_compass(ctx: &mut Context, candidate: &DropCandidate) {
     let buttons = compass_button_rects(candidate.target_rect);
     for (zone, btn_rect) in buttons {
         let is_active = Some(zone) == candidate.zone && !candidate.via_tab_bar;
-        let mut fill = style.palette.surface;
+        let mut fill = style.palette.header;
         fill.a = if is_active { 0.98 } else { 0.92 };
         let (stroke_w, stroke) = if is_active {
-            (1.5, style.palette.accent)
+            (1.5, style.palette.accent_active)
         } else {
             (1.0, style.palette.stroke)
         };
@@ -938,7 +938,7 @@ fn draw_compass_icon(ctx: &mut Context, btn_rect: Rect, zone: DropZone, active: 
     let ink = if active {
         style.palette.text
     } else {
-        style.palette.text_dim
+        style.palette.text_secondary
     };
     let icon = btn_rect.shrink(7.0);
 
@@ -1030,13 +1030,13 @@ fn render_external_decorator<F>(
 
     // Panel body + slim header bar carrying the tab name (no window chrome).
     let body = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
-        .with_stroke(1.0, style.palette.accent);
+        .with_stroke(1.0, style.palette.accent_active);
     ctx.paint.push(PaintCmd::Rrect(body));
     let header = Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
     ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
         header,
         style.rounding.small,
-        style.palette.tab_bar,
+        style.palette.window,
     )));
     text.add_text(
         &mut ctx.paint,

@@ -66,9 +66,9 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
         let outer_rect =
             Rect::from_min_size(Pos2::new(rect.min.x, outer_top), Vec2::splat(box_size));
 
-        let fill = style.palette.surface;
+        let fill = style.palette.header;
         let outline =
-            lerp_color(style.palette.stroke, style.palette.stroke_hover, hover_anim);
+            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
         let outer = RectShape::fill(outer_rect, Rounding::same(box_size * 0.5), fill)
             .with_stroke(1.0 + hover_anim * 0.4, outline);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(outer));
@@ -80,7 +80,7 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
                 Vec2::splat(box_size - inset * 2.0),
             )
             .shrink(box_size * 0.22);
-            let mut dot_color = style.palette.accent;
+            let mut dot_color = style.palette.accent_active;
             dot_color.a *= check_anim;
             let dot =
                 RectShape::fill(inner, Rounding::same(inner.width() * 0.5), dot_color);

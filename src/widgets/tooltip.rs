@@ -39,7 +39,7 @@ pub fn show_tooltip_for(ui: &mut Ui, rect: Rect, text: &str) {
         RectShape::fill(
             tip_rect,
             style.rounding.small,
-            style.palette.surface_active,
+            style.palette.active,
         )
         .with_stroke(1.0, style.palette.stroke),
     ));

@@ -74,14 +74,14 @@ impl ProgressBar {
         let track_shape = RectShape::fill(
             rect,
             Rounding::same(height * 0.5),
-            style.palette.surface_active,
+            style.palette.active,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
         let filled_w = (rect.width() * displayed.clamp(0.0, 1.0)).max(0.0);
         if filled_w > 0.5 {
             let filled = Rect::from_min_size(rect.min, Vec2::new(filled_w, rect.height()));
-            let fill_color = self.fill.unwrap_or(style.palette.success);
+            let fill_color = self.fill.unwrap_or(style.palette.accent_active);
             let fill_shape = RectShape::fill(filled, Rounding::same(height * 0.5), fill_color);
             ui.ctx_mut().paint.push(PaintCmd::Rrect(fill_shape));
         }

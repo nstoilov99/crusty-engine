@@ -2,7 +2,7 @@ use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
 use crate::input::Key;
 use crate::layer::Order;
-use crate::math::{Color, Rect, Vec2};
+use crate::math::{Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 
 /// Anchored dropdown popup — the ComboBox overlay mechanism as a reusable
@@ -85,9 +85,12 @@ impl Popup {
 
             let popup_rect = Rect::from_min_size(pos, Vec2::new(self.width, used_h + 8.0));
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-                RectShape::fill(popup_rect, style.rounding.widget, style.palette.surface_hover)
-                    .with_stroke(1.0, style.palette.stroke)
-                    .with_shadow(20.0, Color::rgba(0.0, 0.0, 0.0, 0.45)),
+                RectShape::fill(
+                    popup_rect,
+                    style.rounding.panel,
+                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                )
+                .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
             ui.ctx_mut().overlay_paint.extend(drained);
             ui.ctx_mut().overlay_paint.extend(overlay_drained);

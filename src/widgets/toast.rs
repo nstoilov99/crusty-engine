@@ -113,19 +113,18 @@ impl Ui<'_> {
             let fade_out = (remaining / 0.5).clamp(0.0, 1.0);
             let alpha = fade_in.min(fade_out);
 
-            let mut fill = style.palette.surface_hover;
+            let mut fill = style.palette.elevated.with_alpha(style.palette.popover_alpha);
             fill.a *= alpha;
-            let mut stroke = style.palette.stroke;
+            let mut stroke = style.palette.stroke_strong;
             stroke.a *= alpha;
             self.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-                RectShape::fill(rect, style.rounding.widget, fill)
-                    .with_stroke(1.0, stroke)
-                    .with_shadow(18.0, Color::rgba(0.0, 0.0, 0.0, 0.4 * alpha)),
+                RectShape::fill(rect, style.rounding.panel, fill)
+                    .with_stroke(style.metrics.border, stroke),
             ));
 
             // Accent stripe down the left edge.
             let mut accent = match t.kind {
-                ToastKind::Info => style.palette.accent,
+                ToastKind::Info => style.palette.accent_active,
                 ToastKind::Success => Color::rgba(0.30, 0.78, 0.45, 1.0),
                 ToastKind::Error => Color::rgba(0.90, 0.35, 0.35, 1.0),
             };
