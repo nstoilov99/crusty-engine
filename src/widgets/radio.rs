@@ -66,11 +66,15 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
         let outer_rect =
             Rect::from_min_size(Pos2::new(rect.min.x, outer_top), Vec2::splat(box_size));
 
-        let fill = style.palette.header;
-        let outline =
-            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
+        let fill = style.palette.input;
+        let off_outline = lerp_color(
+            style.palette.stroke_strong,
+            style.palette.text_disabled,
+            hover_anim,
+        );
+        let outline = lerp_color(off_outline, style.palette.accent_active, check_anim);
         let outer = RectShape::fill(outer_rect, Rounding::same(box_size * 0.5), fill)
-            .with_stroke(1.0 + hover_anim * 0.4, outline);
+            .with_stroke(style.metrics.border, outline);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(outer));
 
         if check_anim > 0.01 {

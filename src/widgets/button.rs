@@ -4,6 +4,20 @@ use crate::math::{Color, Pos2, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
 
+/// Visual role per the design system's button family.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ButtonVariant {
+    /// Neutral chrome: `header` fill, `stroke` border.
+    #[default]
+    Standard,
+    /// Accent-filled call to action (Save All).
+    Primary,
+    /// Filled destructive action (Remove) — confirm dialogs.
+    Danger,
+    /// No fill/border at rest; neutral hover fill (Cancel, menu-ish).
+    Ghost,
+}
+
 pub struct Button {
     text: String,
     size: Option<f32>,
@@ -11,6 +25,9 @@ pub struct Button {
     exact_size: Option<Vec2>,
     fill: Option<Color>,
     text_color: Option<Color>,
+    variant: ButtonVariant,
+    toggled: bool,
+    enabled: bool,
 }
 
 impl Button {
@@ -22,6 +39,9 @@ impl Button {
             exact_size: None,
             fill: None,
             text_color: None,
+            variant: ButtonVariant::Standard,
+            toggled: false,
+            enabled: true,
         }
     }
 
@@ -45,8 +65,6 @@ impl Button {
     }
 
     /// Override the background fill (hover/press lighten it slightly).
-    /// Used for toggle-style buttons that tint by state, like the console
-    /// log filters.
     pub fn fill(mut self, color: Color) -> Self {
         self.fill = Some(color);
         self
@@ -55,6 +73,35 @@ impl Button {
     /// Override the label color.
     pub fn text_color(mut self, color: Color) -> Self {
         self.text_color = Some(color);
+        self
+    }
+
+    pub fn variant(mut self, variant: ButtonVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    pub fn primary(self) -> Self {
+        self.variant(ButtonVariant::Primary)
+    }
+
+    pub fn danger(self) -> Self {
+        self.variant(ButtonVariant::Danger)
+    }
+
+    pub fn ghost(self) -> Self {
+        self.variant(ButtonVariant::Ghost)
+    }
+
+    /// Toggled-tool state: `accent_soft` fill + accent border + accent
+    /// label — the only accent-filled thing in a toolbar.
+    pub fn toggled(mut self, on: bool) -> Self {
+        self.toggled = on;
+        self
+    }
+
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 
@@ -71,7 +118,7 @@ impl Button {
         ));
         let rect = ui.allocate(button_size);
 
-        let hovered = ui.contains_pointer(rect);
+        let hovered = self.enabled && ui.contains_pointer(rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;
@@ -80,7 +127,7 @@ impl Button {
         if pointer_pressed && hovered {
             ui.ctx_mut().memory.active_widget = Some(id);
         }
-        let is_active = active_id == Some(id) || (pointer_pressed && hovered);
+        let is_active = self.enabled && (active_id == Some(id) || (pointer_pressed && hovered));
         let pressed = is_active && pointer_down;
         if pointer_released && is_active && hovered {
             clicked = true;
@@ -99,35 +146,88 @@ impl Button {
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
-        // Compose fill: base → hover → active. A custom fill lightens by state
-        // instead of using the palette surfaces.
-        let (base, hover_c, active_c) = match self.fill {
-            Some(c) => (c, lighten(c, 0.05), lighten(c, 0.10)),
-            None => (
-                style.palette.header,
-                style.palette.hover,
-                style.palette.active,
-            ),
-        };
-        let mut fill = lerp_color(base, hover_c, hover_anim);
-        fill = lerp_color(fill, active_c, press_anim);
-
-        let stroke =
-            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
-        // egui parity: 1px stroke at rest/hover, 1.5px while pressed.
-        let shape = RectShape::fill(rect, style.rounding.widget, fill)
-            .with_stroke(1.0 + press_anim * 0.5, stroke);
-        // Zero-alpha accent_glow disables the hover glow (themes that want a
-        // plain stroke outline, like the engine's egui-matching style).
-        let shape = if hover_anim > 0.0 && style.palette.accent_soft.a > 0.0 {
-            let mut glow = style.palette.accent_soft;
-            glow.a *= hover_anim;
-            shape.with_glow(8.0 + 4.0 * hover_anim, glow)
+        // State ladder: hover = fill one step lighter + stroke_strong;
+        // pressed = one step darker; disabled = header fill, 50% stroke,
+        // disabled text. Flat — no glow, no border widening.
+        let p = &style.palette;
+        struct Colors {
+            base: Color,
+            hover: Color,
+            press: Color,
+            border: Color,
+            border_hover: Color,
+            text: Color,
+        }
+        let c = if !self.enabled {
+            Colors {
+                base: p.header,
+                hover: p.header,
+                press: p.header,
+                border: p.stroke.with_alpha(p.stroke.a * 0.5),
+                border_hover: p.stroke.with_alpha(p.stroke.a * 0.5),
+                text: p.text_disabled,
+            }
+        } else if self.toggled {
+            Colors {
+                base: p.accent_soft,
+                hover: p.accent_soft,
+                press: p.accent_soft,
+                border: p.accent_active,
+                border_hover: p.accent_active,
+                text: p.accent_active,
+            }
         } else {
-            shape
+            match self.variant {
+                ButtonVariant::Standard => Colors {
+                    base: self.fill.unwrap_or(p.header),
+                    hover: self.fill.map(|f| lighten(f, 0.05)).unwrap_or(p.hover),
+                    press: self.fill.map(|f| darken(f, 0.04)).unwrap_or(p.panel),
+                    border: p.stroke,
+                    border_hover: p.stroke_strong,
+                    text: p.text,
+                },
+                ButtonVariant::Primary => Colors {
+                    base: p.accent_active,
+                    hover: lighten(p.accent_active, 0.09),
+                    press: darken(p.accent_active, 0.07),
+                    border: p.accent_active,
+                    border_hover: lighten(p.accent_active, 0.09),
+                    text: p.accent_text,
+                },
+                ButtonVariant::Danger => Colors {
+                    base: p.danger,
+                    hover: lighten(p.danger, 0.07),
+                    press: darken(p.danger, 0.07),
+                    border: p.danger,
+                    border_hover: lighten(p.danger, 0.07),
+                    text: Color::WHITE,
+                },
+                ButtonVariant::Ghost => Colors {
+                    base: Color::TRANSPARENT,
+                    hover: p.hover,
+                    press: darken(p.hover, 0.04),
+                    border: Color::TRANSPARENT,
+                    border_hover: Color::TRANSPARENT,
+                    text: p.text_secondary,
+                },
+            }
         };
+
+        let mut fill = lerp_color(c.base, c.hover, hover_anim);
+        fill = lerp_color(fill, c.press, press_anim);
+        let stroke = lerp_color(c.border, c.border_hover, hover_anim);
+        let shape = RectShape::fill(rect, style.rounding.widget, fill)
+            .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
 
+        let text_color = self.text_color.unwrap_or(if self.enabled
+            && self.variant == ButtonVariant::Ghost
+            && !self.toggled
+        {
+            lerp_color(c.text, p.text, hover_anim)
+        } else {
+            c.text
+        });
         let text_pos = Pos2::new(
             rect.min.x + (rect.width() - text_size.x) * 0.5,
             rect.min.y + (rect.height() - text_size.y) * 0.5 + press_anim * 1.0,
@@ -138,7 +238,7 @@ impl Button {
             &self.text,
             font_size,
             text_pos,
-            self.text_color.unwrap_or(style.palette.text),
+            text_color,
             None,
         );
 
@@ -154,7 +254,7 @@ impl Button {
     }
 }
 
-fn lighten(c: Color, amt: f32) -> Color {
+pub(crate) fn lighten(c: Color, amt: f32) -> Color {
     Color::rgba(
         (c.r + amt).min(1.0),
         (c.g + amt).min(1.0),
@@ -163,11 +263,20 @@ fn lighten(c: Color, amt: f32) -> Color {
     )
 }
 
+pub(crate) fn darken(c: Color, amt: f32) -> Color {
+    Color::rgba(
+        (c.r - amt).max(0.0),
+        (c.g - amt).max(0.0),
+        (c.b - amt).max(0.0),
+        c.a,
+    )
+}
+
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t.clamp(0.0, 1.0)
 }
 
-fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+pub(crate) fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     Color::rgba(
         lerp(a.r, b.r, t),
         lerp(a.g, b.g, t),

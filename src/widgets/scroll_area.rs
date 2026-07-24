@@ -76,7 +76,9 @@ impl ScrollArea {
         };
         let outer_rect = ui.allocate(Vec2::new(width, outer_h));
 
-        let scrollbar_w = 8.0;
+        // 10px gutter with a 6px thumb centered in it; the track itself
+        // stays transparent.
+        let scrollbar_w = 10.0;
         // Only reserve scrollbar space when the content actually overflows
         // (egui-like): otherwise the inner content spans the full width.
         let will_overflow = prev_content_h > outer_h + 0.5;
@@ -144,20 +146,9 @@ impl ScrollArea {
 
         // Render scrollbar if there's overflow.
         if max_offset > 0.5 {
-            let track_rect = Rect::from_min_size(
-                Pos2::new(outer_rect.max.x - scrollbar_w, outer_rect.min.y),
-                Vec2::new(scrollbar_w, outer_rect.height()),
-            );
-            let mut track_color = style.palette.active;
-            track_color.a = 0.6;
-            ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
-                track_rect,
-                Rounding::same(scrollbar_w * 0.5),
-                track_color,
-            )));
-
+            let thumb_w = 6.0;
             let thumb_ratio = (outer_rect.height() / used_h).clamp(0.05, 1.0);
-            let thumb_h = (outer_rect.height() * thumb_ratio).max(20.0);
+            let thumb_h = (outer_rect.height() * thumb_ratio).max(24.0);
             let thumb_track = outer_rect.height() - thumb_h;
             let progress = if max_offset > 0.0 {
                 new_offset / max_offset
@@ -166,8 +157,11 @@ impl ScrollArea {
             };
             let thumb_y = outer_rect.min.y + thumb_track * progress;
             let thumb_rect = Rect::from_min_size(
-                Pos2::new(outer_rect.max.x - scrollbar_w + 1.0, thumb_y),
-                Vec2::new(scrollbar_w - 2.0, thumb_h),
+                Pos2::new(
+                    outer_rect.max.x - scrollbar_w + (scrollbar_w - thumb_w) * 0.5,
+                    thumb_y,
+                ),
+                Vec2::new(thumb_w, thumb_h),
             );
 
             // Thumb hover + drag.
@@ -204,14 +198,19 @@ impl ScrollArea {
             );
             let hover_anim = thumb_mem.hover_anim;
 
-            let thumb_color = lerp_color(
-                style.palette.text_secondary,
-                style.palette.accent_active,
-                hover_anim,
-            );
+            // Neutral ladder only — scrollbars never take accent.
+            let thumb_color = if is_active && pointer_down {
+                style.palette.text_disabled
+            } else {
+                lerp_color(
+                    style.palette.active,
+                    style.palette.stroke_strong,
+                    hover_anim,
+                )
+            };
             ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
                 thumb_rect,
-                Rounding::same(scrollbar_w * 0.5 - 1.0),
+                Rounding::same(3.0),
                 thumb_color,
             )));
         }

@@ -69,6 +69,24 @@ pub struct Context {
     /// Content hash of the previous frame's merged paint list; compared at
     /// end_frame to report [`FrameOutput::paint_changed`].
     last_paint_hash: Option<u64>,
+    /// Single-instance tooltip arbitration (hover timer + last-wins anchor).
+    pub(crate) tooltip: TooltipState,
+}
+
+/// Cross-frame tooltip state. Widgets file requests during the frame
+/// (`pending`, last one wins = topmost); begin_frame commits the winner
+/// and starts the hover timer. The tooltip paints only once the pointer
+/// has rested on the same anchor for the delay.
+#[derive(Default)]
+pub(crate) struct TooltipState {
+    /// Anchor that won last frame's arbitration.
+    pub committed: Option<u64>,
+    /// Time the committed anchor was first hovered.
+    pub hover_start: f64,
+    /// This frame's requests; last caller wins.
+    pub pending: Option<u64>,
+    /// Guards against double paint if two widgets share an anchor hash.
+    pub shown_this_frame: bool,
 }
 
 impl Context {
@@ -112,6 +130,14 @@ impl Context {
         if self.input.pointer_pressed {
             self.memory.focused_widget = None;
         }
+        // Commit last frame's tooltip request (last caller won = topmost
+        // widget); an anchor change restarts the hover-delay timer.
+        let pending = self.tooltip.pending.take();
+        if pending != self.tooltip.committed {
+            self.tooltip.committed = pending;
+            self.tooltip.hover_start = self.time;
+        }
+        self.tooltip.shown_this_frame = false;
         self.inside_frame = true;
     }
 

@@ -11,6 +11,7 @@ pub struct ProgressBar {
     smooth: bool,
     fill: Option<Color>,
     text: Option<String>,
+    indeterminate: bool,
 }
 
 impl ProgressBar {
@@ -22,7 +23,14 @@ impl ProgressBar {
             smooth: true,
             fill: None,
             text: None,
+            indeterminate: false,
         }
+    }
+
+    /// Unknown duration: a 25%-width accent segment sweeps the track.
+    pub fn indeterminate(mut self) -> Self {
+        self.indeterminate = true;
+        self
     }
 
     pub fn width(mut self, w: f32) -> Self {
@@ -63,7 +71,11 @@ impl ProgressBar {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        let displayed = if self.smooth {
+        let displayed = if self.indeterminate {
+            // aux_anim doubles as the sweep phase (wraps at 1).
+            mem.aux_anim = (mem.aux_anim + dt * 0.8).fract();
+            mem.aux_anim
+        } else if self.smooth {
             mem.aux_anim = approach_half_life(mem.aux_anim, self.progress, dt, 0.18);
             mem.aux_anim
         } else {
@@ -71,19 +83,41 @@ impl ProgressBar {
             self.progress
         };
 
+        // Track reads inset: darkest surface, no border.
         let track_shape = RectShape::fill(
             rect,
             Rounding::same(height * 0.5),
-            style.palette.active,
+            style.palette.input,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
-        let filled_w = (rect.width() * displayed.clamp(0.0, 1.0)).max(0.0);
-        if filled_w > 0.5 {
-            let filled = Rect::from_min_size(rect.min, Vec2::new(filled_w, rect.height()));
-            let fill_color = self.fill.unwrap_or(style.palette.accent_active);
-            let fill_shape = RectShape::fill(filled, Rounding::same(height * 0.5), fill_color);
-            ui.ctx_mut().paint.push(PaintCmd::Rrect(fill_shape));
+        let fill_color = self.fill.unwrap_or(style.palette.accent_active);
+        if self.indeterminate {
+            let seg_w = rect.width() * 0.25;
+            // Sweep the segment fully across: enters from the left edge,
+            // exits at the right, clipped to the track.
+            let x = rect.min.x - seg_w + (rect.width() + seg_w) * displayed;
+            let seg = Rect::from_min_size(
+                Pos2::new(x.max(rect.min.x), rect.min.y),
+                Vec2::new(
+                    (x + seg_w).min(rect.max.x) - x.max(rect.min.x),
+                    rect.height(),
+                ),
+            );
+            if seg.width() > 0.5 {
+                ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
+                    seg,
+                    Rounding::same(height * 0.5),
+                    fill_color,
+                )));
+            }
+        } else {
+            let filled_w = (rect.width() * displayed.clamp(0.0, 1.0)).max(0.0);
+            if filled_w > 0.5 {
+                let filled = Rect::from_min_size(rect.min, Vec2::new(filled_w, rect.height()));
+                let fill_shape = RectShape::fill(filled, Rounding::same(height * 0.5), fill_color);
+                ui.ctx_mut().paint.push(PaintCmd::Rrect(fill_shape));
+            }
         }
 
         if let Some(text) = &self.text {

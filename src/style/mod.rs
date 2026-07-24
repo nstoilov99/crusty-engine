@@ -59,6 +59,11 @@ pub struct Palette {
     /// `accent_active` at ~15% alpha: fill behind toggled tool buttons,
     /// active filter chips.
     pub accent_soft: Color,
+    /// Text/icons on top of `accent_active` fills (dark, preset-invariant).
+    pub accent_text: Color,
+    /// Destructive *actions* (Remove/Delete buttons) — preset-invariant.
+    /// Status/error *information* colors stay engine-side.
+    pub danger: Color,
     // --- Preset-invariant selection ---------------------------------------
     /// Hierarchy rows, asset tiles, dropdown current value.
     pub selection_fill: Color,
@@ -96,7 +101,8 @@ pub struct Sizes {
     pub radio: f32,
     pub slider_height: f32,
     pub slider_default_width: f32,
-    pub slider_track_ratio: f32,
+    /// Track thickness (px).
+    pub slider_track: f32,
     pub progress_height: f32,
     pub progress_default_width: f32,
 }
@@ -157,6 +163,8 @@ impl Style {
                 accent_active: rgb(79, 163, 232),
                 focus_ring: rgb(122, 187, 240),
                 accent_soft: rgb(79, 163, 232).with_alpha(0.15),
+                accent_text: rgb(14, 21, 32),
+                danger: rgb(179, 56, 47),
                 selection_fill: rgb(60, 70, 84),
                 selection_text: Color::WHITE,
                 text: rgb(232, 234, 237),
@@ -175,10 +183,10 @@ impl Style {
             sizes: Sizes {
                 checkbox: 14.0,
                 radio: 14.0,
-                slider_height: 16.0,
+                slider_height: 14.0,
                 slider_default_width: 180.0,
-                slider_track_ratio: 0.35,
-                progress_height: 8.0,
+                slider_track: 4.0,
+                progress_height: 5.0,
                 progress_default_width: 180.0,
             },
             fonts: Fonts {

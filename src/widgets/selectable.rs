@@ -27,7 +27,7 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
         let id = ui.alloc_id(&self.label);
 
         let label_size = ui.text_mut().measure(&self.label, style.fonts.body, None);
-        let height = label_size.y + 6.0;
+        let height = (style.fonts.body + 10.0).max(label_size.y + 6.0);
         let rect = ui.allocate(Vec2::new(ui.available().width(), height));
 
         let hovered = ui.contains_pointer(rect);
@@ -50,9 +50,7 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
 
         let is_selected = *self.value == self.option;
         let fill = if is_selected {
-            let mut accent = style.palette.accent_active;
-            accent.a = 0.85;
-            accent
+            style.palette.selection_fill
         } else if hovered {
             style.palette.hover
         } else {
@@ -68,8 +66,7 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
         }
 
         let text_color = if is_selected {
-            // Dark text on the bright accent fill for contrast.
-            Color::rgba(0.10, 0.10, 0.12, 0.95)
+            style.palette.selection_text
         } else {
             style.palette.text
         };
@@ -77,6 +74,15 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
             rect.min.x + 8.0,
             rect.min.y + (rect.height() - label_size.y) * 0.5,
         );
+        // ✓ marks the current value (right-aligned) — the fill alone can
+        // read as "hovered" in a long list.
+        let check = is_selected.then(|| {
+            let size = ui.text_mut().measure("\u{2713}", style.fonts.body, None);
+            Pos2::new(
+                rect.max.x - 8.0 - size.x,
+                rect.min.y + (rect.height() - size.y) * 0.5,
+            )
+        });
         let Ui { ctx, text, .. } = ui;
         text.add_text(
             &mut ctx.paint,
@@ -86,6 +92,16 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
             text_color,
             None,
         );
+        if let Some(check_pos) = check {
+            text.add_text(
+                &mut ctx.paint,
+                "\u{2713}",
+                style.fonts.body,
+                check_pos,
+                text_color,
+                None,
+            );
+        }
 
         Response {
             id,

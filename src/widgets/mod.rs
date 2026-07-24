@@ -5,6 +5,7 @@
 mod area;
 mod button;
 mod checkbox;
+mod chip;
 mod collapsing;
 mod color_picker;
 mod combo_box;
@@ -24,13 +25,15 @@ mod splitter;
 mod table;
 mod text_edit;
 mod toast;
+mod toggle;
 mod tooltip;
 mod tree;
 mod window;
 
 pub use area::Area;
-pub use button::Button;
+pub use button::{Button, ButtonVariant};
 pub use checkbox::Checkbox;
+pub use chip::{CountChip, FilterChip};
 pub use collapsing::CollapsingHeader;
 pub use color_picker::{ColorPicker, EyedropperState};
 pub use combo_box::ComboBox;
@@ -49,7 +52,8 @@ pub use splitter::Splitter;
 pub use table::{Column, SortDir, Table, TableBody, TableOutput, TableRow};
 pub use text_edit::{TextEdit, TextEditOutput};
 pub use toast::ToastKind;
-pub use tooltip::show_tooltip_for;
+pub use toggle::Toggle;
+pub use tooltip::{show_tooltip_for, Tooltip};
 pub use tree::{TreeDropPos, TreeNode, TreeNodeOutput};
 pub use window::{Window, WindowResponse};
 

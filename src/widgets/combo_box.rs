@@ -80,13 +80,15 @@ impl ComboBox {
             style.palette.header
         };
         let stroke = if is_open {
-            style.palette.accent_active
+            style.palette.focus_ring
+        } else if hovered {
+            style.palette.stroke_strong
         } else {
             style.palette.stroke
         };
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
             RectShape::fill(trigger_rect, style.rounding.widget, fill)
-                .with_stroke(1.0, stroke),
+                .with_stroke(style.metrics.border, stroke),
         ));
 
         // Selected text + ▼ arrow

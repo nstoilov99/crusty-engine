@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use crate::animation::approach_half_life;
 use crate::context::{CursorIcon, Ui};
-use crate::math::{Color, Pos2, Rounding, Vec2};
+use crate::math::{Color, Pos2, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 use crate::response::Response;
 use crate::widgets::TextEdit;
@@ -36,6 +36,7 @@ pub struct DragValue<'a> {
     width: Option<f32>,
     height: Option<f32>,
     fill: Option<Color>,
+    caps_step: Option<f32>,
 }
 
 impl<'a> DragValue<'a> {
@@ -51,7 +52,15 @@ impl<'a> DragValue<'a> {
             width: None,
             height: None,
             fill: None,
+            caps_step: None,
         }
+    }
+
+    /// Spinbox caps: −/+ buttons (22px, `header` fill) at the field's
+    /// ends, stepping the value by `step` per click.
+    pub fn caps(mut self, step: f32) -> Self {
+        self.caps_step = Some(step);
+        self
     }
 
     /// Display-only prefix shown before the number (e.g. `"X: "`).
@@ -161,11 +170,39 @@ impl<'a> DragValue<'a> {
 
         // ── Drag mode.
         let rect = ui.allocate(Vec2::new(width, height));
-        let hovered = ui.contains_pointer(rect);
         let pointer_pos = ui.ctx().input.pointer_pos;
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_released = ui.ctx().input.pointer_released;
         let pointer_down = ui.ctx().input.pointer_down;
+
+        // Spinbox caps claim the field's ends; scrub/edit own the middle.
+        let cap_w = if self.caps_step.is_some() {
+            22.0f32.min(rect.width() * 0.3)
+        } else {
+            0.0
+        };
+        let minus_rect = crate::math::Rect::from_min_size(
+            rect.min,
+            Vec2::new(cap_w, rect.height()),
+        );
+        let plus_rect = crate::math::Rect::from_min_size(
+            Pos2::new(rect.max.x - cap_w, rect.min.y),
+            Vec2::new(cap_w, rect.height()),
+        );
+        let over_minus = cap_w > 0.0 && ui.contains_pointer(minus_rect);
+        let over_plus = cap_w > 0.0 && ui.contains_pointer(plus_rect);
+        if let Some(step) = self.caps_step
+            && pointer_pressed
+        {
+            if over_minus {
+                *self.value = self.clamp(*self.value - step);
+            } else if over_plus {
+                *self.value = self.clamp(*self.value + step);
+            }
+        }
+
+        let hovered =
+            ui.contains_pointer(rect) && !over_minus && !over_plus;
 
         if pointer_pressed && hovered {
             ui.ctx_mut().memory.active_widget = Some(id);
@@ -244,24 +281,75 @@ impl<'a> DragValue<'a> {
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
-        let fill = self.fill.unwrap_or(style.palette.active);
-        let stroke = lerp_color(style.palette.stroke, style.palette.accent_active, hover_anim);
-        let shape = RectShape::fill(rect, Rounding::same(3.0), fill).with_stroke(1.0, stroke);
+        let fill = self.fill.unwrap_or(style.palette.input);
+        let stroke = lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim);
+        let shape = RectShape::fill(rect, style.rounding.widget, fill)
+            .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
 
+        if cap_w > 0.0 {
+            for (cap, over, glyph) in
+                [(minus_rect, over_minus, "−"), (plus_rect, over_plus, "+")]
+            {
+                let cap = cap.shrink(1.0);
+                let cap_fill = if over {
+                    style.palette.hover
+                } else {
+                    style.palette.header
+                };
+                ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
+                    cap,
+                    style.rounding.small,
+                    cap_fill,
+                )));
+                let gsize = ui.text_mut().measure_family(
+                    glyph,
+                    font,
+                    None,
+                    crate::text::FontFamily::Mono,
+                );
+                let gpos = Pos2::new(
+                    cap.min.x + (cap.width() - gsize.x) * 0.5,
+                    cap.min.y + (cap.height() - gsize.y) * 0.5,
+                );
+                let gcolor = style.palette.text_secondary;
+                let Ui { ctx, text: tr, .. } = ui;
+                tr.add_text_family(
+                    &mut ctx.paint,
+                    glyph,
+                    font,
+                    gpos,
+                    gcolor,
+                    None,
+                    crate::text::FontFamily::Mono,
+                );
+            }
+        }
+
+        // Values render mono — width-stable while scrubbing.
         let text = format!(
             "{}{}",
             self.prefix,
             format_value(*self.value, min_dec, max_dec, &self.suffix)
         );
-        let text_size = ui.text_mut().measure(&text, font, None);
+        let text_size =
+            ui.text_mut()
+                .measure_family(&text, font, None, crate::text::FontFamily::Mono);
         let text_pos = Pos2::new(
             rect.min.x + (rect.width() - text_size.x) * 0.5,
             rect.min.y + (rect.height() - text_size.y) * 0.5,
         );
-        let color = style.palette.text;
+        let color = style.palette.text_mono;
         let Ui { ctx, text: tr, .. } = ui;
-        tr.add_text(&mut ctx.paint, &text, font, text_pos, color, None);
+        tr.add_text_family(
+            &mut ctx.paint,
+            &text,
+            font,
+            text_pos,
+            color,
+            None,
+            crate::text::FontFamily::Mono,
+        );
 
         Response {
             id,

@@ -85,16 +85,17 @@ impl<'a> Slider<'a> {
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
-        let track_h = height * style.sizes.slider_track_ratio;
+        let track_h = style.sizes.slider_track;
         let track_top = rect.min.y + (rect.height() - track_h) * 0.5;
         let track = Rect::from_min_size(
             Pos2::new(rect.min.x, track_top),
             Vec2::new(rect.width(), track_h),
         );
+        // Track reads inset: darkest surface, no border, no shadow.
         let track_shape = RectShape::fill(
             track,
             Rounding::same(track_h * 0.5),
-            style.palette.active,
+            style.palette.input,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
@@ -109,24 +110,15 @@ impl<'a> Slider<'a> {
             ui.ctx_mut().paint.push(PaintCmd::Rrect(filled_shape));
         }
 
-        let handle_radius = height * 0.5 + hover_anim * 1.5;
+        // Thumb: 12px at rest, 14px hovered; mono-value gray → white.
+        let handle_radius = 6.0 + hover_anim * 1.0;
         let handle_x = rect.min.x + rect.width() * t;
         let handle_center = Pos2::new(handle_x, rect.min.y + rect.height() * 0.5);
         let handle_rect =
             Rect::from_center_size(handle_center, Vec2::splat(handle_radius * 2.0));
-        let handle_fill = lerp_color(style.palette.text, style.palette.text_secondary, press_anim);
+        let handle_fill = lerp_color(style.palette.text_mono, Color::WHITE, hover_anim);
         let handle_shape = RectShape::fill(handle_rect, Rounding::same(handle_radius), handle_fill)
-            .with_stroke(
-                1.0,
-                lerp_color(style.palette.stroke, style.palette.accent_active, hover_anim),
-            );
-        let handle_shape = if hover_anim > 0.0 && style.palette.accent_soft.a > 0.0 {
-            let mut glow = style.palette.accent_soft;
-            glow.a *= hover_anim;
-            handle_shape.with_glow(6.0 + 4.0 * hover_anim, glow)
-        } else {
-            handle_shape
-        };
+            .with_stroke(style.metrics.border, style.palette.window);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(handle_shape));
 
         Response {

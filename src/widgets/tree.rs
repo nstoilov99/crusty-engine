@@ -189,9 +189,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
 
         // ── Render
         let bg_color = if is_selected {
-            let mut c = style.palette.accent_active;
-            c.a = 0.75;
-            c
+            style.palette.selection_fill
         } else if row_hovered {
             style.palette.hover
         } else {
@@ -209,7 +207,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
         // tinted by `chev_color` (a glyph chevron risks an emoji substitution
         // for arrow codepoints).
         let chev_color = if is_selected {
-            Color::rgba(0.10, 0.10, 0.12, 0.95)
+            style.palette.selection_text
         } else {
             style.palette.text_secondary
         };
@@ -232,7 +230,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
         let label_x = chevron_rect.max.x + gap;
         let label_y = row_rect.min.y + (row_h - label_size.y) * 0.5;
         let label_color = if is_selected {
-            Color::rgba(0.10, 0.10, 0.12, 0.95)
+            style.palette.selection_text
         } else {
             style.palette.text
         };

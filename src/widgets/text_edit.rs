@@ -307,16 +307,16 @@ impl<'a> TextEdit<'a> {
         let hover_anim = mem.hover_anim;
         let focus_anim = mem.aux_anim;
 
-        // ── Background + border (accent stroke when focused).
-        let fill = self.fill.unwrap_or(style.palette.active);
+        // ── Background + border (focus = 1px focus_ring swap, no glow).
+        let fill = self.fill.unwrap_or(style.palette.input);
         let stroke = lerp_color(
             lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim),
-            style.palette.accent_active,
+            style.palette.focus_ring,
             focus_anim,
         );
         ui.ctx_mut().paint.push(PaintCmd::Rrect(
             RectShape::fill(rect, style.rounding.widget, fill)
-                .with_stroke(1.0 + focus_anim * 0.5, stroke),
+                .with_stroke(style.metrics.border, stroke),
         ));
 
         let text_y = rect.min.y + (rect.height() - font) * 0.5;
