@@ -16,6 +16,8 @@ use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
 
 const MENU_WIDTH: f32 = 200.0;
+/// Menu rows are a fixed 24px tall (Crusty Design System).
+const MENU_ROW_H: f32 = 24.0;
 
 impl Ui<'_> {
     /// Lay out a horizontal menu bar across the available width. Put
@@ -38,6 +40,17 @@ impl Ui<'_> {
     /// A top-level menu button. Click toggles a dropdown below it whose
     /// contents come from `body`.
     pub fn menu_button(&mut self, label: impl AsRef<str>, body: impl FnOnce(&mut Ui)) {
+        self.menu_button_width(label, MENU_WIDTH, body);
+    }
+
+    /// [`menu_button`](Ui::menu_button) with an explicit dropdown width, for
+    /// menus whose rows carry shortcut columns (Edit menu: 250px).
+    pub fn menu_button_width(
+        &mut self,
+        label: impl AsRef<str>,
+        width: f32,
+        body: impl FnOnce(&mut Ui),
+    ) {
         let label = label.as_ref();
         let style = self.style();
         let id = self.alloc_id(("menu_button", label));
@@ -99,7 +112,7 @@ impl Ui<'_> {
 
         if is_open {
             let anchor = Pos2::new(rect.min.x, rect.max.y);
-            if menu_panel(self, id.with("panel"), anchor, rect, MENU_WIDTH, body) {
+            if menu_panel(self, id.with("panel"), anchor, rect, width, body) {
                 is_open = false;
             }
         }
@@ -193,75 +206,138 @@ impl Ui<'_> {
     /// A clickable menu entry. Returns `true` on the frame it's clicked and
     /// asks the enclosing menu chain to close.
     pub fn menu_item(&mut self, label: impl AsRef<str>) -> bool {
-        self.menu_item_enabled(label, true)
+        self.menu_row(label.as_ref(), None, true)
     }
 
     /// [`menu_item`](Ui::menu_item) that can be disabled: dimmed text, no
     /// hover highlight, never reports a click.
     pub fn menu_item_enabled(&mut self, label: impl AsRef<str>, enabled: bool) -> bool {
-        let label = label.as_ref();
+        self.menu_row(label.as_ref(), None, enabled)
+    }
+
+    /// Menu entry with a right-aligned mono shortcut column ("Ctrl+Z").
+    pub fn menu_item_shortcut(
+        &mut self,
+        label: impl AsRef<str>,
+        shortcut: impl AsRef<str>,
+        enabled: bool,
+    ) -> bool {
+        self.menu_row(label.as_ref(), Some(shortcut.as_ref()), enabled)
+    }
+
+    /// Uppercase mono group header inside a menu (History / Edit / ...).
+    pub fn menu_group_header(&mut self, label: impl AsRef<str>) {
+        let style = self.style();
+        let font = style.fonts.small;
+        let text_str = label.as_ref().to_uppercase();
+        let rect = self.allocate(Vec2::new(
+            self.available().width(),
+            font * 1.25 + 8.0,
+        ));
+        let Ui { ctx, text, .. } = self;
+        text.add_text_family(
+            &mut ctx.paint,
+            &text_str,
+            font,
+            Pos2::new(rect.min.x + 10.0, rect.min.y + 6.0),
+            style.palette.text_secondary,
+            None,
+            crate::text::FontFamily::Mono,
+        );
+    }
+
+    fn menu_row(&mut self, label: &str, shortcut: Option<&str>, enabled: bool) -> bool {
         let style = self.style();
         let id = self.alloc_id(("menu_item", label));
 
         let text_size = self.text_mut().measure(label, style.fonts.body, None);
-        let rect = self.allocate(Vec2::new(self.available().width(), text_size.y + 6.0));
+        let rect = self.allocate(Vec2::new(self.available().width(), MENU_ROW_H));
+        let text_pos = Pos2::new(
+            rect.min.x + 10.0,
+            rect.min.y + (MENU_ROW_H - text_size.y) * 0.5,
+        );
 
-        if !enabled {
-            let text_pos = Pos2::new(rect.min.x + 8.0, rect.min.y + 3.0);
-            let Ui { ctx, text, .. } = self;
-            text.add_text(
-                &mut ctx.paint,
-                label,
-                style.fonts.body,
-                text_pos,
-                style.palette.text_secondary,
-                None,
-            );
-            return false;
-        }
-
-        let hovered = self.contains_pointer(rect);
-        let pointer_pressed = self.ctx().input.pointer_pressed;
-        let pointer_released = self.ctx().input.pointer_released;
-        let active_id = self.ctx().memory.active_widget;
-        if pointer_pressed && hovered {
-            self.ctx_mut().memory.active_widget = Some(id);
-        }
-        let is_active = active_id == Some(id) || (pointer_pressed && hovered);
         let mut clicked = false;
-        if pointer_released && is_active && hovered {
-            clicked = true;
-            self.ctx_mut().memory.popup_close_requested = true;
+        if enabled {
+            let hovered = self.contains_pointer(rect);
+            let pointer_pressed = self.ctx().input.pointer_pressed;
+            let pointer_released = self.ctx().input.pointer_released;
+            let active_id = self.ctx().memory.active_widget;
+            if pointer_pressed && hovered {
+                self.ctx_mut().memory.active_widget = Some(id);
+            }
+            let is_active = active_id == Some(id) || (pointer_pressed && hovered);
+            if pointer_released && is_active && hovered {
+                clicked = true;
+                self.ctx_mut().memory.popup_close_requested = true;
+            }
+
+            // The dropdown panel is itself painted with `surface_hover`, so a
+            // `surface_hover` row would be invisible. Use `surface_active` for
+            // hover and an accent wash while the button is pressed so the user
+            // gets clear hover *and* click feedback.
+            let highlight = if is_active {
+                Some(style.palette.accent_active.with_alpha(0.45))
+            } else if hovered {
+                Some(style.palette.active)
+            } else {
+                None
+            };
+            if let Some(fill) = highlight {
+                self.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
+                    rect,
+                    style.rounding.small,
+                    fill,
+                )));
+            }
         }
 
-        // The dropdown panel is itself painted with `surface_hover`, so a
-        // `surface_hover` row would be invisible. Use `surface_active` for
-        // hover and an accent wash while the button is pressed so the user
-        // gets clear hover *and* click feedback.
-        let highlight = if is_active {
-            Some(style.palette.accent_active.with_alpha(0.45))
-        } else if hovered {
-            Some(style.palette.active)
+        let label_color = if enabled {
+            style.palette.text
         } else {
-            None
+            style.palette.text_disabled
         };
-        if let Some(fill) = highlight {
-            self.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
-                rect,
-                style.rounding.small,
-                fill,
-            )));
-        }
-        let text_pos = Pos2::new(rect.min.x + 8.0, rect.min.y + 3.0);
+        let shortcut_draw = shortcut.map(|s| {
+            let font = style.fonts.mono;
+            let w = self
+                .text_mut()
+                .measure_family(s, font, None, crate::text::FontFamily::Mono)
+                .x;
+            let color = if enabled {
+                style.palette.text_secondary
+            } else {
+                style.palette.stroke_strong
+            };
+            (
+                Pos2::new(
+                    rect.max.x - 10.0 - w,
+                    rect.min.y + (MENU_ROW_H - font * 1.25) * 0.5,
+                ),
+                font,
+                color,
+            )
+        });
         let Ui { ctx, text, .. } = self;
         text.add_text(
             &mut ctx.paint,
             label,
             style.fonts.body,
             text_pos,
-            style.palette.text,
+            label_color,
             None,
         );
+        if let Some((pos, font, color)) = shortcut_draw {
+            let shortcut = shortcut.unwrap_or_default();
+            text.add_text_family(
+                &mut ctx.paint,
+                shortcut,
+                font,
+                pos,
+                color,
+                None,
+                crate::text::FontFamily::Mono,
+            );
+        }
         clicked
     }
 }

@@ -138,6 +138,8 @@ struct LayoutOpts<'t> {
     tab_bar_h: f32,
     min_tab_width: f32,
     close_buttons: bool,
+    dirty_tabs: Option<&'t std::collections::HashSet<TabId>>,
+    dirty_color: Color,
 }
 
 impl LayoutOpts<'_> {
@@ -163,6 +165,8 @@ pub struct DockArea<'a> {
     tab_bar_height: Option<f32>,
     min_tab_width: f32,
     show_close_buttons: bool,
+    dirty_tabs: Option<&'a std::collections::HashSet<TabId>>,
+    dirty_color: Color,
 }
 
 impl<'a> DockArea<'a> {
@@ -176,6 +180,8 @@ impl<'a> DockArea<'a> {
             tab_bar_height: None,
             min_tab_width: 0.0,
             show_close_buttons: false,
+            dirty_tabs: None,
+            dirty_color: Color::rgb(0.9, 0.75, 0.31),
         }
     }
 
@@ -203,6 +209,18 @@ impl<'a> DockArea<'a> {
     /// [`DockResponse::close_requested`]; the host commits the close.
     pub fn show_close_buttons(mut self, yes: bool) -> Self {
         self.show_close_buttons = yes;
+        self
+    }
+
+    /// Tabs with unsaved changes: each shows a 5px dot (in `dirty_color`)
+    /// in its close-button slot, swapping back to × while hovered.
+    pub fn dirty_tabs(
+        mut self,
+        tabs: &'a std::collections::HashSet<TabId>,
+        color: Color,
+    ) -> Self {
+        self.dirty_tabs = Some(tabs);
+        self.dirty_color = color;
         self
     }
 
@@ -257,6 +275,8 @@ impl<'a> DockArea<'a> {
                 .unwrap_or(ctx.style.fonts.body + 10.0),
             min_tab_width: self.min_tab_width,
             close_buttons: self.show_close_buttons,
+            dirty_tabs: self.dirty_tabs,
+            dirty_color: self.dirty_color,
         };
 
         // A tab drag lives in `DockState`, not `Memory`, so the context
@@ -762,7 +782,18 @@ fn draw_tabs(
                     style.palette.hover,
                 )));
             }
-            let show_glyph = is_active || hovered;
+            let dirty = opts.dirty_tabs.is_some_and(|d| d.contains(tab));
+            // A dirty tab shows a 5px warning dot in the close slot; hovering
+            // the tab swaps it back to × so the close action stays reachable.
+            if dirty && !hovered {
+                let dot = Rect::from_center_size(close_rect.center(), Vec2::splat(5.0));
+                ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+                    dot,
+                    Rounding::same(2.5),
+                    opts.dirty_color,
+                )));
+            }
+            let show_glyph = (is_active || hovered) && !(dirty && !hovered);
             if show_glyph {
                 let g = close_rect.shrink(3.5);
                 let col = if over_close {

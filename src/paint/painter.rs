@@ -182,6 +182,33 @@ impl<'a> Painter<'a> {
     pub fn measure_text(&mut self, text: &str, size_px: f32, max_width: Option<f32>) -> Vec2 {
         self.text.measure(text, size_px, max_width)
     }
+
+    /// [`Painter::text`] with an explicit font family.
+    pub fn text_family(
+        &mut self,
+        pos: Pos2,
+        text: &str,
+        size_px: f32,
+        color: Color,
+        max_width: Option<f32>,
+        family: crate::text::FontFamily,
+    ) -> Vec2 {
+        let size = self.text.measure_family(text, size_px, max_width, family);
+        self.text
+            .add_text_family(self.paint, text, size_px, pos, color, max_width, family);
+        size
+    }
+
+    /// [`Painter::measure_text`] with an explicit font family.
+    pub fn measure_text_family(
+        &mut self,
+        text: &str,
+        size_px: f32,
+        max_width: Option<f32>,
+        family: crate::text::FontFamily,
+    ) -> Vec2 {
+        self.text.measure_family(text, size_px, max_width, family)
+    }
 }
 
 /// Segment count for a curve/circle of a given pixel radius — denser when
