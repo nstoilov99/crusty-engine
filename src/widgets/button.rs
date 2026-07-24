@@ -14,6 +14,9 @@ pub enum ButtonVariant {
     Primary,
     /// Filled destructive action (Remove) — confirm dialogs.
     Danger,
+    /// Quiet destructive action: no fill, danger border + text (inline
+    /// Remove / Reset All — filled danger stays in confirm dialogs).
+    DangerOutline,
     /// No fill/border at rest; neutral hover fill (Cancel, menu-ish).
     Ghost,
 }
@@ -87,6 +90,10 @@ impl Button {
 
     pub fn danger(self) -> Self {
         self.variant(ButtonVariant::Danger)
+    }
+
+    pub fn danger_outline(self) -> Self {
+        self.variant(ButtonVariant::DangerOutline)
     }
 
     pub fn ghost(self) -> Self {
@@ -205,6 +212,14 @@ impl Button {
                     border: p.danger,
                     border_hover: lighten(p.danger, 0.07),
                     text: Color::WHITE,
+                },
+                ButtonVariant::DangerOutline => Colors {
+                    base: Color::TRANSPARENT,
+                    hover: p.danger.with_alpha(0.12),
+                    press: p.danger.with_alpha(0.20),
+                    border: p.danger.with_alpha(0.55),
+                    border_hover: p.danger,
+                    text: p.danger,
                 },
                 ButtonVariant::Ghost => Colors {
                     base: Color::TRANSPARENT,
