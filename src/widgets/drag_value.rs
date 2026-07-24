@@ -37,6 +37,7 @@ pub struct DragValue<'a> {
     height: Option<f32>,
     fill: Option<Color>,
     caps_step: Option<f32>,
+    axis: Option<(String, Color)>,
 }
 
 impl<'a> DragValue<'a> {
@@ -53,7 +54,16 @@ impl<'a> DragValue<'a> {
             height: None,
             fill: None,
             caps_step: None,
+            axis: None,
         }
+    }
+
+    /// Transform-style axis marking: a 3px color inset edge plus a tinted
+    /// mono letter at the field's left. The axis color stays inside the
+    /// field — never on its border or fill.
+    pub fn axis(mut self, label: impl Into<String>, color: Color) -> Self {
+        self.axis = Some((label.into(), color));
+        self
     }
 
     /// Spinbox caps: −/+ buttons (22px, `header` fill) at the field's
@@ -311,6 +321,50 @@ impl<'a> DragValue<'a> {
             .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
 
+        // Axis inset edge + letter, inside the border.
+        let mut text_left = rect.min.x;
+        if let Some((label, axis_color)) = &self.axis {
+            let b = style.metrics.border;
+            let strip = crate::math::Rect::from_min_size(
+                Pos2::new(rect.min.x + b, rect.min.y + b),
+                Vec2::new(3.0, rect.height() - 2.0 * b),
+            );
+            let r = style.rounding.widget;
+            let strip_rounding = crate::math::Rounding {
+                nw: (r.nw - b).max(0.0),
+                ne: 0.0,
+                sw: (r.sw - b).max(0.0),
+                se: 0.0,
+            };
+            ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
+                strip,
+                strip_rounding,
+                *axis_color,
+            )));
+            let letter_font = 10.0;
+            let lsize = ui.text_mut().measure_family(
+                label,
+                letter_font,
+                None,
+                crate::text::FontFamily::Mono,
+            );
+            let lpos = Pos2::new(
+                strip.max.x + 5.0,
+                rect.min.y + (rect.height() - lsize.y) * 0.5,
+            );
+            let Ui { ctx, text: tr, .. } = ui;
+            tr.add_text_family(
+                &mut ctx.paint,
+                label,
+                letter_font,
+                lpos,
+                *axis_color,
+                None,
+                crate::text::FontFamily::Mono,
+            );
+            text_left = lpos.x + lsize.x + 2.0;
+        }
+
         if cap_w > 0.0 {
             for (cap, over, glyph) in
                 [(minus_rect, over_minus, "−"), (plus_rect, over_plus, "+")]
@@ -359,8 +413,9 @@ impl<'a> DragValue<'a> {
         let text_size =
             ui.text_mut()
                 .measure_family(&text, font, None, crate::text::FontFamily::Mono);
+        // Center within the space right of the axis marking (if any).
         let text_pos = Pos2::new(
-            rect.min.x + (rect.width() - text_size.x) * 0.5,
+            text_left + ((rect.max.x - text_left) - text_size.x).max(0.0) * 0.5,
             rect.min.y + (rect.height() - text_size.y) * 0.5,
         );
         let color = style.palette.text_mono;
