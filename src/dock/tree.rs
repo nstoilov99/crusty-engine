@@ -34,21 +34,29 @@ pub struct Split {
 pub struct Leaf {
     pub tabs: Vec<TabId>,
     pub active: usize,
+    /// Tab strip collapsed to a corner triangle ("Hide Tabs"). The content
+    /// gets the strip's row back; the triangle restores it. Persisted.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub tabs_hidden: bool,
+}
+
+impl Leaf {
+    pub fn new(tabs: Vec<TabId>, active: usize) -> Self {
+        Self {
+            tabs,
+            active,
+            tabs_hidden: false,
+        }
+    }
 }
 
 impl DockNode {
     pub fn leaf(tab: impl Into<TabId>) -> Self {
-        DockNode::Leaf(Leaf {
-            tabs: vec![tab.into()],
-            active: 0,
-        })
+        DockNode::Leaf(Leaf::new(vec![tab.into()], 0))
     }
 
     pub fn tabs(tabs: impl IntoIterator<Item = TabId>) -> Self {
-        DockNode::Leaf(Leaf {
-            tabs: tabs.into_iter().collect(),
-            active: 0,
-        })
+        DockNode::Leaf(Leaf::new(tabs.into_iter().collect(), 0))
     }
 
     pub fn split_h(ratio: f32, first: DockNode, second: DockNode) -> Self {
@@ -124,6 +132,35 @@ impl DockNode {
             }
             DockNode::Split(split) => {
                 split.first.activate_tab(tab) || split.second.activate_tab(tab)
+            }
+        }
+    }
+
+    /// Set the hidden-tab-strip flag on the leaf containing `tab`. Returns
+    /// `true` if the leaf was found.
+    pub fn set_tabs_hidden(&mut self, tab: &str, hidden: bool) -> bool {
+        match self {
+            DockNode::Leaf(leaf) => {
+                if leaf.tabs.iter().any(|t| t == tab) {
+                    leaf.tabs_hidden = hidden;
+                    true
+                } else {
+                    false
+                }
+            }
+            DockNode::Split(split) => {
+                split.first.set_tabs_hidden(tab, hidden)
+                    || split.second.set_tabs_hidden(tab, hidden)
+            }
+        }
+    }
+
+    /// True if the leaf containing `tab` has its tab strip hidden.
+    pub fn tabs_hidden(&self, tab: &str) -> bool {
+        match self {
+            DockNode::Leaf(leaf) => leaf.tabs_hidden && leaf.tabs.iter().any(|t| t == tab),
+            DockNode::Split(split) => {
+                split.first.tabs_hidden(tab) || split.second.tabs_hidden(tab)
             }
         }
     }

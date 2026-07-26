@@ -530,28 +530,32 @@ fn show_leaf<F>(
     F: FnMut(&mut Ui, &str),
 {
     let style = ctx.style;
-    let tab_bar_h = opts.tab_bar_h;
+    // A hidden strip gives its row back to the content; the corner triangle
+    // (drawn over the content below) is the whole restore affordance.
+    let tab_bar_h = if leaf.tabs_hidden { 0.0 } else { opts.tab_bar_h };
 
     // Panel background.
     let panel_shape = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
         .with_stroke(1.0, style.palette.stroke);
     ctx.paint.push(PaintCmd::Rrect(panel_shape));
 
-    // Tab bar — flat strip, darker than the body so the active tab (filled
-    // with the panel color) reads as connected to its content.
-    let tab_bar_rect =
-        Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
-    let bar_bg = RectShape::fill(tab_bar_rect, style.rounding.small, style.palette.window);
-    ctx.paint.push(PaintCmd::Rrect(bar_bg));
+    if !leaf.tabs_hidden {
+        // Tab bar — flat strip, darker than the body so the active tab
+        // (filled with the panel color) reads as connected to its content.
+        let tab_bar_rect =
+            Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
+        let bar_bg = RectShape::fill(tab_bar_rect, style.rounding.small, style.palette.window);
+        ctx.paint.push(PaintCmd::Rrect(bar_bg));
 
-    // Clip the tabs to their bar so a leaf with more tabs than fit its width
-    // can't bleed sideways over the adjacent panel.
-    ctx.paint.push(PaintCmd::PushClip(tab_bar_rect));
-    draw_tabs(
-        ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state, opts,
-        response,
-    );
-    ctx.paint.push(PaintCmd::PopClip);
+        // Clip the tabs to their bar so a leaf with more tabs than fit its
+        // width can't bleed sideways over the adjacent panel.
+        ctx.paint.push(PaintCmd::PushClip(tab_bar_rect));
+        draw_tabs(
+            ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state, opts,
+            response,
+        );
+        ctx.paint.push(PaintCmd::PopClip);
+    }
 
     let active_tab = leaf.tabs[leaf.active].clone();
 
@@ -576,7 +580,38 @@ fn show_leaf<F>(
     ctx.paint.push(PaintCmd::PushClip(content_rect));
     let mut ui = Ui::with_root(ctx, text, content_rect, Direction::TopDown, opts, leaf_root_id);
     f(&mut ui, &active_tab);
+    if leaf.tabs_hidden {
+        show_tabs_triangle(&mut ui, node_id, rect, &mut leaf.tabs_hidden);
+    }
     ctx.paint.push(PaintCmd::PopClip);
+}
+
+/// Corner triangle drawn over the content while the tab strip is hidden —
+/// 12px accent at rest, 14px focus-ring + tooltip on hover; click restores
+/// the strip in place (mockup "Editor tabs" § C).
+fn show_tabs_triangle(ui: &mut Ui, node_id: Id, rect: Rect, hidden: &mut bool) {
+    let hit = Rect::from_min_size(rect.min, Vec2::splat(16.0));
+    let resp = ui.interact(node_id.with("show_tabs"), hit);
+    let style = ui.style();
+    let (size, color) = if resp.hovered {
+        (14.0, style.palette.focus_ring)
+    } else {
+        (12.0, style.palette.accent_active)
+    };
+    ui.ctx_mut().paint.push(PaintCmd::ConvexPolygon {
+        points: vec![
+            rect.min,
+            Pos2::new(rect.min.x + size, rect.min.y),
+            Pos2::new(rect.min.x, rect.min.y + size),
+        ],
+        color,
+    });
+    if resp.hovered {
+        crate::widgets::show_tooltip_for(ui, hit, "Show tabs");
+    }
+    if resp.clicked {
+        *hidden = false;
+    }
 }
 
 fn compute_split(rect: Rect, dir: SplitDirection, ratio: f32) -> (Rect, Rect, Rect) {
@@ -1179,18 +1214,12 @@ fn collapse_to(node: &mut DockNode, first_emptied: bool) {
         let survivor = if first_emptied {
             std::mem::replace(
                 &mut *s.second,
-                DockNode::Leaf(Leaf {
-                    tabs: vec![],
-                    active: 0,
-                }),
+                DockNode::Leaf(Leaf::new(vec![], 0)),
             )
         } else {
             std::mem::replace(
                 &mut *s.first,
-                DockNode::Leaf(Leaf {
-                    tabs: vec![],
-                    active: 0,
-                }),
+                DockNode::Leaf(Leaf::new(vec![], 0)),
             )
         };
         *node = survivor;
@@ -1242,21 +1271,18 @@ fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone, at: Option<usi
                 let idx = at.unwrap_or(leaf.tabs.len()).min(leaf.tabs.len());
                 leaf.tabs.insert(idx, dragged.to_string());
                 leaf.active = idx;
+                // Docking into a hidden strip reveals it — the user needs to
+                // see where the tab landed.
+                leaf.tabs_hidden = false;
             }
         }
         DropZone::North | DropZone::South | DropZone::East | DropZone::West => {
             // Wrap the existing leaf in a new Split, with the dragged
             // tab on the appropriate side.
-            let dragged_leaf = DockNode::Leaf(Leaf {
-                tabs: vec![dragged.to_string()],
-                active: 0,
-            });
+            let dragged_leaf = DockNode::Leaf(Leaf::new(vec![dragged.to_string()], 0));
             let existing = std::mem::replace(
                 node,
-                DockNode::Leaf(Leaf {
-                    tabs: vec![],
-                    active: 0,
-                }),
+                DockNode::Leaf(Leaf::new(vec![], 0)),
             );
             *node = match zone {
                 DropZone::North => DockNode::split_v(0.5, dragged_leaf, existing),
