@@ -18,25 +18,39 @@ pub fn context_menu_for(
     rect: Rect,
     body: impl FnOnce(&mut Ui),
 ) {
+    let right_pressed = ui.ctx().input.right_pressed;
+    let pointer_in_rect = ui.contains_pointer(rect);
+    let open_at = if right_pressed && pointer_in_rect {
+        ui.ctx().input.pointer_pos
+    } else {
+        None
+    };
+    context_menu_at(ui, id_source, open_at, body)
+}
+
+/// Programmatically-opened variant of [`context_menu_for`]: the host detects
+/// the right-click itself (e.g. the dock reporting a tab right-click) and
+/// passes the pointer position on that frame. Same close semantics.
+pub fn context_menu_at(
+    ui: &mut Ui,
+    id_source: impl std::hash::Hash,
+    open_at: Option<Pos2>,
+    body: impl FnOnce(&mut Ui),
+) {
     let style = ui.style();
     let id = ui.alloc_id(("context_menu", &id_source));
 
-    let right_pressed = ui.ctx().input.right_pressed;
-    let pointer_in_rect = ui.contains_pointer(rect);
     let pointer_pos = ui.ctx().input.pointer_pos;
     let pointer_pressed = ui.ctx().input.pointer_pressed;
 
-    // Open on right-click, record anchor position.
     let (mut is_open, mut anchor) = match ui.ctx().memory.get(id) {
         Some(m) => (m.bool_state, m.aux_vec2),
         None => (false, Vec2::ZERO),
     };
 
-    if right_pressed && pointer_in_rect {
-        if let Some(p) = pointer_pos {
-            is_open = true;
-            anchor = Vec2::new(p.x, p.y);
-        }
+    if let Some(p) = open_at {
+        is_open = true;
+        anchor = Vec2::new(p.x, p.y);
     }
 
     let mut menu_rect = Rect::ZERO;

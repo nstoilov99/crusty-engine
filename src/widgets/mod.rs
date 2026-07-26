@@ -37,7 +37,7 @@ pub use chip::{CountChip, FilterChip};
 pub use collapsing::CollapsingHeader;
 pub use color_picker::{ColorPicker, EyedropperState};
 pub use combo_box::ComboBox;
-pub use context_menu::context_menu_for;
+pub use context_menu::{context_menu_at, context_menu_for};
 pub use drag_value::DragValue;
 pub use grid::{Grid, GridUi};
 pub use image::{Image, ImageButton};
