@@ -15,7 +15,7 @@ use crusty_gui::prelude::*;
 use crusty_gui::shell::input::apply_input_event;
 use crusty_gui::shell::{DockApp, PanelFrame, Shell, ShellConfig, ShellCtl};
 use crusty_gui::widgets::Window as GuiWindow;
-use crusty_gui::widgets::{ColorPicker, DragValue, Splitter};
+use crusty_gui::widgets::{Canvas, CanvasView, ColorPicker, DragValue, Splitter};
 use crusty_gui::window::{GpuContext, WindowRenderer};
 
 use winit::event::WindowEvent;
@@ -207,9 +207,9 @@ fn render_hier_nodes(
 
 /// Every panel `render_panel` knows how to draw. The Window menu lists these
 /// so a panel that was closed (or torn off) can always be re-opened.
-const ALL_PANELS: [&str; 10] = [
+const ALL_PANELS: [&str; 11] = [
     "Hierarchy", "Viewport", "Inspector", "Console", "Profiler", "Errors", "Warnings",
-    "Texture", "Mesh", "Animation",
+    "Texture", "Mesh", "Animation", "Node Canvas",
 ];
 
 /// Asset-editor panels — these open as their own standalone dock windows from
@@ -260,6 +260,12 @@ struct EditorState {
     /// `None` = editing a fresh line.
     console_history_pos: Option<usize>,
     inspector_slot: Option<String>,
+    /// Node Canvas panel: pan/zoom view + draggable demo nodes
+    /// (exercises `widgets::Canvas`, Phase 22).
+    canvas_view: CanvasView,
+    canvas_nodes: Vec<(Pos2, &'static str)>,
+    /// In-flight node drag: (node index, world-space grab offset).
+    canvas_drag: Option<(usize, Vec2)>,
     // Request flags: a panel sets these, the frame loop consumes them.
     settings_open: bool,
     about_open: bool,
@@ -305,6 +311,14 @@ impl Default for EditorState {
             console_history: Vec::new(),
             console_history_pos: None,
             inspector_slot: None,
+            canvas_view: CanvasView::default(),
+            canvas_nodes: vec![
+                (Pos2::new(60.0, 80.0), "Event BeginPlay"),
+                (Pos2::new(300.0, 40.0), "Spawn Emitter"),
+                (Pos2::new(300.0, 170.0), "Play Sound"),
+                (Pos2::new(540.0, 100.0), "Set Timer"),
+            ],
+            canvas_drag: None,
             settings_open: true,
             about_open: false,
             open_mesh_requested: false,
@@ -697,6 +711,9 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let console_history = &mut ed.console_history;
     let console_history_pos = &mut ed.console_history_pos;
     let click_count = &mut ed.click_count;
+    let canvas_view = &mut ed.canvas_view;
+    let canvas_nodes = &mut ed.canvas_nodes;
+    let canvas_drag = &mut ed.canvas_drag;
     let settings_open = &mut ed.settings_open;
     let about_open = &mut ed.about_open;
     let open_mesh = &mut ed.open_mesh_requested;
@@ -705,6 +722,9 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let demo_texture = stats.demo_texture;
     let mesh_already_open = stats.mesh_already_open;
     match panel {
+                        "Node Canvas" => {
+                            render_node_canvas(ui, canvas_view, canvas_nodes, canvas_drag);
+                        }
                         "Hierarchy" => {
                             let avail = ui.available().height();
                             let mut drops = Vec::new();
@@ -1284,6 +1304,131 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                         }
                         _ => {}
     }
+}
+
+/// Node Canvas demo panel: exercises the Phase 22 pan/zoom [`Canvas`] —
+/// world-space grid, bezier wires, and draggable nodes with zoom-quantized
+/// labels. Middle-drag pans, Ctrl+scroll zooms about the pointer.
+fn render_node_canvas(
+    ui: &mut Ui,
+    view: &mut CanvasView,
+    nodes: &mut [(Pos2, &'static str)],
+    drag: &mut Option<(usize, Vec2)>,
+) {
+    let st = ui.style();
+    ui.label("Middle-drag pan · Scroll pan · Ctrl+Scroll zoom · Drag nodes");
+    let node_size = Vec2::new(150.0, 46.0);
+
+    let _ = Canvas::new().show(ui, view, |ui, scope| {
+        let vis = scope.visible_world_rect();
+
+        // Backdrop + world grid every 50 units.
+        {
+            let mut p = ui.painter();
+            p.rect_filled(scope.rect(), 0.0, st.palette.input);
+            let step = 50.0;
+            for i in (vis.min.x / step).floor() as i32..=(vis.max.x / step).ceil() as i32 {
+                let wx = i as f32 * step;
+                let a = scope.world_to_screen(Pos2::new(wx, vis.min.y));
+                let b = scope.world_to_screen(Pos2::new(wx, vis.max.y));
+                p.line_segment(a, b, 1.0, st.palette.stroke);
+            }
+            for i in (vis.min.y / step).floor() as i32..=(vis.max.y / step).ceil() as i32 {
+                let wy = i as f32 * step;
+                let a = scope.world_to_screen(Pos2::new(vis.min.x, wy));
+                let b = scope.world_to_screen(Pos2::new(vis.max.x, wy));
+                p.line_segment(a, b, 1.0, st.palette.stroke);
+            }
+
+            // Wires: chain the demo nodes with horizontal-tangent beziers.
+            for w in 0..nodes.len().saturating_sub(1) {
+                let a = scope.world_to_screen(
+                    nodes[w].0 + Vec2::new(node_size.x, node_size.y * 0.5),
+                );
+                let b = scope
+                    .world_to_screen(nodes[w + 1].0 + Vec2::new(0.0, node_size.y * 0.5));
+                // Tangent length grows with vertical separation too, so
+                // steep connections keep a smooth S instead of pinching.
+                let dx = ((b.x - a.x).abs() * 0.5)
+                    .max((b.y - a.y).abs() * 0.4)
+                    .max(24.0 * scope.zoom());
+                p.bezier_cubic(
+                    a,
+                    a + Vec2::new(dx, 0.0),
+                    b - Vec2::new(dx, 0.0),
+                    b,
+                    2.0 * scope.zoom(),
+                    st.palette.accent_active,
+                );
+            }
+        }
+
+        // Nodes: cull, interact (world-space), draw, start drags.
+        for (i, &(pos, label)) in nodes.iter().enumerate() {
+            let wrect = Rect::from_min_size(pos, node_size);
+            let visible = wrect.intersect(vis);
+            if visible.width() <= 0.0 || visible.height() <= 0.0 {
+                continue;
+            }
+            let id = ui.alloc_id(("canvas_node", i));
+            let resp = scope.interact(ui, id, wrect);
+            if let Some(pw) = scope
+                .pointer_world(ui)
+                .filter(|_| resp.pressed && drag.is_none())
+            {
+                *drag = Some((i, pw - pos));
+            }
+
+            let srect = scope.world_rect_to_screen(wrect);
+            let header_h = 16.0 * scope.zoom();
+            let label_px = scope.label_size(st.fonts.body);
+            let mut p = ui.painter();
+            let body_color = if resp.hovered {
+                st.palette.hover
+            } else {
+                st.palette.elevated
+            };
+            p.rect_filled(srect, 4.0 * scope.zoom(), body_color);
+            let header = Rect::from_min_size(
+                srect.min,
+                Vec2::new(srect.width(), header_h),
+            );
+            p.rect_filled(header, 4.0 * scope.zoom(), st.palette.header);
+            p.rect_stroke(
+                srect,
+                4.0 * scope.zoom(),
+                1.0,
+                if resp.pressed {
+                    st.palette.accent_active
+                } else {
+                    st.palette.stroke_strong
+                },
+            );
+            // Pins on the vertical midline of the body.
+            let pin_r = 4.0 * scope.zoom();
+            let mid_y = srect.min.y + srect.height() * 0.5;
+            p.circle_filled(Pos2::new(srect.min.x, mid_y), pin_r, st.palette.accent_active);
+            p.circle_filled(Pos2::new(srect.max.x, mid_y), pin_r, st.palette.accent_active);
+            if let Some(px) = label_px {
+                p.text(
+                    srect.min + Vec2::new(6.0 * scope.zoom(), header_h + 4.0 * scope.zoom()),
+                    label,
+                    px,
+                    st.palette.text,
+                    None,
+                );
+            }
+        }
+
+        // Advance / finish an in-flight node drag.
+        if !ui.ctx().input.pointer_down {
+            *drag = None;
+        } else if let (Some((i, grab)), Some(pw)) = (*drag, scope.pointer_world(ui)) {
+            nodes[i].0 = pw - grab;
+        }
+    });
+
+    ui.mono_label(format!("zoom {:.2}", view.zoom));
 }
 
 /// Build the checkerboard demo texture and register it on `window`'s

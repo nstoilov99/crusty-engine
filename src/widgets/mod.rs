@@ -4,6 +4,7 @@
 
 mod area;
 mod button;
+mod canvas;
 mod checkbox;
 mod chip;
 mod collapsing;
@@ -32,6 +33,7 @@ mod window;
 
 pub use area::Area;
 pub use button::{Button, ButtonVariant};
+pub use canvas::{Canvas, CanvasOutput, CanvasScope, CanvasView};
 pub use checkbox::Checkbox;
 pub use chip::{CountChip, FilterChip};
 pub use collapsing::CollapsingHeader;

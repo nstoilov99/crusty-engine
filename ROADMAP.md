@@ -273,9 +273,10 @@ not GUI memory — the canvas just renders at given positions and reports
 drags back. Depends on Phase 14 (bezier painter for wires) and leans on
 Phase 17 (culling + retained tessellation) before it scales to big graphs.
 
-- [ ] Pan/zoom canvas transform: a world↔screen coordinate space with input
-      hit-tested in canvas space (the one genuinely missing primitive — all
-      layout and `Area` are screen-space today)
+- [x] Pan/zoom canvas transform: a world↔screen coordinate space with input
+      hit-tested in canvas space (`widgets::Canvas` + `CanvasView`/`CanvasScope`:
+      middle-drag/scroll pan, Ctrl+scroll zoom-about-pointer, caller-owned view
+      state, zoom-quantized label sizes; exercised by the "Node Canvas" demo panel)
 - [ ] Free-positioned node + pin widgets, link-drag interaction on the canvas
 - [ ] Bezier wire rendering between pins (uses the Phase 14 painter)
 - [ ] Off-screen node culling + retained draw caching for large graphs

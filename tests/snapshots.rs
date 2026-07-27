@@ -226,3 +226,68 @@ fn tab_focus_ring_in_floating_window() {
     }
     h.snapshot("tab_focus_ring_window", &paint);
 }
+
+#[test]
+fn canvas_pan_zoom_nodes() {
+    use crusty_gui::widgets::{Canvas, CanvasView};
+    let mut h = Harness::new([420, 300]);
+    // Non-default view: panned into negative world space, zoomed to 1.5
+    // (a text-ladder step, so labels render at body*1.5).
+    let mut view = CanvasView { pan: Vec2::new(-30.0, -20.0), zoom: 1.5 };
+    let nodes = [
+        (Pos2::new(10.0, 20.0), "Event BeginPlay"),
+        (Pos2::new(150.0, 90.0), "Spawn Emitter"),
+    ];
+    let node_size = Vec2::new(110.0, 40.0);
+    let paint = h.run_frames(3, |ui| {
+        let st = ui.style();
+        Canvas::new().show(ui, &mut view, |ui, scope| {
+            let mut p = ui.painter();
+            p.rect_filled(scope.rect(), 0.0, st.palette.input);
+            // One wire between the two nodes, horizontal tangents.
+            let a = scope.world_to_screen(
+                nodes[0].0 + Vec2::new(node_size.x, node_size.y * 0.5),
+            );
+            let b =
+                scope.world_to_screen(nodes[1].0 + Vec2::new(0.0, node_size.y * 0.5));
+            let dx = ((b.x - a.x) * 0.5).max(24.0);
+            p.bezier_cubic(
+                a,
+                a + Vec2::new(dx, 0.0),
+                b - Vec2::new(dx, 0.0),
+                b,
+                2.0 * scope.zoom(),
+                st.palette.accent_active,
+            );
+            for (i, &(pos, label)) in nodes.iter().enumerate() {
+                let srect =
+                    scope.world_rect_to_screen(Rect::from_min_size(pos, node_size));
+                let mut p = ui.painter();
+                p.rect_filled(srect, 4.0 * scope.zoom(), st.palette.elevated);
+                p.rect_stroke(srect, 4.0 * scope.zoom(), 1.0, st.palette.stroke_strong);
+                let mid_y = srect.min.y + srect.height() * 0.5;
+                p.circle_filled(
+                    Pos2::new(srect.min.x, mid_y),
+                    4.0 * scope.zoom(),
+                    st.palette.accent_active,
+                );
+                p.circle_filled(
+                    Pos2::new(srect.max.x, mid_y),
+                    4.0 * scope.zoom(),
+                    st.palette.accent_active,
+                );
+                if let Some(px) = scope.label_size(st.fonts.body) {
+                    p.text(
+                        srect.min + Vec2::new(6.0, 6.0) * scope.zoom(),
+                        label,
+                        px,
+                        st.palette.text,
+                        None,
+                    );
+                }
+                let _ = i;
+            }
+        });
+    });
+    h.snapshot("canvas_pan_zoom_nodes", &paint);
+}
