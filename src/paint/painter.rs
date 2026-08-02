@@ -51,20 +51,33 @@ impl<'a> Painter<'a> {
     }
 
     /// A connected open polyline through `points`.
+    ///
+    /// Emitted as one path, not a run of segments: the tessellator miters the
+    /// joints and feathers the whole outline in one strip, which is both
+    /// smoother and cheaper than overlapping quads.
     pub fn polyline(&mut self, points: &[Pos2], width: f32, color: Color) {
-        for seg in points.windows(2) {
-            self.line_segment(seg[0], seg[1], width, color);
+        if points.len() < 2 || width <= 0.0 {
+            return;
         }
+        self.paint.push(PaintCmd::Path {
+            points: points.to_vec(),
+            closed: false,
+            width,
+            color,
+        });
     }
 
     /// A closed polyline (the last point joins back to the first).
     pub fn polygon_stroke(&mut self, points: &[Pos2], width: f32, color: Color) {
-        if points.len() < 2 {
+        if points.len() < 2 || width <= 0.0 {
             return;
         }
-        self.polyline(points, width, color);
-        let (first, last) = (points[0], points[points.len() - 1]);
-        self.line_segment(last, first, width, color);
+        self.paint.push(PaintCmd::Path {
+            points: points.to_vec(),
+            closed: true,
+            width,
+            color,
+        });
     }
 
     // ── rects ────────────────────────────────────────────────────────────

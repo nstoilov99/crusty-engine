@@ -34,6 +34,17 @@ pub enum PaintCmd {
         rect: Rect,
         colors: [Color; 4],
     },
+    /// A connected stroked path. Kept as a *path* rather than a run of
+    /// [`Line`]s so the tessellator can miter the joints and feather the
+    /// whole outline as one strip — per-segment quads double-blend at every
+    /// joint and cannot be antialiased consistently.
+    Path {
+        points: Vec<Pos2>,
+        /// The last point joins back to the first.
+        closed: bool,
+        width: f32,
+        color: Color,
+    },
     /// A solid-filled **convex** polygon, triangulated as a fan from the
     /// first vertex. Points must wind consistently and describe a convex
     /// outline (circles, triangles, sampled bezier fills, gizmo handles).
@@ -95,6 +106,7 @@ pub fn scale_alpha(cmds: &mut [PaintCmd], k: f32) {
                 }
             }
             PaintCmd::Line { color, .. } => color.a *= k,
+            PaintCmd::Path { color, .. } => color.a *= k,
             PaintCmd::ConvexPolygon { color, .. } => color.a *= k,
             PaintCmd::Mesh { vertices, .. } => {
                 for (_, c) in vertices {
@@ -205,6 +217,21 @@ pub fn paint_hash(cmds: &[PaintCmd]) -> u64 {
                 for c in colors {
                     h.color(*c);
                 }
+            }
+            PaintCmd::Path {
+                points,
+                closed,
+                width,
+                color,
+            } => {
+                h.tag(12);
+                h.0.write_usize(points.len());
+                for p in points {
+                    h.pos(*p);
+                }
+                h.tag(if *closed { 1 } else { 0 });
+                h.f32(*width);
+                h.color(*color);
             }
             PaintCmd::ConvexPolygon { points, color } => {
                 h.tag(4);
