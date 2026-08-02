@@ -139,6 +139,17 @@ pub fn apply_input_event(
         WindowEvent::KeyboardInput { event: key_event, .. } => {
             push_key_event(&key_event, *modifiers, pending_events);
         }
+        WindowEvent::Focused(focused) => {
+            // Windows raises this for minimize and for Alt-Tab alike. Losing it
+            // means the OS has dropped our pointer capture, so the context
+            // treats it as "dismiss every transient surface and abort any
+            // in-flight gesture". Modifiers are stale on the way out (the user
+            // may release Alt in another window), so clear them.
+            if !focused {
+                *modifiers = Modifiers::empty();
+            }
+            pending_events.push(Event::Focused(focused));
+        }
         _ => {}
     }
 }

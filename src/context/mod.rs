@@ -7,11 +7,15 @@
 
 mod dnd;
 mod memory;
+mod modal;
 mod ui;
 
 pub use dnd::DragDrop;
 pub use memory::{AreaState, Memory, WidgetMemory};
+pub use modal::DismissCause;
 pub use ui::{Align, Direction, Ui, UiOptions};
+
+use modal::ModalStack;
 
 use std::time::Duration;
 
@@ -71,6 +75,16 @@ pub struct Context {
     last_paint_hash: Option<u64>,
     /// Single-instance tooltip arbitration (hover timer + last-wins anchor).
     pub(crate) tooltip: TooltipState,
+    /// Open transient surfaces (context menus, popups, combo dropdowns, menu
+    /// flyouts). Dismissal is resolved here once per frame — see
+    /// [`modal`](self::modal).
+    modals: ModalStack,
+    /// Did the window lose focus (or minimize) this frame? Drives modal
+    /// dismissal and, for hosts, drag abort. Edge flag, reset every frame.
+    focus_lost: bool,
+    /// Inverted so `Default` means "focused" — only an [`Event::Focused`]
+    /// event ever sets it.
+    unfocused: bool,
 }
 
 /// Cross-frame tooltip state. Widgets file requests during the frame
@@ -109,10 +123,21 @@ impl Context {
         self.time = input.time;
         self.input.modifiers = input.modifiers;
         self.input.advance_frame();
+        self.focus_lost = false;
         for ev in &input.events {
+            if let Event::Focused(now) = ev {
+                if !*now && !self.unfocused {
+                    self.focus_lost = true;
+                }
+                self.unfocused = !*now;
+            }
             self.input.apply_event(ev);
         }
         self.input.detect_double_press(input.time);
+        // Rule 1: transient surfaces die here, before any widget reads the
+        // input, so the dismissing press can be consumed on the way through.
+        self.modals
+            .resolve(&mut self.input, self.focus_lost, self.frame_index);
         self.paint.clear();
         self.overlay_paint.clear();
         self.layers.clear();
@@ -125,6 +150,14 @@ impl Context {
         // `memory.begin_frame()` clears them.
         self.hovered_area = self.memory.hovered_area(self.input.pointer_pos);
         self.memory.begin_frame();
+        // Focus loss takes the OS pointer capture with it, so anything held is
+        // now unanchored: drop the held flags and the active widget rather than
+        // let them resume when the window comes back.
+        if self.focus_lost {
+            self.input.clear_held();
+            self.memory.active_widget = None;
+            self.dnd.clear();
+        }
         // A click anywhere should clear focus; widgets then have a
         // chance to re-claim it during the frame.
         if self.input.pointer_pressed {
@@ -245,6 +278,83 @@ impl Context {
     #[inline]
     pub fn claim_pointer(&mut self) {
         self.pointer_claimed = true;
+    }
+
+    /// The window lost focus (or was minimized) this frame. The OS drops
+    /// pointer capture at the same moment, so any in-flight gesture is now
+    /// unanchored — hosts should abort their drags (Rule 3). Edge flag.
+    #[inline]
+    pub fn focus_lost(&self) -> bool {
+        self.focus_lost
+    }
+
+    /// Register (or refresh) a transient surface on the modal stack for this
+    /// frame. Call order within a frame *is* the stack order, so a child popup
+    /// drawn inside a menu shields its parent from the outside-press rule.
+    #[inline]
+    pub fn modal_push(&mut self, id: Id, rect: Rect) {
+        self.modals.push(id, rect, self.frame_index);
+    }
+
+    /// Close `id` and everything stacked above it — the "a command ran, take
+    /// the menu down" path.
+    #[inline]
+    pub fn modal_dismiss(&mut self, id: Id) {
+        self.modals.remove(id);
+    }
+
+    /// Why `id` was dismissed by this frame's resolve step, if it was. Surfaces
+    /// call this to clear their own open flag; the dismissing input has already
+    /// been consumed by the time they see it.
+    #[inline]
+    pub fn modal_dismissed(&self, id: Id) -> Option<DismissCause> {
+        self.modals.was_dismissed(id)
+    }
+
+    #[inline]
+    pub fn modal_is_open(&self, id: Id) -> bool {
+        self.modals.is_open(id)
+    }
+
+    /// Topmost open transient surface, if any.
+    #[inline]
+    pub fn modal_top(&self) -> Option<Id> {
+        self.modals.top()
+    }
+
+    /// Is any transient surface open? Hosts gate single-key shortcuts on this.
+    #[inline]
+    pub fn modal_any_open(&self) -> bool {
+        !self.modals.is_empty()
+    }
+
+    /// Is `p` inside any open transient surface?
+    #[inline]
+    pub fn modal_contains(&self, p: Pos2) -> bool {
+        self.modals.contains(p)
+    }
+
+    /// Where a *right* press dismissed the stack this frame, if it did. The
+    /// intent of right-clicking outside an open menu is unambiguous — dismiss,
+    /// then open a fresh menu here — so the press is consumed but its position
+    /// is handed on. Read with [`take_modal_reopen`](Self::take_modal_reopen)
+    /// if you act on it.
+    #[inline]
+    pub fn modal_reopen_at(&self) -> Option<Pos2> {
+        self.modals.reopen_at()
+    }
+
+    /// Claim the reopen position so only one surface acts on it.
+    #[inline]
+    pub fn take_modal_reopen(&mut self) -> Option<Pos2> {
+        self.modals.take_reopen()
+    }
+
+    /// Is a text field currently holding keyboard focus? Single-key shortcuts
+    /// must not fire while the user is typing.
+    #[inline]
+    pub fn text_focused(&self) -> bool {
+        self.memory.text_focus
     }
 
     /// Ask the host to repaint immediately (an animation is running).
@@ -393,6 +503,14 @@ pub struct InputState {
     /// Mouse buttons that transitioned to "pressed" this frame,
     /// including non-primary buttons (middle, back, forward).
     pub button_presses: Vec<MouseButton>,
+    /// Secondary pointer button is currently *held*. Right-drag needs the held
+    /// state, not just the press edge, to tell a pan from a context click.
+    pub right_down: bool,
+    /// Keys currently held, as opposed to `key_presses`, which is this frame's
+    /// edges only. Needed for chords on non-modifier keys — Space+drag to pan,
+    /// most obviously. Cleared on focus loss: the key-up will be delivered to
+    /// whichever window took focus, not to us, so a held key would stick.
+    keys_down: Vec<Key>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -469,8 +587,11 @@ impl InputState {
                     }
                     self.pointer_down = *pressed;
                 }
-                if matches!(button, MouseButton::Secondary) && *pressed {
-                    self.right_pressed = true;
+                if matches!(button, MouseButton::Secondary) {
+                    if *pressed && !self.right_down {
+                        self.right_pressed = true;
+                    }
+                    self.right_down = *pressed;
                 }
                 if matches!(button, MouseButton::Middle) {
                     self.middle_down = *pressed;
@@ -494,10 +615,30 @@ impl InputState {
                         modifiers: *modifiers,
                         repeat: *repeat,
                     });
+                    if !self.keys_down.contains(key) {
+                        self.keys_down.push(*key);
+                    }
+                } else {
+                    self.keys_down.retain(|k| k != key);
                 }
             }
             _ => {}
         }
+    }
+
+    /// Is `key` currently held? (`key_pressed` is the press *edge*.)
+    #[inline]
+    pub fn key_down(&self, key: Key) -> bool {
+        self.keys_down.contains(&key)
+    }
+
+    /// Forget every held key/button. Called on focus loss, where the matching
+    /// releases will never arrive.
+    pub(crate) fn clear_held(&mut self) {
+        self.keys_down.clear();
+        self.pointer_down = false;
+        self.middle_down = false;
+        self.right_down = false;
     }
 
     /// True when the pointer is within `rect` (or there's no pointer).
@@ -505,10 +646,26 @@ impl InputState {
         self.pointer_pos.map_or(false, |p| rect.contains(p))
     }
 
-    /// Returns true once if a non-repeated press of `key` happened this
-    /// frame. Convenience for widgets that don't care about modifiers.
+    /// Returns true once if a press of `key` happened this frame, repeat or
+    /// not. Convenience for widgets that don't care about modifiers.
     pub fn key_pressed(&self, key: Key) -> bool {
         self.key_presses.iter().any(|k| k.key == key)
+    }
+
+    /// The *first* press of `key` — the OS auto-repeat stream excluded.
+    ///
+    /// Together with [`key_repeated`](Self::key_repeated) this is the
+    /// coalescing hook for held-key gestures: open one undo transaction on the
+    /// initial press, extend it while repeats keep arriving, and commit it when
+    /// they stop. Holding an arrow key to nudge a node should leave one entry
+    /// on the undo stack, not forty.
+    pub fn key_pressed_initial(&self, key: Key) -> bool {
+        self.key_presses.iter().any(|k| k.key == key && !k.repeat)
+    }
+
+    /// An auto-repeat of `key` arrived this frame (the key is being held).
+    pub fn key_repeated(&self, key: Key) -> bool {
+        self.key_presses.iter().any(|k| k.key == key && k.repeat)
     }
 
     /// True if `shortcut` (key + exact modifier set) was pressed this frame,
@@ -518,6 +675,26 @@ impl InputState {
         self.key_presses
             .iter()
             .any(|k| k.key == shortcut.key && k.modifiers == shortcut.modifiers)
+    }
+
+    /// Remove every press of `key` this frame so later handlers won't see it.
+    /// Returns whether anything was removed.
+    pub fn consume_key(&mut self, key: Key) -> bool {
+        let before = self.key_presses.len();
+        self.key_presses.retain(|k| k.key != key);
+        self.key_presses.len() != before
+    }
+
+    /// Swallow this frame's pointer press entirely — the press edge, the
+    /// button list and the double-click classification. The *held* flags
+    /// (`pointer_down`, `middle_down`) survive, so a consumed press still
+    /// can't turn into a phantom drag: widgets only ever become active on the
+    /// press edge.
+    pub fn consume_press(&mut self) {
+        self.pointer_pressed = false;
+        self.right_pressed = false;
+        self.press_was_double = false;
+        self.button_presses.clear();
     }
 
     /// Like [`shortcut_pressed`](Self::shortcut_pressed) but removes the

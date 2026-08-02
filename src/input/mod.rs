@@ -5,5 +5,9 @@
 //! Phase 3 together with the retained tree.
 
 mod events;
+mod gesture;
 
 pub use events::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
+pub use gesture::{
+    drag_threshold, DragTracker, GestureEnd, GesturePhase, ScrollAccumulator, DRAG_THRESHOLD,
+};

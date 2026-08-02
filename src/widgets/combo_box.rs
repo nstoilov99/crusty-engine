@@ -64,11 +64,16 @@ impl ComboBox {
 
         let hovered = ui.contains_pointer(trigger_rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
-        let pointer_pos = ui.ctx().input.pointer_pos;
 
         let was_open = ui.ctx().memory.get(id).map(|m| m.bool_state).unwrap_or(false);
         let mut is_open = was_open;
+        if ui.ctx().modal_dismissed(id.with("popup_area")).is_some() {
+            is_open = false;
+        }
 
+        // A press on the trigger toggles as usual: the trigger is inside the
+        // registered modal rect, so it is never an outside-press and is never
+        // consumed out from under us.
         if pointer_pressed && hovered {
             is_open = !is_open;
         }
@@ -134,11 +139,11 @@ impl ComboBox {
         }
 
         // ── Dropdown render (overlay)
+        let popup_area_id = id.with("popup_area");
         let mut measured_h = None;
         if is_open {
             let popup_w = self.popup_width.unwrap_or(width);
             let dropdown_root = id.with("popup");
-            let popup_area_id = id.with("popup_area");
             let dropdown_pos = super::popup_pos(
                 ui,
                 popup_area_id,
@@ -230,23 +235,23 @@ impl ComboBox {
             area.size = dropdown_rect.size();
 
             // ── Close conditions
+            // Rule 1: outside-press / Escape / wheel / focus-loss are resolved
+            // once in `Context::begin_frame` and the input is consumed there.
+            // The registered rect spans the trigger so its press still reaches
+            // the toggle instead of being swallowed as an outside-press.
+            ui.ctx_mut()
+                .modal_push(popup_area_id, trigger_rect.union(dropdown_rect));
+
             if ui.ctx().memory.popup_close_requested {
                 is_open = false;
                 // Consume the flag: selecting a combo option closes only
                 // this popup, not an enclosing menu chain.
                 ui.ctx_mut().memory.popup_close_requested = false;
             }
-            if ui.ctx().input.key_pressed(Key::Escape) {
-                is_open = false;
-            }
-            // Click outside trigger AND dropdown closes.
-            if pointer_pressed {
-                if let Some(p) = pointer_pos {
-                    if !trigger_rect.contains(p) && !dropdown_rect.contains(p) {
-                        is_open = false;
-                    }
-                }
-            }
+        }
+
+        if !is_open {
+            ui.ctx_mut().modal_dismiss(popup_area_id);
         }
 
         // ── Persist state

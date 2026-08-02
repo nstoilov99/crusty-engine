@@ -10,7 +10,6 @@
 
 use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
-use crate::input::Key;
 use crate::layer::Order;
 use crate::math::{Color, Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
@@ -399,17 +398,18 @@ fn menu_panel(
     area.pos = panel.min;
     area.size = panel.size();
 
-    let mut closed = ui.ctx().memory.popup_close_requested
-        || ui.ctx().input.key_pressed(Key::Escape);
-    if ui.ctx().input.pointer_pressed {
-        if let Some(p) = ui.ctx().input.pointer_pos {
-            // A click in ANY topmost area (this panel, a nested flyout, a
-            // combo popup) is not an outside-click — otherwise clicking a
-            // child popup would collapse the whole menu chain.
-            if !trigger.contains(p) && !ui.ctx().memory.topmost_area_contains(p) {
-                closed = true;
-            }
-        }
+    // Rule 1: outside-press / Escape / wheel / focus-loss are resolved once in
+    // `Context::begin_frame` and the offending input is consumed there. The
+    // registered rect spans the trigger so the menu button's own press still
+    // reaches its toggle; nested flyouts and combo dropdowns push themselves
+    // *above* this panel on the stack, which is what keeps a click inside a
+    // child from collapsing the chain (this replaces `topmost_area_contains`).
+    ui.ctx_mut().modal_push(area_id, trigger.union(panel));
+
+    let closed = ui.ctx().memory.popup_close_requested
+        || ui.ctx().modal_dismissed(area_id).is_some();
+    if closed {
+        ui.ctx_mut().modal_dismiss(area_id);
     }
     closed
 }

@@ -1,6 +1,5 @@
 use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
-use crate::input::Key;
 use crate::layer::Order;
 use crate::math::{Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
@@ -40,10 +39,13 @@ impl Popup {
     }
 
     pub fn show(self, ui: &mut Ui, body: impl FnOnce(&mut Ui)) {
+        let popup_area_id = self.id.with("popup_area");
         let mut is_open = Self::is_open(ui, self.id);
+        if ui.ctx().modal_dismissed(popup_area_id).is_some() {
+            is_open = false;
+        }
         if is_open {
             let style = ui.style();
-            let popup_area_id = self.id.with("popup_area");
             let pos = super::popup_pos(
                 ui,
                 popup_area_id,
@@ -103,25 +105,22 @@ impl Popup {
             area.pos = popup_rect.min;
             area.size = popup_rect.size();
 
+            // Rule 1: dismissal is decided once, in `Context::begin_frame`.
+            // The registered rect spans the anchor too, because the anchor's
+            // own press is the caller's toggle and must reach it rather than
+            // being swallowed as an outside-press. Nesting is handled by stack
+            // order — a child popup pushed later shields this one — which
+            // replaces the old `topmost_area_contains` special case.
+            ui.ctx_mut()
+                .modal_push(popup_area_id, self.anchor.union(popup_rect));
+
             if ui.ctx().memory.popup_close_requested {
                 is_open = false;
             }
-            if ui.ctx().input.key_pressed(Key::Escape) {
-                is_open = false;
-            }
-            // Click outside anchor AND popup closes (the anchor's own click
-            // is the caller's toggle). A click in any topmost area (e.g. a
-            // combo dropdown overflowing the panel) is not an outside-click
-            // — same rule as menu_panel, or child popups would collapse us.
-            if ui.ctx().input.pointer_pressed
-                && ui.ctx().input.pointer_pos.is_some_and(|p| {
-                    !self.anchor.contains(p)
-                        && !popup_rect.contains(p)
-                        && !ui.ctx().memory.topmost_area_contains(p)
-                })
-            {
-                is_open = false;
-            }
+        }
+
+        if !is_open {
+            ui.ctx_mut().modal_dismiss(popup_area_id);
         }
 
         let mem = ui.ctx_mut().memory.get_or_default(self.id);

@@ -148,6 +148,10 @@ impl<'a> TextEdit<'a> {
             ui.ctx_mut().memory.active_widget = Some(id);
         }
         let focused = ui.ctx().memory.focused_widget == Some(id);
+        if focused {
+            // Tells the host "the user is typing" so single-key shortcuts hold.
+            ui.ctx_mut().memory.text_focus = true;
+        }
         let mut clicked = start_click;
         let mut submitted = false;
         let mut cancelled = false;

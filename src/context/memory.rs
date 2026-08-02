@@ -122,6 +122,12 @@ pub struct Memory {
     /// just-clicked widget gets to re-claim it.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub focused_widget: Option<Id>,
+    /// Is the focused widget a *text* field? `focused_widget` alone can't say —
+    /// buttons and sliders take focus too — and single-key shortcuts must not
+    /// fire mid-typing. Text widgets set this every frame they hold focus;
+    /// cleared at `begin_frame`, so it is always one frame's truth.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub text_focus: bool,
     /// Set by a popup child (e.g. `SelectableValue` inside a `ComboBox`
     /// dropdown) to ask its parent popup to close on the current frame.
     /// Cleared at the start of every frame.
@@ -400,6 +406,7 @@ impl Memory {
         self.focusable.clear();
         self.focus_move_requested = None;
         self.focus_scope_requested = None;
+        self.text_focus = false;
         for entry in self.widgets.values_mut() {
             entry.seen_this_frame = false;
         }

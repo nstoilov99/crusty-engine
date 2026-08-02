@@ -1,6 +1,4 @@
 use crate::context::{Direction, Ui, UiOptions};
-use crate::id::Id;
-use crate::input::Key;
 use crate::layer::Order;
 use crate::math::{Pos2, Rect, Vec2};
 use crate::paint::{PaintCmd, RectShape};
@@ -23,7 +21,17 @@ pub fn context_menu_for(
     let open_at = if right_pressed && pointer_in_rect {
         ui.ctx().input.pointer_pos
     } else {
-        None
+        // A right press that dismissed some *other* transient surface is
+        // consumed before widgets see it (Rule 1), but its position is handed
+        // on precisely so the click can still land here — dismiss and reopen in
+        // one gesture rather than making the user click twice.
+        match ui.ctx().modal_reopen_at().filter(|p| rect.contains(*p)) {
+            Some(p) => {
+                ui.ctx_mut().take_modal_reopen();
+                Some(p)
+            }
+            None => None,
+        }
     };
     context_menu_at(ui, id_source, open_at, body)
 }
@@ -40,13 +48,20 @@ pub fn context_menu_at(
     let style = ui.style();
     let id = ui.alloc_id(("context_menu", &id_source));
 
-    let pointer_pos = ui.ctx().input.pointer_pos;
-    let pointer_pressed = ui.ctx().input.pointer_pressed;
+    let menu_area_id = id.with("menu_area");
 
     let (mut is_open, mut anchor) = match ui.ctx().memory.get(id) {
         Some(m) => (m.bool_state, m.aux_vec2),
         None => (false, Vec2::ZERO),
     };
+
+    // Rule 1: outside-press / Escape / wheel-outside / focus-loss dismissal is
+    // resolved once, in `Context::begin_frame`, against last frame's rect — and
+    // the input that did it has already been consumed, so nothing underneath
+    // this menu will also act on it.
+    if ui.ctx().modal_dismissed(menu_area_id).is_some() {
+        is_open = false;
+    }
 
     if let Some(p) = open_at {
         is_open = true;
@@ -56,7 +71,6 @@ pub fn context_menu_at(
     let mut menu_rect = Rect::ZERO;
     if is_open {
         let menu_root_id = id.with("menu");
-        let menu_area_id = id.with("menu_area");
         let anchor_rect =
             Rect::from_min_size(Pos2::new(anchor.x, anchor.y), Vec2::ZERO);
         let menu_pos =
@@ -110,23 +124,21 @@ pub fn context_menu_at(
         area.pos = menu_rect.min;
         area.size = menu_rect.size();
 
+        // Register for next frame's dismissal check, and for the ordering that
+        // lets a nested popup shield this menu from the outside-press rule.
+        ui.ctx_mut().modal_push(menu_area_id, menu_rect);
+
+        // A menu item ran a command: take the menu down with it.
         if ui.ctx().memory.popup_close_requested {
             is_open = false;
         }
-        if ui.ctx().input.key_pressed(Key::Escape) {
-            is_open = false;
-        }
-        if pointer_pressed {
-            if let Some(p) = pointer_pos {
-                if !menu_rect.contains(p) {
-                    is_open = false;
-                }
-            }
-        }
+    }
+
+    if !is_open {
+        ui.ctx_mut().modal_dismiss(menu_area_id);
     }
 
     let _ = menu_rect;
-    let _ = Id::ROOT; // touch to keep import used in some configurations
     let mem = ui.ctx_mut().memory.get_or_default(id);
     mem.seen_this_frame = true;
     mem.bool_state = is_open;

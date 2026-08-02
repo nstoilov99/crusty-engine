@@ -12,7 +12,9 @@
 
 use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
-use crate::input::MouseButton;
+use crate::input::{
+    DragTracker, GestureEnd, Key, Modifiers, MouseButton, ScrollAccumulator, DRAG_THRESHOLD,
+};
 use crate::math::{Pos2, Rect, Vec2};
 use crate::paint::PaintCmd;
 use crate::response::Response;
@@ -42,16 +44,46 @@ const TEXT_ZOOM_LADDER: [f32; 7] = [0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0];
 /// Labels smaller than this many pixels are reported as hidden.
 const MIN_LABEL_PX: f32 = 7.0;
 
-/// Middle-drag pan state, kept in typed `Memory` while the drag is live.
-#[derive(Clone, Copy)]
+/// World units panned per wheel line.
+const PAN_PER_LINE: f32 = 30.0;
+
+/// Exponential zoom applied per wheel notch. Pass C replaces this with the
+/// 12-step ladder; the notch accumulator it needs is already in place.
+const ZOOM_PER_NOTCH: f32 = 0.12;
+
+/// Live pan/gesture state, kept in typed `Memory` for the duration of a drag.
+///
+/// Three buttons reach the same pan: middle (unconditional), right (only once
+/// it has travelled past the drag threshold — under it, the release is a
+/// context click the caller handles), and primary while Space is held. Only one
+/// can own the pan at a time, so they share one slot.
+#[derive(Clone, Copy, Default)]
 struct PanDrag {
+    /// Pointer position last frame; the pan follows its delta.
     last: Pos2,
+    /// Which button is panning right now.
+    source: PanSource,
+    /// Three-phase tracker for the right button, whose outcome is undecided
+    /// until it either passes the threshold or releases.
+    right: DragTracker,
+    /// Wheel-notch accumulation, so a touchpad flick zooms like a wheel.
+    zoom_notches: ScrollAccumulator,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum PanSource {
+    #[default]
+    None,
+    Middle,
+    Right,
+    SpaceLeft,
 }
 
 /// Snapshot of the view mapped onto this frame's canvas rect. Handed to the
 /// body for coordinate conversion and world-space hit tests.
 #[derive(Clone, Copy, Debug)]
 pub struct CanvasScope {
+    right_clicked: Option<Pos2>,
     rect: Rect,
     pan: Vec2,
     zoom: f32,
@@ -61,6 +93,13 @@ impl CanvasScope {
     /// The canvas widget's screen rect.
     pub fn rect(&self) -> Rect {
         self.rect
+    }
+
+    /// A right press that released without becoming a pan, in screen space —
+    /// the body's cue to open a context menu. Available to the body because
+    /// `Canvas::show` resolves the gesture before running it.
+    pub fn right_clicked(&self) -> Option<Pos2> {
+        self.right_clicked
     }
 
     pub fn zoom(&self) -> f32 {
@@ -133,14 +172,23 @@ pub struct CanvasOutput<R> {
     /// The view was panned or zoomed this frame (mark app state dirty-for-
     /// persistence if you save view state; document data is unaffected).
     pub view_changed: bool,
+    /// A right press that released without ever becoming a pan — the caller's
+    /// cue to open a context menu, at this screen position. `None` when the
+    /// right button dragged (that was a pan) or wasn't used.
+    pub right_clicked: Option<Pos2>,
 }
 
-/// The pan/zoom canvas widget. Input: middle-drag pans, scroll wheel pans
-/// (both axes), Ctrl+scroll zooms about the pointer.
+/// The pan/zoom canvas widget.
+///
+/// Input: middle-drag pans; right-drag pans past [`DRAG_THRESHOLD`] and
+/// otherwise reports a right *click* for the caller's context menu; Space+drag
+/// pans; scroll wheel pans (both axes); Shift+wheel pans horizontally;
+/// Ctrl+wheel zooms about the pointer, notch-quantised.
 pub struct Canvas {
     size: Option<Vec2>,
     min_zoom: f32,
     max_zoom: f32,
+    drag_threshold: f32,
 }
 
 impl Default for Canvas {
@@ -151,7 +199,20 @@ impl Default for Canvas {
 
 impl Canvas {
     pub fn new() -> Self {
-        Self { size: None, min_zoom: 0.25, max_zoom: 2.5 }
+        Self {
+            size: None,
+            min_zoom: 0.25,
+            max_zoom: 2.5,
+            drag_threshold: DRAG_THRESHOLD,
+        }
+    }
+
+    /// Distance a right-drag must travel before it pans instead of opening a
+    /// context menu. Defaults to [`DRAG_THRESHOLD`]; pass
+    /// `crusty_gui::input::drag_threshold(ui_scale)` from a scaled editor.
+    pub fn drag_threshold(mut self, px: f32) -> Self {
+        self.drag_threshold = px.max(0.0);
+        self
     }
 
     /// Fixed size instead of filling the available rect.
@@ -181,10 +242,10 @@ impl Canvas {
         let hovered = ui.contains_pointer(rect);
         let view_before = *view;
 
-        self.apply_input(ui, id, rect, hovered, view);
+        let right_clicked = self.apply_input(ui, id, rect, hovered, view);
         view.zoom = view.zoom.clamp(self.min_zoom, self.max_zoom);
 
-        let scope = CanvasScope { rect, pan: view.pan, zoom: view.zoom };
+        let scope = CanvasScope { right_clicked, rect, pan: view.pan, zoom: view.zoom };
 
         // Clip body paint to the widget rect (a child Ui inherits the parent
         // clip only) and give the child the same rect as its hit-test clip.
@@ -219,9 +280,13 @@ impl Canvas {
             hovered,
             pointer_world: scope.pointer_world(ui),
             view_changed: *view != view_before,
+            right_clicked,
         }
     }
 
+    /// Returns the screen position of a right *click* (a right press that
+    /// released without ever becoming a pan), which is the caller's cue to open
+    /// a context menu.
     fn apply_input(
         &self,
         ui: &mut Ui,
@@ -229,51 +294,127 @@ impl Canvas {
         rect: Rect,
         hovered: bool,
         view: &mut CanvasView,
-    ) {
+    ) -> Option<Pos2> {
         let pointer = ui.ctx().input.pointer_pos;
+        // State lives in typed `Memory` (read with `data_get_mut` so GC sees it
+        // — see `dnd_drag_source`). `Ui::interact` is primary-only, so every
+        // non-primary button here is built on the raw input state.
+        let mut drag = ui
+            .ctx_mut()
+            .memory
+            .data_get_mut::<PanDrag>(id)
+            .copied()
+            .unwrap_or_default();
 
-        // Middle-drag pan. `Ui::interact` is primary-only, so this is built
-        // on the raw input state; the drag origin lives in typed `Memory`
-        // (read with `data_get_mut` so GC sees it — see `dnd_drag_source`).
-        let middle_down = ui.ctx().input.middle_down;
-        let middle_pressed = ui
-            .ctx()
-            .input
-            .button_presses
-            .contains(&MouseButton::Middle);
-        if let Some(p) = pointer.filter(|_| middle_pressed && hovered) {
-            ui.ctx_mut().memory.data_insert(id, PanDrag { last: p });
+        let input = &ui.ctx().input;
+        let middle_down = input.middle_down;
+        let middle_pressed = input.button_presses.contains(&MouseButton::Middle);
+        let right_pressed = input.right_pressed;
+        let right_down = input.right_down;
+        let primary_pressed = input.pointer_pressed;
+        let primary_down = input.pointer_down;
+        let space_down = input.key_down(Key::Space);
+        let modifiers = input.modifiers;
+        let scroll = input.scroll_delta;
+        // Rule 3: a lost window drops OS capture mid-gesture — abandon rather
+        // than resume against a pointer that moved while we weren't looking.
+        let aborted = ui.ctx().focus_lost();
+
+        let mut right_click = None;
+
+        if aborted {
+            drag.right.cancel();
+            drag.source = PanSource::None;
+            drag.zoom_notches.reset();
         }
-        if middle_down {
-            if let (Some(p), Some(drag)) = (
-                pointer,
-                ui.ctx_mut().memory.data_get_mut::<PanDrag>(id),
-            ) {
+
+        // ── Which button owns the pan ────────────────────────────────────────
+        if !aborted {
+            if let Some(p) = pointer {
+                // Middle: pans from the press, no threshold — it has no other job.
+                if middle_pressed && hovered {
+                    drag.source = PanSource::Middle;
+                    drag.last = p;
+                }
+                // Space+primary: same, but only while Space is held and the
+                // canvas is hovered, and never while a text field has focus.
+                if primary_pressed && hovered && space_down && !ui.ctx().text_focused() {
+                    drag.source = PanSource::SpaceLeft;
+                    drag.last = p;
+                }
+                // Right: three-phase. Arming is not committing — the gesture
+                // only becomes a pan once it passes the threshold, and if it
+                // never does, the release is a context click.
+                if right_pressed && hovered {
+                    drag.right.press(p);
+                    drag.last = p;
+                }
+                if drag.right.is_active() && right_down && drag.right.update(p, self.drag_threshold)
+                {
+                    drag.source = PanSource::Right;
+                }
+            }
+            if drag.right.is_active() && !right_down {
+                if let Some(GestureEnd::Click(at)) = drag.right.release() {
+                    right_click = Some(at);
+                }
+                if drag.source == PanSource::Right {
+                    drag.source = PanSource::None;
+                }
+            }
+        }
+
+        // The owning button letting go ends the pan.
+        let still_held = match drag.source {
+            PanSource::None => false,
+            PanSource::Middle => middle_down,
+            PanSource::Right => right_down,
+            PanSource::SpaceLeft => primary_down && space_down,
+        };
+        if !still_held {
+            drag.source = PanSource::None;
+        }
+
+        if drag.source != PanSource::None {
+            if let Some(p) = pointer {
                 let delta = p - drag.last;
                 drag.last = p;
                 view.pan -= delta / view.zoom;
             }
-        } else {
-            ui.ctx_mut().memory.data_remove::<PanDrag>(id);
+            // A live pan owns the pointer even where no widget is hovered.
+            ui.ctx_mut().claim_pointer();
         }
 
-        // Wheel: Ctrl+scroll zooms about the pointer, plain scroll pans
-        // (same direction convention as `ScrollArea`).
-        let scroll = ui.ctx().input.scroll_delta;
-        if hovered && (scroll.x != 0.0 || scroll.y != 0.0) {
-            if ui.ctx().input.modifiers.contains(crate::input::Modifiers::CTRL) {
-                if let Some(p) = pointer {
-                    let world_at_pointer =
-                        Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
-                    view.zoom = (view.zoom * (scroll.y * 0.12).exp())
-                        .clamp(self.min_zoom, self.max_zoom);
-                    view.pan =
-                        world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
-                }
-            } else {
-                view.pan -= scroll * 30.0 / view.zoom;
-            }
+        // ── Wheel ────────────────────────────────────────────────────────────
+        // Ctrl+scroll zooms about the pointer, Shift+scroll pans horizontally
+        // explicitly (rather than falling through to the zoom branch), plain
+        // scroll pans. Zoom runs through a notch accumulator so a precision
+        // touchpad's fine-grained stream steps like a wheel instead of firing
+        // hundreds of micro-zooms per flick.
+        if !hovered {
+            // Residue belongs to the surface the pointer was over.
+            drag.zoom_notches.reset();
         }
+        let scrolling = hovered && (scroll.x != 0.0 || scroll.y != 0.0);
+        if scrolling && modifiers.contains(Modifiers::CTRL) {
+            let notches = drag.zoom_notches.feed(scroll.y);
+            if let (true, Some(p)) = (notches != 0, pointer) {
+                let world_at_pointer =
+                    Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
+                view.zoom = (view.zoom * (notches as f32 * ZOOM_PER_NOTCH).exp())
+                    .clamp(self.min_zoom, self.max_zoom);
+                view.pan = world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
+            }
+        } else if scrolling && modifiers.contains(Modifiers::SHIFT) {
+            // Wheels only have a Y axis; Shift maps it onto X.
+            let amount = if scroll.x != 0.0 { scroll.x } else { scroll.y };
+            view.pan.x -= amount * PAN_PER_LINE / view.zoom;
+        } else if scrolling {
+            view.pan -= scroll * PAN_PER_LINE / view.zoom;
+        }
+
+        ui.ctx_mut().memory.data_insert(id, drag);
+        right_click
     }
 }
 
@@ -283,6 +424,7 @@ mod tests {
 
     fn scope(pan: Vec2, zoom: f32) -> CanvasScope {
         CanvasScope {
+            right_clicked: None,
             rect: Rect::from_min_size(Pos2::new(100.0, 50.0), Vec2::new(400.0, 300.0)),
             pan,
             zoom,
@@ -311,13 +453,13 @@ mod tests {
         let rect = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(200.0, 200.0));
         let mut view = CanvasView { pan: Vec2::new(10.0, 10.0), zoom: 1.0 };
         let p = Pos2::new(150.0, 60.0);
-        let before = CanvasScope { rect, pan: view.pan, zoom: view.zoom }
+        let before = CanvasScope { right_clicked: None, rect, pan: view.pan, zoom: view.zoom }
             .screen_to_world(p);
         let world_at_pointer =
             Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
         view.zoom = (view.zoom * 0.6_f32.exp()).clamp(0.25, 2.5);
         view.pan = world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
-        let after = CanvasScope { rect, pan: view.pan, zoom: view.zoom }
+        let after = CanvasScope { right_clicked: None, rect, pan: view.pan, zoom: view.zoom }
             .screen_to_world(p);
         assert!((after.x - before.x).abs() < 1e-3 && (after.y - before.y).abs() < 1e-3);
     }
