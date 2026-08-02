@@ -211,10 +211,16 @@ impl<'a> Painter<'a> {
     }
 }
 
-/// Segment count for a curve/circle of a given pixel radius — denser when
-/// larger, but bounded so tiny shapes stay cheap.
+/// Segment count for a circle of a given pixel radius.
+///
+/// The floor is what matters: small circles are the common case in editor
+/// chrome (pin dots, radio buttons, swatch dots, handles) and the old floor
+/// of 8 drew them as visible octagons — at r=4.5 the previous formula asked
+/// for 3 segments and got the floor. 20 is the point where a small disc reads
+/// as round; above that the radius term takes over, capped so a big circle
+/// stays cheap. Tens of extra vertices per shape, at most.
 fn arc_segments(radius: f32) -> usize {
-    (radius * 0.75).clamp(8.0, 64.0) as usize
+    (radius * 3.0).ceil().clamp(20.0, 64.0) as usize
 }
 
 fn circle_points(center: Pos2, radius: f32) -> Vec<Pos2> {
@@ -233,9 +239,17 @@ fn lerp(a: Pos2, b: Pos2, t: f32) -> Pos2 {
 
 fn sample_cubic(p0: Pos2, p1: Pos2, p2: Pos2, p3: Pos2) -> Vec<Pos2> {
     // Crude flatness proxy: total control-polygon length sets the segment
-    // count, so longer/wigglier curves get more samples.
+    // count, so longer/wigglier curves get more samples. Callers pass control
+    // points in the space they draw in, so `span` is already screen-space and
+    // the density tracks zoom for free.
+    //
+    // The rate targets ~4px per segment; the *cap* is what used to bite — at
+    // 64 segments a long curve (a zoomed-in graph wire spanning 1500px) drew
+    // 23px chords and read as a chain of straight bars. The floor rose for
+    // the same reason a circle's did: a short, tightly-curved bezier at 8
+    // segments is visibly faceted.
     let span = (p1 - p0).length() + (p2 - p1).length() + (p3 - p2).length();
-    let n = (span * 0.25).clamp(8.0, 64.0) as usize;
+    let n = (span * 0.25).clamp(16.0, 256.0) as usize;
     (0..=n)
         .map(|i| {
             let t = i as f32 / n as f32;
