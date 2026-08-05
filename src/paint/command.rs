@@ -161,9 +161,11 @@ pub fn paint_hash(cmds: &[PaintCmd]) -> u64 {
                     stroke,
                     shadow,
                     glow,
+                    translucent,
                 } = shape;
                 h.tag(1);
                 h.rect(*rect);
+                h.tag(u8::from(*translucent));
                 for r in [nw, ne, sw, se] {
                     h.f32(*r);
                 }
@@ -336,6 +338,15 @@ pub struct RectShape {
     pub stroke: Option<Stroke>,
     pub shadow: Option<Shadow>,
     pub glow: Option<Glow>,
+    /// Treat `fill`'s alpha as real opacity instead of glass tint strength.
+    ///
+    /// The default (`false`) is the design system's surface fill: it mixes the
+    /// *blurred* backdrop toward `fill.rgb` by `fill.a` and always emits a
+    /// fully opaque interior — correct for panels and popovers, which are
+    /// meant to obscure. Set this when the shape must genuinely reveal the
+    /// live content under it (a selection marquee, a tint band, a drag ghost),
+    /// where "8% alpha" has to mean 8% alpha.
+    pub translucent: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -367,6 +378,15 @@ impl RectShape {
             stroke: None,
             shadow: None,
             glow: None,
+            translucent: false,
+        }
+    }
+
+    /// A fill whose alpha is real opacity — see [`RectShape::translucent`].
+    pub fn fill_translucent(rect: Rect, rounding: impl Into<Rounding>, color: Color) -> Self {
+        Self {
+            translucent: true,
+            ..Self::fill(rect, rounding, color)
         }
     }
 

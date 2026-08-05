@@ -92,6 +92,23 @@ impl<'a> Painter<'a> {
             .push(PaintCmd::Rrect(RectShape::fill(rect, rounding, color)));
     }
 
+    /// Fill a rect with **real** alpha, so what is underneath shows through.
+    ///
+    /// [`rect_filled`](Self::rect_filled) is the design system's surface fill
+    /// and is opaque by construction — its alpha is a glass tint strength over
+    /// a blurred backdrop. Use this one whenever the shape has to reveal live
+    /// content: selection marquees, tint bands, drag ghosts.
+    pub fn rect_filled_translucent(
+        &mut self,
+        rect: Rect,
+        rounding: impl Into<Rounding>,
+        color: Color,
+    ) {
+        self.paint.push(PaintCmd::Rrect(RectShape::fill_translucent(
+            rect, rounding, color,
+        )));
+    }
+
     pub fn rect_stroke(
         &mut self,
         rect: Rect,

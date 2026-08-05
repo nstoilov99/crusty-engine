@@ -184,8 +184,8 @@ impl Harness {
         paint
     }
 
-    /// Render `paint`, read the pixels back and compare against the golden.
-    pub fn snapshot(&mut self, name: &str, paint: &[PaintCmd]) {
+    /// Render `paint` and read the framebuffer back as RGBA8.
+    pub fn render_pixels(&mut self, paint: &[PaintCmd]) -> Vec<u8> {
         let ui_cb = self
             .renderer
             .render(&mut self.text, self.target.clone(), paint, None, Some(CLEAR))
@@ -229,8 +229,19 @@ impl Harness {
             .wait(None)
             .expect("GPU wait failed");
 
-        let actual = readback.read().expect("failed to map readback buffer").to_vec();
+        readback.read().expect("failed to map readback buffer").to_vec()
+    }
+
+    /// Render `paint`, read the pixels back and compare against the golden.
+    pub fn snapshot(&mut self, name: &str, paint: &[PaintCmd]) {
+        let actual = self.render_pixels(paint);
         compare(name, &actual, self.size);
+    }
+
+    /// RGBA of one pixel from a rendered frame buffer.
+    pub fn pixel(&self, buf: &[u8], x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * self.size[0] + x) * 4) as usize;
+        [buf[i], buf[i + 1], buf[i + 2], buf[i + 3]]
     }
 }
 

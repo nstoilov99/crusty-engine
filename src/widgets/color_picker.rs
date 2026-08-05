@@ -455,6 +455,7 @@ impl<'a> ColorPicker<'a> {
                 stroke: Some(crate::paint::Stroke { width: 1.0, color: style.palette.stroke }),
                 shadow: None,
                 glow: None,
+                translucent: false,
             }));
             push_bar_cursor(&mut ui.ctx_mut().paint, bar, self.color.a);
         }
@@ -745,6 +746,7 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
                 stroke: Some(crate::paint::Stroke { width: 1.0, color }),
                 shadow: None,
                 glow: None,
+                translucent: false,
             }));
         }
     }
@@ -914,6 +916,7 @@ fn push_ring(paint: &mut Vec<PaintCmd>, center: Pos2, radius: f32) {
             stroke: Some(crate::paint::Stroke { width: w, color }),
             shadow: None,
             glow: None,
+            translucent: false,
         }));
     }
 }
@@ -935,6 +938,7 @@ fn push_bar_cursor(paint: &mut Vec<PaintCmd>, bar: Rect, t: f32) {
         }),
         shadow: None,
         glow: None,
+        translucent: false,
     }));
 }
 

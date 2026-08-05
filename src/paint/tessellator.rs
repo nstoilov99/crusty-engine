@@ -10,6 +10,8 @@ const MODE_GLOW: f32 = 3.0;
 const MODE_GLYPH: f32 = 4.0;
 const MODE_IMAGE: f32 = 5.0;
 const MODE_COLOR_GLYPH: f32 = 6.0;
+/// Rrect whose fill alpha is real opacity, not glass tint strength.
+const MODE_RRECT_ALPHA: f32 = 7.0;
 
 /// Width of the alpha ramp added around solid geometry, in physical pixels.
 ///
@@ -545,12 +547,17 @@ impl Tessellator {
             let stroke_color = shape.stroke.map(|s| s.color).unwrap_or(fill);
             // A combined fill+stroke uses one quad in MODE_RRECT; if no
             // stroke, stroke_w stays 0 and the shader skips that branch.
+            let mode = if shape.translucent {
+                MODE_RRECT_ALPHA
+            } else {
+                MODE_RRECT
+            };
             let template = Vertex {
                 color: fill.to_array(),
                 rect_center,
                 rect_half,
                 rounding: rounding_arr,
-                params: [stroke_w, 0.0, 0.0, MODE_RRECT],
+                params: [stroke_w, 0.0, 0.0, mode],
                 stroke_color: stroke_color.to_array(),
                 ..Vertex::ZERO
             };

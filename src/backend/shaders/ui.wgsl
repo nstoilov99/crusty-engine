@@ -15,6 +15,12 @@
 //       `color` as a tint (white = untinted).
 //   6 — color glyph: samples the RGBA color-glyph atlas at `uv`, RGB
 //       untinted, alpha scaled by `color.a` (color emoji).
+//   7 — translucent rounded rect: same SDF as mode 1, but `color.a` is real
+//       opacity rather than glass tint strength, so what is underneath shows
+//       through unblurred. Mode 1 cannot express this: it always outputs
+//       coverage as alpha and mixes the *blurred* backdrop, which is right
+//       for panels and popovers and wrong for anything that must reveal the
+//       live content below it (marquee, selection tints, drag ghosts).
 //
 // Coordinates are in physical pixels; the vertex shader maps to clip space
 // using the `screen_size` push constant.
@@ -164,6 +170,23 @@ fn fs_main(input: VsOut) -> @location(0) vec4<f32> {
         // Color glyph: sample the RGBA atlas, scale alpha by `color.a`.
         let texel = textureSample(t_color, s_color, input.uv);
         return vec4<f32>(texel.rgb, texel.a * input.color.a);
+    }
+
+    if (mode < 7.5) {
+        // Translucent rrect: plain alpha compositing against whatever is
+        // already in the target. Same SDF coverage as mode 1 for antialiasing,
+        // but no backdrop sample and no glass mix.
+        let coverage = clamp(0.5 - d, 0.0, 1.0);
+        var out_rgb = input.color.rgb;
+        var out_a = coverage * input.color.a;
+        if (stroke_w > 0.0) {
+            let stroke_d = abs(d + stroke_w * 0.5);
+            let band = clamp(stroke_w * 0.5 + 0.5 - stroke_d, 0.0, 1.0);
+            let stroke_alpha = band * input.stroke_color.a;
+            out_rgb = mix(out_rgb, input.stroke_color.rgb, stroke_alpha);
+            out_a = max(out_a, stroke_alpha);
+        }
+        return vec4<f32>(out_rgb, out_a);
     }
 
     return input.color;
