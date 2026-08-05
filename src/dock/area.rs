@@ -1095,11 +1095,14 @@ fn render_external_decorator<F>(
     let start = ctx.paint.len();
 
     // Panel body + slim header bar carrying the tab name (no window chrome).
-    let body = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
+    // Translucent so the closing `scale_alpha` actually fades them — glass
+    // mode would read that alpha as a tint strength and stay opaque, hiding
+    // the drop compass this decorator is meant to float above.
+    let body = RectShape::fill_translucent(rect, style.rounding.panel, style.palette.panel)
         .with_stroke(1.0, style.palette.accent_active);
     ctx.paint.push(PaintCmd::Rrect(body));
     let header = Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + tab_bar_h));
-    ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+    ctx.paint.push(PaintCmd::Rrect(RectShape::fill_translucent(
         header,
         style.rounding.small,
         style.palette.window,

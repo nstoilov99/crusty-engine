@@ -969,8 +969,12 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                     st.palette.stroke
                                 };
                                 ui.ctx_mut().paint.push(PaintCmd::Rrect(
-                                    RectShape::fill(slot, st.rounding.small, slot_fill)
-                                        .with_stroke(1.0, slot_stroke),
+                                    RectShape::fill_translucent(
+                                        slot,
+                                        st.rounding.small,
+                                        slot_fill,
+                                    )
+                                    .with_stroke(1.0, slot_stroke),
                                 ));
                                 {
                                     let slot_text = inspector_slot

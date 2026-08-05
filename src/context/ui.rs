@@ -352,8 +352,10 @@ impl<'a> Ui<'a> {
         fill.a = 0.7;
         let mut stroke = style.palette.accent_active;
         stroke.a = 0.85;
-        let shape =
-            RectShape::fill(rect, style.rounding.small, fill).with_stroke(1.0, stroke);
+        // Translucent, not glass: the ghost floats over whatever the drop
+        // target is, and the user has to see what they are aiming at.
+        let shape = RectShape::fill_translucent(rect, style.rounding.small, fill)
+            .with_stroke(1.0, stroke);
         self.ctx.overlay_paint.push(PaintCmd::Rrect(shape));
 
         let text_pos = Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y);
