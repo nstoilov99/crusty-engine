@@ -48,7 +48,9 @@ pub enum MouseButton {
 }
 
 bitflags! {
-    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+    // `Ord`/`Hash` so a (modifiers, key) chord can key a map — the editor's
+    // keymap needs a total order to detect duplicate bindings.
+    #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
     pub struct Modifiers: u8 {
         const SHIFT = 1 << 0;
         const CTRL  = 1 << 1;
@@ -85,7 +87,7 @@ impl Shortcut {
 
 /// Logical key codes. Mirrors the subset of `winit::keyboard::Key` that
 /// crusty-gui cares about; the host translates from `winit` into this.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Key {
     Escape,
     Tab,
