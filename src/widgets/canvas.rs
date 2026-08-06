@@ -47,9 +47,41 @@ const MIN_LABEL_PX: f32 = 7.0;
 /// World units panned per wheel line.
 const PAN_PER_LINE: f32 = 30.0;
 
-/// Exponential zoom applied per wheel notch. Pass C replaces this with the
-/// 12-step ladder; the notch accumulator it needs is already in place.
-const ZOOM_PER_NOTCH: f32 = 0.12;
+/// The zoom ladder: twelve stops from 15% to 220%.
+///
+/// Derived geometrically across that range (ratio ≈ 1.2765), with one
+/// deliberate exception — the stop that fell at 105.8% is pinned to exactly
+/// **100%**. A zoom control that cannot return to 1:1 is worse than one whose
+/// spacing wobbles by four percent, and 100% is the only stop anybody names.
+///
+/// A plain wheel walks these stops. `Ctrl` leaves the ladder behind and zooms
+/// freely past the 220% ceiling — see [`ZOOM_FREE_RATIO`].
+pub const ZOOM_LADDER: [f32; 12] = [
+    0.15, 0.1915, 0.2444, 0.312, 0.3983, 0.5084, 0.649, 0.8285, 1.0, 1.3501, 1.7234, 2.20,
+];
+
+/// Growth per notch once `Ctrl` takes the zoom off the ladder — the ladder's
+/// own ratio, so the two feel continuous where they meet.
+const ZOOM_FREE_RATIO: f32 = 1.276_527;
+
+/// Next ladder stop strictly beyond `current`, walked `notches` times. Works
+/// from an off-ladder zoom (one `Ctrl` left behind) by stepping to the nearest
+/// stop in the direction of travel.
+fn ladder_step(current: f32, notches: i32) -> f32 {
+    let mut z = current;
+    for _ in 0..notches.abs() {
+        let next = if notches > 0 {
+            ZOOM_LADDER.iter().find(|s| **s > z * 1.001).copied()
+        } else {
+            ZOOM_LADDER.iter().rev().find(|s| **s < z * 0.999).copied()
+        };
+        match next {
+            Some(v) => z = v,
+            None => break,
+        }
+    }
+    z
+}
 
 /// Live pan/gesture state, kept in typed `Memory` for the duration of a drag.
 ///
@@ -386,31 +418,56 @@ impl Canvas {
         }
 
         // ── Wheel ────────────────────────────────────────────────────────────
-        // Ctrl+scroll zooms about the pointer, Shift+scroll pans horizontally
-        // explicitly (rather than falling through to the zoom branch), plain
-        // scroll pans. Zoom runs through a notch accumulator so a precision
-        // touchpad's fine-grained stream steps like a wheel instead of firing
-        // hundreds of micro-zooms per flick.
+        // A plain wheel **zooms about the cursor**, walking [`ZOOM_LADDER`].
+        // Ctrl+wheel zooms too, but off the ladder — it ignores the 220%
+        // ceiling and runs to `max_zoom`, which is how you get past 1:1 for
+        // close work. Shift+wheel pans horizontally.
+        //
+        // Plain-wheel *panning* is gone. A node graph is a zoomable surface
+        // first; every other tool in the category zooms on the wheel, and
+        // panning already has three buttons (middle, right-drag, Space+drag).
+        //
+        // The notch accumulator sits in front of both zoom paths so a
+        // precision touchpad's fine-grained stream steps like a wheel instead
+        // of firing hundreds of micro-zooms per flick.
         if !hovered {
             // Residue belongs to the surface the pointer was over.
             drag.zoom_notches.reset();
         }
         let scrolling = hovered && (scroll.x != 0.0 || scroll.y != 0.0);
-        if scrolling && modifiers.contains(Modifiers::CTRL) {
-            let notches = drag.zoom_notches.feed(scroll.y);
-            if let (true, Some(p)) = (notches != 0, pointer) {
-                let world_at_pointer =
-                    Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
-                view.zoom = (view.zoom * (notches as f32 * ZOOM_PER_NOTCH).exp())
-                    .clamp(self.min_zoom, self.max_zoom);
-                view.pan = world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
-            }
-        } else if scrolling && modifiers.contains(Modifiers::SHIFT) {
+        if scrolling && modifiers.contains(Modifiers::SHIFT) {
             // Wheels only have a Y axis; Shift maps it onto X.
             let amount = if scroll.x != 0.0 { scroll.x } else { scroll.y };
             view.pan.x -= amount * PAN_PER_LINE / view.zoom;
         } else if scrolling {
-            view.pan -= scroll * PAN_PER_LINE / view.zoom;
+            let notches = drag.zoom_notches.feed(scroll.y);
+            if let (true, Some(p)) = (notches != 0, pointer) {
+                let free = modifiers.contains(Modifiers::CTRL);
+                let target = if free {
+                    view.zoom * ZOOM_FREE_RATIO.powi(notches)
+                } else {
+                    ladder_step(view.zoom, notches)
+                };
+                // Both paths respect the caller's limits; only the plain one
+                // additionally respects the ladder's own ceiling.
+                let hi = if free {
+                    self.max_zoom
+                } else {
+                    self.max_zoom.min(ZOOM_LADDER[ZOOM_LADDER.len() - 1])
+                };
+                let lo = if free {
+                    self.min_zoom
+                } else {
+                    self.min_zoom.max(ZOOM_LADDER[0])
+                }
+                .min(hi);
+                let world_at_pointer =
+                    Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
+                view.zoom = target.clamp(lo, hi);
+                // Keep the world point under the cursor pinned — zooming at
+                // the cursor is the whole reason the wheel does this.
+                view.pan = world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
+            }
         }
 
         ui.ctx_mut().memory.data_insert(id, drag);
@@ -429,6 +486,51 @@ mod tests {
             pan,
             zoom,
         }
+    }
+
+
+    #[test]
+    fn the_zoom_ladder_is_monotonic_spans_its_range_and_contains_one_to_one() {
+        assert_eq!(ZOOM_LADDER.len(), 12);
+        assert!(ZOOM_LADDER.windows(2).all(|w| w[0] < w[1]), "strictly ascending");
+        assert!((ZOOM_LADDER[0] - 0.15).abs() < 1e-6, "starts at 15%");
+        assert!((ZOOM_LADDER[11] - 2.20).abs() < 1e-6, "ends at 220%");
+        assert!(
+            ZOOM_LADDER.contains(&1.0),
+            "100% must be a real stop — it is the only zoom anybody names"
+        );
+        // Spacing stays close to geometric either side of the pinned 1.0.
+        for w in ZOOM_LADDER.windows(2) {
+            let r = w[1] / w[0];
+            assert!((1.15..=1.40).contains(&r), "uneven step {r}");
+        }
+    }
+
+    #[test]
+    fn a_notch_moves_exactly_one_stop() {
+        assert_eq!(ladder_step(1.0, 1), 1.3501);
+        assert_eq!(ladder_step(1.0, -1), 0.8285);
+        assert_eq!(ladder_step(1.0, 3), ZOOM_LADDER[11]);
+        // Walking off either end stops there rather than wrapping or NaNing.
+        assert_eq!(ladder_step(2.20, 5), 2.20);
+        assert_eq!(ladder_step(0.15, -5), 0.15);
+    }
+
+    #[test]
+    fn an_off_ladder_zoom_rejoins_in_the_direction_of_travel() {
+        // Ctrl can leave the zoom between stops (or above the ceiling); a
+        // plain wheel must still do something sensible from there.
+        assert_eq!(ladder_step(1.1, 1), 1.3501, "up joins the next stop above");
+        assert_eq!(ladder_step(1.1, -1), 1.0, "down joins the next stop below");
+        assert_eq!(ladder_step(3.5, -1), 2.20, "and comes back onto the ladder");
+    }
+
+    #[test]
+    fn a_stop_is_not_nudged_by_floating_point_noise() {
+        // Landing exactly on a stop and stepping again must move one stop,
+        // not zero (the epsilon guards against `>` failing on equality).
+        let z = ladder_step(ZOOM_LADDER[4], 1);
+        assert_eq!(z, ZOOM_LADDER[5]);
     }
 
     #[test]

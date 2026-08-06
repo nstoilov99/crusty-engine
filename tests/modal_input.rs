@@ -371,27 +371,88 @@ fn space_plus_left_drag_pans() {
     assert_eq!(view, held, "without Space the left button is the caller's");
 }
 
+/// Acceptance 11 — a touchpad flick must land a few ladder steps, not a
+/// hundred micro-zooms.
 #[test]
-fn a_touchpad_flick_zooms_by_whole_notches_not_per_event() {
+fn a_touchpad_flick_moves_a_few_ladder_steps_not_hundreds() {
     let mut h = Harness::new([400, 300]);
     let mut view = CanvasView::default();
     let p = Pos2::new(200.0, 150.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
 
-    // Three tenths of a notch at a time, Ctrl held (Ctrl+wheel is zoom).
-    let zoom_frame = |h: &mut Harness, view: &mut CanvasView| {
+    // Three tenths of a notch at a time — a plausible precision-touchpad
+    // stream. Plain wheel, because that is zoom now.
+    let flick = |h: &mut Harness, view: &mut CanvasView| {
         h.frame(vec![Event::Scroll(Vec2::new(0.0, 0.3))], |ui| {
-            ui.ctx_mut().input.modifiers = Modifiers::CTRL;
             Canvas::new().show(ui, view, |_, _| {});
         });
     };
     for _ in 0..3 {
-        zoom_frame(&mut h, &mut view);
+        flick(&mut h, &mut view);
     }
-    assert_eq!(view.zoom, 1.0, "sub-notch dust must not zoom");
+    assert_eq!(view.zoom, 1.0, "sub-notch dust must not zoom at all");
 
-    zoom_frame(&mut h, &mut view);
-    assert!(view.zoom > 1.0, "crossing the notch steps once");
+    flick(&mut h, &mut view);
+    assert_eq!(view.zoom, 1.3501, "crossing one notch moves exactly one stop");
+
+    // Thirty more events — ten notches' worth — cannot outrun the ladder.
+    for _ in 0..30 {
+        flick(&mut h, &mut view);
+    }
+    assert_eq!(view.zoom, 2.20, "and it stops at the ladder's ceiling");
+}
+
+#[test]
+fn a_plain_wheel_zooms_about_the_cursor_and_no_longer_pans() {
+    let mut h = Harness::new([400, 300]);
+    let mut view = CanvasView::default();
+    let p = Pos2::new(300.0, 200.0);
+    canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
+
+    // Ask the scope itself what is under the cursor, before and after — that
+    // is the transform the body actually draws with.
+    let mut world_before = Pos2::ZERO;
+    h.frame(Vec::new(), |ui| {
+        Canvas::new().show(ui, &mut view, |_, scope| {
+            world_before = scope.screen_to_world(p);
+        });
+    });
+
+    let mut world_after = Pos2::ZERO;
+    h.frame(vec![Event::Scroll(Vec2::new(0.0, 1.0))], |ui| {
+        Canvas::new().show(ui, &mut view, |_, scope| {
+            world_after = scope.screen_to_world(p);
+        });
+    });
+
+    assert_eq!(view.zoom, 1.3501, "a plain wheel steps the ladder");
+    assert!(
+        (world_after.x - world_before.x).abs() < 0.01
+            && (world_after.y - world_before.y).abs() < 0.01,
+        "and pins the point under the cursor ({world_before:?} -> {world_after:?})"
+    );
+}
+
+#[test]
+fn ctrl_wheel_leaves_the_ladder_and_zooms_past_the_ceiling() {
+    let mut h = Harness::new([400, 300]);
+    let mut view = CanvasView { pan: Vec2::ZERO, zoom: 2.20 };
+    let p = Pos2::new(200.0, 150.0);
+    canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
+
+    // Plain wheel is capped by the ladder...
+    h.frame(vec![Event::Scroll(Vec2::new(0.0, 1.0))], |ui| {
+        Canvas::new().zoom_range(0.15, 4.0).show(ui, &mut view, |_, _| {});
+    });
+    assert_eq!(view.zoom, 2.20, "the ladder's ceiling holds a plain wheel");
+
+    // ...Ctrl is not.
+    h.frame(vec![Event::Scroll(Vec2::new(0.0, 1.0))], |ui| {
+        ui.ctx_mut().input.modifiers = Modifiers::CTRL;
+        Canvas::new().zoom_range(0.15, 4.0).show(ui, &mut view, |_, _| {});
+    });
+    assert!(view.zoom > 2.20, "Ctrl goes past 1:1 for close work");
+    assert!(view.zoom <= 4.0, "but still stops at the caller's limit");
 }
 
 #[test]
@@ -445,4 +506,88 @@ fn a_held_key_is_distinguishable_from_its_first_press() {
     ctx.begin_frame(input_at(0.2, vec![repeat(false, false)]));
     assert!(!ctx.input.key_down(Key::ArrowRight), "released: commit the transaction");
     ctx.end_frame();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Acceptance 2 / 4 — dismissal paths, end to end
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Acceptance 2 — right-pressing elsewhere closes the open menu *and* the same
+/// gesture opens a new one where it landed.
+#[test]
+fn acceptance_2_a_right_press_elsewhere_closes_the_old_menu_and_opens_a_new_one() {
+    let menu = Rect::from_min_size(Pos2::new(200.0, 200.0), Vec2::new(180.0, 120.0));
+    let elsewhere = Pos2::new(60.0, 400.0);
+
+    let mut ctx = Context::new();
+    ctx.begin_frame(input_at(0.0, vec![Event::PointerMoved(elsewhere)]));
+    open_menu(&mut ctx, menu);
+    ctx.end_frame();
+
+    ctx.begin_frame(input_at(0.1, vec![button(elsewhere, MouseButton::Secondary, true)]));
+    // Old one goes...
+    assert!(ctx.modal_dismissed(menu_id()).is_some(), "the old menu closes");
+    // ...the press is swallowed so nothing underneath acts on it...
+    assert!(!ctx.input.right_pressed, "the press does not reach the canvas");
+    // ...and its position is handed on, which is what makes it one gesture
+    // rather than "close" then "open".
+    let reopen = ctx.take_modal_reopen();
+    assert_eq!(reopen, Some(elsewhere));
+    // The owner opens a fresh surface there in the same frame.
+    let fresh = Rect::from_min_size(elsewhere, Vec2::new(180.0, 120.0));
+    ctx.modal_push(menu_id(), fresh);
+    assert!(ctx.modal_is_open(menu_id()), "a new menu is open at the new point");
+    ctx.end_frame();
+
+    // And it survives into the next frame rather than flickering shut.
+    ctx.begin_frame(input_at(0.2, vec![]));
+    assert!(ctx.modal_dismissed(menu_id()).is_none());
+    ctx.end_frame();
+}
+
+/// Acceptance 4 — Alt-Tabbing away closes the menu. The window-manager route
+/// reaches us only as `Focused(false)`, so that is what the test drives.
+#[test]
+fn acceptance_4_alt_tabbing_away_closes_the_menu() {
+    let menu = Rect::from_min_size(Pos2::new(200.0, 200.0), Vec2::new(180.0, 120.0));
+
+    let mut ctx = Context::new();
+    ctx.begin_frame(input_at(0.0, vec![Event::PointerMoved(Pos2::new(240.0, 240.0))]));
+    open_menu(&mut ctx, menu);
+    ctx.end_frame();
+
+    // Alt goes down, then focus leaves — exactly the order winit delivers.
+    ctx.begin_frame(input_at(
+        0.1,
+        vec![key(Key::Tab, true), Event::Focused(false)],
+    ));
+    assert!(ctx.focus_lost());
+    assert_eq!(
+        ctx.modal_dismissed(menu_id()),
+        Some(crusty_gui::context::DismissCause::FocusLost),
+        "the menu must not still be sitting there when the user comes back"
+    );
+    ctx.end_frame();
+
+    // Coming back does not resurrect it.
+    ctx.begin_frame(input_at(0.2, vec![Event::Focused(true)]));
+    assert!(!ctx.focus_lost());
+    assert!(!ctx.modal_any_open());
+    ctx.end_frame();
+}
+
+/// Acceptance 12 — holding Alt must not activate a menu bar. We draw our own
+/// menus, so there is nothing for the OS to activate; this pins that no code
+/// path treats a bare Alt as an activation.
+#[test]
+fn acceptance_12_a_bare_alt_does_nothing_at_all() {
+    let mut ctx = Context::new();
+    let mut raw = input_at(0.0, vec![]);
+    raw.modifiers = Modifiers::ALT;
+    ctx.begin_frame(raw);
+    assert!(ctx.input.key_presses.is_empty(), "no key press is synthesised");
+    assert!(!ctx.input.pointer_pressed);
+    assert!(!ctx.modal_any_open(), "and nothing opens");
+    let out = ctx.end_frame();
+    assert!(!out.wants_keyboard, "a held modifier does not claim the keyboard");
 }
