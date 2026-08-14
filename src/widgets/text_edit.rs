@@ -14,6 +14,10 @@ use crate::text::TextRenderer;
 struct TextEditState {
     cursor: usize,
     anchor: usize,
+    /// Horizontal scroll applied when the value is wider than the field, in
+    /// points. Persisted only so a *click* can be mapped back to a byte index
+    /// on the next frame — it is recomputed from the caret every frame.
+    scroll: f32,
 }
 
 /// Result of [`TextEdit::show_full`]: the plain [`Response`] plus the
@@ -137,8 +141,16 @@ impl<'a> TextEdit<'a> {
         // dragging a selection (needs the text measurer).
         let start_click = pointer_pressed && hovered;
         let dragging = active == Some(id) && pointer_down && !pointer_pressed;
+        // Hit-test against where the glyphs actually were: a scrolled field
+        // draws its text left of `text_x`.
+        let prev_scroll = ui
+            .ctx()
+            .memory
+            .data_get::<TextEditState>(id)
+            .map_or(0.0, |s| s.scroll);
         let click_idx = if start_click || dragging {
-            pointer_pos.map(|p| byte_index_at_x(ui.text_mut(), self.value, font, text_x, p.x))
+            pointer_pos
+                .map(|p| byte_index_at_x(ui.text_mut(), self.value, font, text_x - prev_scroll, p.x))
         } else {
             None
         };
@@ -325,7 +337,27 @@ impl<'a> TextEdit<'a> {
         ));
 
         let text_y = rect.min.y + (rect.height() - font) * 0.5;
+
+        // ── Content wider than the field: scroll under the caret while the
+        //    user is typing, elide at rest. Either way the glyphs are clipped
+        //    to the field, so a long value can never paint over whatever the
+        //    field sits on (a node body, a table cell, the row beside it).
+        let inner_w = (width - text_pad * 2.0).max(0.0);
+        let full_w = measure_prefix(ui.text_mut(), self.value, font, self.value.len());
+        let scroll = if focused {
+            (caret_off - inner_w).max(0.0)
+        } else {
+            0.0
+        };
+        if let Some(s) = ui.ctx_mut().memory.data_get_mut::<TextEditState>(id) {
+            s.scroll = scroll;
+        }
+        let text_x = text_x - scroll;
         let text_pos = Pos2::new(text_x, text_y);
+        ui.ctx_mut().paint.push(PaintCmd::PushClip(Rect::from_min_max(
+            Pos2::new(rect.min.x + 1.0, rect.min.y),
+            Pos2::new(rect.max.x - 1.0, rect.max.y),
+        )));
 
         // Selection highlight, drawn under the glyphs.
         if focused && sel_a != sel_b {
@@ -348,13 +380,17 @@ impl<'a> TextEdit<'a> {
         let (display_text, display_color) = if self.value.is_empty() && !focused {
             let mut c = style.palette.text_secondary;
             c.a *= 0.55;
-            (self.hint.as_deref().unwrap_or(""), c)
+            (self.hint.as_deref().unwrap_or("").to_string(), c)
+        } else if !focused && full_w > inner_w {
+            // At rest an over-long value ends in an ellipsis: a hard clip mid
+            // glyph reads as a rendering fault, "…" reads as "there is more".
+            (elide(ui.text_mut(), self.value, font, inner_w), style.palette.text)
         } else {
-            (self.value.as_str(), style.palette.text)
+            (self.value.clone(), style.palette.text)
         };
         if !display_text.is_empty() {
             let Ui { ctx, text, .. } = ui;
-            text.add_text(&mut ctx.paint, display_text, font, text_pos, display_color, None);
+            text.add_text(&mut ctx.paint, &display_text, font, text_pos, display_color, None);
         }
 
         // Caret. Blinks while focused.
@@ -380,6 +416,7 @@ impl<'a> TextEdit<'a> {
                 )));
             }
         }
+        ui.ctx_mut().paint.push(PaintCmd::PopClip);
 
         TextEditOutput {
             response: Response {
@@ -498,6 +535,29 @@ fn clamp_boundary(s: &str, i: usize) -> usize {
 
 /// Pixel width of `value[..idx]` at `font` size (the x offset of a caret
 /// sitting before byte `idx`).
+/// Longest head of `value` that fits `max_w` once an ellipsis is appended.
+/// Tail-trimmed rather than middle-truncated: a field reads left to right, and
+/// the start of a value is what identifies it.
+fn elide(text: &mut TextRenderer, value: &str, font: f32, max_w: f32) -> String {
+    const ELLIPSIS: char = '\u{2026}';
+    if max_w <= 0.0 {
+        return String::new();
+    }
+    let mut keep = value.len();
+    while keep > 0 {
+        keep -= 1;
+        while keep > 0 && !value.is_char_boundary(keep) {
+            keep -= 1;
+        }
+        let mut candidate = value[..keep].to_string();
+        candidate.push(ELLIPSIS);
+        if text.measure(&candidate, font, None).x <= max_w {
+            return candidate;
+        }
+    }
+    ELLIPSIS.to_string()
+}
+
 fn measure_prefix(text: &mut TextRenderer, value: &str, font: f32, idx: usize) -> f32 {
     if idx == 0 {
         0.0
