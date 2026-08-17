@@ -334,6 +334,22 @@ impl Context {
         self.modals.contains(p)
     }
 
+    /// Does `p` fall inside a surface stacked strictly above `id`? For
+    /// surfaces that host interactive content and must not shield their own
+    /// body. Falls back to [`modal_contains`](Self::modal_contains) when `id`
+    /// is not on the stack.
+    #[inline]
+    pub fn modal_contains_above(&self, id: Id, p: Pos2) -> bool {
+        self.modals.contains_above(id, p)
+    }
+
+    /// Is any surface stacked strictly above `id` open? Falls back to
+    /// [`modal_any_open`](Self::modal_any_open) when `id` is not on the stack.
+    #[inline]
+    pub fn modal_any_open_above(&self, id: Id) -> bool {
+        self.modals.any_above(id)
+    }
+
     /// Where a *right* press dismissed the stack this frame, if it did. The
     /// intent of right-clicking outside an open menu is unambiguous — dismiss,
     /// then open a fresh menu here — so the press is consumed but its position

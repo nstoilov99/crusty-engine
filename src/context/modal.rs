@@ -121,6 +121,32 @@ impl ModalStack {
         self.entries.iter().any(|e| e.rect.contains(p))
     }
 
+    /// Does `p` fall inside a surface stacked strictly **above** `id`? A
+    /// surface hosting interactive content (an embedded canvas) asks this
+    /// instead of [`contains`](Self::contains): its own rect must not claim
+    /// pointer input away from the widgets it hosts, while a popup it opened
+    /// on top still does. An `id` not on the stack answers like `contains`.
+    pub(crate) fn contains_above(&self, id: Id, p: Pos2) -> bool {
+        let start = self
+            .entries
+            .iter()
+            .position(|e| e.id == id)
+            .map_or(0, |i| i + 1);
+        self.entries[start..].iter().any(|e| e.rect.contains(p))
+    }
+
+    /// Is any surface stacked strictly **above** `id` open? The keyboard
+    /// counterpart of [`contains_above`](Self::contains_above): a surface
+    /// hosting shortcuts stays live while it is the top of the stack, and
+    /// yields the moment something opens over it. An `id` not on the stack
+    /// answers like "is anything open at all".
+    pub(crate) fn any_above(&self, id: Id) -> bool {
+        match self.entries.iter().position(|e| e.id == id) {
+            Some(i) => i + 1 < self.entries.len(),
+            None => !self.entries.is_empty(),
+        }
+    }
+
     fn dismiss_from(&mut self, cut: usize, cause: DismissCause) {
         for e in self.entries.drain(cut..) {
             self.dismissed.push((e.id, cause));
