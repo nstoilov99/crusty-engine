@@ -1,0 +1,730 @@
+//! Top-level GUI context.
+//!
+//! [`Context`] owns the [`Memory`] (per-widget state that survives across
+//! frames), the per-frame paint list, and the processed pointer/keyboard
+//! input state. Widgets read these and append paint commands during the
+//! frame.
+
+mod dnd;
+mod memory;
+mod modal;
+mod ui;
+
+pub use dnd::DragDrop;
+pub use memory::{AreaState, Memory, WidgetMemory};
+pub use modal::DismissCause;
+pub use ui::{Align, Direction, Ui, UiOptions};
+
+use modal::ModalStack;
+
+use std::time::Duration;
+
+use crate::id::Id;
+use crate::input::{Event, Key, Modifiers, MouseButton, RawInput};
+use crate::layer::Order;
+use crate::math::{Pos2, Rect};
+use crate::paint::PaintCmd;
+use crate::style::Style;
+
+#[derive(Default)]
+pub struct Context {
+    /// Per-widget persistent state.
+    pub memory: Memory,
+    /// Paint commands accumulated this frame.
+    pub paint: Vec<PaintCmd>,
+    /// Overlay paint commands — appended *after* `paint` at end_frame so
+    /// they render on top of the regular UI. Used by floating things:
+    /// ComboBox dropdowns, tooltips, context menus.
+    pub overlay_paint: Vec<PaintCmd>,
+    /// Processed input state (pointer + click flags). Refreshed from
+    /// `RawInput.events` at the start of every frame.
+    pub input: InputState,
+    /// Active style; read by widgets every frame. Swap freely between
+    /// frames to retheme the UI.
+    pub style: Style,
+    /// In-flight drag-and-drop payload (type-erased).
+    pub dnd: DragDrop,
+
+    screen_rect: Rect,
+    pixels_per_point: f32,
+    time: f64,
+    predicted_dt: f32,
+    frame_index: u64,
+    inside_frame: bool,
+
+    /// Finished floating-layer command lists for this frame; sorted by
+    /// `(Order, z)` and appended after `paint` at end_frame.
+    layers: Vec<(Id, Order, Vec<PaintCmd>)>,
+    /// Saved parent buffers while painting into a floating layer.
+    layer_stack: Vec<Vec<PaintCmd>>,
+    /// Area owning the pointer this frame (topmost at the pointer using
+    /// last-frame rects; modal-aware). `None` = the root UI.
+    hovered_area: Option<Id>,
+    /// Explicit pointer claim for this frame (e.g. a dock tab drag whose
+    /// state lives outside `Memory`); reset at begin_frame, OR-ed into
+    /// [`FrameOutput::owns_pointer`].
+    pointer_claimed: bool,
+    /// Cursor requested by widgets this frame; reset to `Default` at
+    /// begin_frame, reported through [`FrameOutput::cursor_icon`].
+    cursor_icon: CursorIcon,
+    /// Earliest repaint request made this frame (`None` = only repaint on
+    /// new input). Reported through [`FrameOutput::repaint_after`].
+    repaint_after: Option<Duration>,
+    /// Content hash of the previous frame's merged paint list; compared at
+    /// end_frame to report [`FrameOutput::paint_changed`].
+    last_paint_hash: Option<u64>,
+    /// Single-instance tooltip arbitration (hover timer + last-wins anchor).
+    pub(crate) tooltip: TooltipState,
+    /// Open transient surfaces (context menus, popups, combo dropdowns, menu
+    /// flyouts). Dismissal is resolved here once per frame — see
+    /// [`modal`](self::modal).
+    modals: ModalStack,
+    /// Did the window lose focus (or minimize) this frame? Drives modal
+    /// dismissal and, for hosts, drag abort. Edge flag, reset every frame.
+    focus_lost: bool,
+    /// Inverted so `Default` means "focused" — only an [`Event::Focused`]
+    /// event ever sets it.
+    unfocused: bool,
+}
+
+/// Cross-frame tooltip state. Widgets file requests during the frame
+/// (`pending`, last one wins = topmost); begin_frame commits the winner
+/// and starts the hover timer. The tooltip paints only once the pointer
+/// has rested on the same anchor for the delay.
+#[derive(Default)]
+pub(crate) struct TooltipState {
+    /// Anchor that won last frame's arbitration.
+    pub committed: Option<u64>,
+    /// Time the committed anchor was first hovered.
+    pub hover_start: f64,
+    /// This frame's requests; last caller wins.
+    pub pending: Option<u64>,
+    /// Guards against double paint if two widgets share an anchor hash.
+    pub shown_this_frame: bool,
+}
+
+impl Context {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn begin_frame(&mut self, input: RawInput) {
+        debug_assert!(
+            !self.inside_frame,
+            "begin_frame called twice without an intervening end_frame"
+        );
+        self.screen_rect = input.screen_rect;
+        self.pixels_per_point = if input.pixels_per_point > 0.0 {
+            input.pixels_per_point
+        } else {
+            1.0
+        };
+        self.predicted_dt = input.predicted_dt.max(0.0);
+        self.time = input.time;
+        self.input.modifiers = input.modifiers;
+        self.input.advance_frame();
+        self.focus_lost = false;
+        for ev in &input.events {
+            if let Event::Focused(now) = ev {
+                if !*now && !self.unfocused {
+                    self.focus_lost = true;
+                }
+                self.unfocused = !*now;
+            }
+            self.input.apply_event(ev);
+        }
+        self.input.detect_double_press(input.time);
+        // Rule 1: transient surfaces die here, before any widget reads the
+        // input, so the dismissing press can be consumed on the way through.
+        self.modals
+            .resolve(&mut self.input, self.focus_lost, self.frame_index);
+        self.paint.clear();
+        self.overlay_paint.clear();
+        self.layers.clear();
+        self.layer_stack.clear();
+        self.cursor_icon = CursorIcon::Default;
+        self.repaint_after = None;
+        self.pointer_claimed = false;
+        self.memory.popup_close_requested = false;
+        // Uses last frame's `seen` flags, so this must run before
+        // `memory.begin_frame()` clears them.
+        self.hovered_area = self.memory.hovered_area(self.input.pointer_pos);
+        self.memory.begin_frame();
+        // Focus loss takes the OS pointer capture with it, so anything held is
+        // now unanchored: drop the held flags and the active widget rather than
+        // let them resume when the window comes back.
+        if self.focus_lost {
+            self.input.clear_held();
+            self.memory.active_widget = None;
+            self.dnd.clear();
+        }
+        // A click anywhere should clear focus; widgets then have a
+        // chance to re-claim it during the frame.
+        if self.input.pointer_pressed {
+            self.memory.focused_widget = None;
+        }
+        // Commit last frame's tooltip request (last caller won = topmost
+        // widget); an anchor change restarts the hover-delay timer.
+        let pending = self.tooltip.pending.take();
+        if pending != self.tooltip.committed {
+            self.tooltip.committed = pending;
+            self.tooltip.hover_start = self.time;
+        }
+        self.tooltip.shown_this_frame = false;
+        self.inside_frame = true;
+    }
+
+    pub fn end_frame(&mut self) -> FrameOutput {
+        debug_assert!(self.inside_frame, "end_frame called without begin_frame");
+        if self.input.pointer_released {
+            self.memory.active_widget = None;
+            // Any drop target had its chance during the frame; a release
+            // that reaches here means the drag ended over empty space.
+            self.dnd.clear();
+        }
+        // Tab / Shift-Tab moves keyboard focus among widgets that registered
+        // as focusable this frame. Handled here, after the whole UI has been
+        // built, so the focus order is complete; the change lands next frame.
+        if let Some(tab) = self.input.key_presses.iter().find(|k| k.key == Key::Tab) {
+            let backward = tab.modifiers.contains(Modifiers::SHIFT);
+            self.memory.focus_next(backward, self.hovered_area);
+        }
+        // Widget-requested focus moves (arrow-key list navigation, combo
+        // "enter the dropdown"); same deferred handling as Tab.
+        if let Some(scope) = self.memory.focus_scope_requested.take() {
+            self.memory.focus_first_in_scope(scope);
+        } else if let Some(backward) = self.memory.focus_move_requested.take() {
+            self.memory.focus_next(backward, self.hovered_area);
+        }
+        // The engine seam: does the UI claim this frame's pointer/keyboard,
+        // or may the host route them to the scene underneath?
+        let owns_pointer = self.pointer_claimed
+            || self.hovered_area.is_some()
+            || self.memory.active_widget.is_some()
+            || self.dnd.is_dragging();
+        let wants_pointer =
+            owns_pointer || self.memory.any_widget_contains(self.input.pointer_pos);
+        let wants_keyboard = self.memory.focused_widget.is_some();
+        self.memory.end_frame(8);
+        self.inside_frame = false;
+        self.frame_index = self.frame_index.wrapping_add(1);
+        debug_assert!(
+            self.layer_stack.is_empty(),
+            "begin_layer without matching end_layer"
+        );
+        // Floating layers render above the root paint, sorted by
+        // (order class, stacking counter); legacy overlay commands
+        // (tooltips, combo dropdowns) render last → on very top.
+        let mut layers = std::mem::take(&mut self.layers);
+        layers.sort_by_key(|(id, order, _)| {
+            (*order, self.memory.area(*id).map_or(0, |a| a.z))
+        });
+        let overlay = std::mem::take(&mut self.overlay_paint);
+        let mut paint = std::mem::take(&mut self.paint);
+        for (_, _, cmds) in layers {
+            paint.extend(cmds);
+        }
+        paint.extend(overlay);
+        let paint_hash = crate::paint::paint_hash(&paint);
+        let paint_changed = self.last_paint_hash != Some(paint_hash);
+        self.last_paint_hash = Some(paint_hash);
+        FrameOutput {
+            screen_rect: self.screen_rect,
+            paint,
+            paint_changed,
+            wants_pointer,
+            owns_pointer,
+            wants_keyboard,
+            cursor_icon: self.cursor_icon,
+            repaint_after: self.repaint_after,
+        }
+    }
+
+    /// Redirect subsequent `paint` pushes into a fresh floating layer.
+    /// Every call must be paired with [`end_layer`](Self::end_layer).
+    pub fn begin_layer(&mut self) {
+        self.layer_stack.push(std::mem::take(&mut self.paint));
+    }
+
+    /// Close the current floating layer, filing its commands under
+    /// `(id, order)` for z-sorted composition at end_frame.
+    pub fn end_layer(&mut self, id: Id, order: Order) {
+        let parent = self
+            .layer_stack
+            .pop()
+            .expect("end_layer called without begin_layer");
+        let cmds = std::mem::replace(&mut self.paint, parent);
+        self.layers.push((id, order, cmds));
+    }
+
+    /// Area owning the pointer this frame (`None` = root UI).
+    #[inline]
+    pub fn hovered_area(&self) -> Option<Id> {
+        self.hovered_area
+    }
+
+    /// Request a cursor for this frame (hovering a text field, a resize
+    /// edge, …). Later callers win, so widgets drawn on top override the
+    /// ones below them. Resets to [`CursorIcon::Default`] every frame.
+    #[inline]
+    pub fn set_cursor_icon(&mut self, icon: CursorIcon) {
+        self.cursor_icon = icon;
+    }
+
+    /// Claim this frame's pointer for the UI (reported through
+    /// [`FrameOutput::owns_pointer`]) even when no widget is active or
+    /// hovered — e.g. a dock tab drag whose state lives outside `Memory`.
+    /// Resets every frame.
+    #[inline]
+    pub fn claim_pointer(&mut self) {
+        self.pointer_claimed = true;
+    }
+
+    /// The window lost focus (or was minimized) this frame. The OS drops
+    /// pointer capture at the same moment, so any in-flight gesture is now
+    /// unanchored — hosts should abort their drags (Rule 3). Edge flag.
+    #[inline]
+    pub fn focus_lost(&self) -> bool {
+        self.focus_lost
+    }
+
+    /// Register (or refresh) a transient surface on the modal stack for this
+    /// frame. Call order within a frame *is* the stack order, so a child popup
+    /// drawn inside a menu shields its parent from the outside-press rule.
+    #[inline]
+    pub fn modal_push(&mut self, id: Id, rect: Rect) {
+        self.modals.push(id, rect, self.frame_index);
+    }
+
+    /// Close `id` and everything stacked above it — the "a command ran, take
+    /// the menu down" path.
+    #[inline]
+    pub fn modal_dismiss(&mut self, id: Id) {
+        self.modals.remove(id);
+    }
+
+    /// Why `id` was dismissed by this frame's resolve step, if it was. Surfaces
+    /// call this to clear their own open flag; the dismissing input has already
+    /// been consumed by the time they see it.
+    #[inline]
+    pub fn modal_dismissed(&self, id: Id) -> Option<DismissCause> {
+        self.modals.was_dismissed(id)
+    }
+
+    #[inline]
+    pub fn modal_is_open(&self, id: Id) -> bool {
+        self.modals.is_open(id)
+    }
+
+    /// Topmost open transient surface, if any.
+    #[inline]
+    pub fn modal_top(&self) -> Option<Id> {
+        self.modals.top()
+    }
+
+    /// Is any transient surface open? Hosts gate single-key shortcuts on this.
+    #[inline]
+    pub fn modal_any_open(&self) -> bool {
+        !self.modals.is_empty()
+    }
+
+    /// Is `p` inside any open transient surface?
+    #[inline]
+    pub fn modal_contains(&self, p: Pos2) -> bool {
+        self.modals.contains(p)
+    }
+
+    /// Does `p` fall inside a surface stacked strictly above `id`? For
+    /// surfaces that host interactive content and must not shield their own
+    /// body. Falls back to [`modal_contains`](Self::modal_contains) when `id`
+    /// is not on the stack.
+    #[inline]
+    pub fn modal_contains_above(&self, id: Id, p: Pos2) -> bool {
+        self.modals.contains_above(id, p)
+    }
+
+    /// Is any surface stacked strictly above `id` open? Falls back to
+    /// [`modal_any_open`](Self::modal_any_open) when `id` is not on the stack.
+    #[inline]
+    pub fn modal_any_open_above(&self, id: Id) -> bool {
+        self.modals.any_above(id)
+    }
+
+    /// Where a *right* press dismissed the stack this frame, if it did. The
+    /// intent of right-clicking outside an open menu is unambiguous — dismiss,
+    /// then open a fresh menu here — so the press is consumed but its position
+    /// is handed on. Read with [`take_modal_reopen`](Self::take_modal_reopen)
+    /// if you act on it.
+    #[inline]
+    pub fn modal_reopen_at(&self) -> Option<Pos2> {
+        self.modals.reopen_at()
+    }
+
+    /// Claim the reopen position so only one surface acts on it.
+    #[inline]
+    pub fn take_modal_reopen(&mut self) -> Option<Pos2> {
+        self.modals.take_reopen()
+    }
+
+    /// Is a text field currently holding keyboard focus? Single-key shortcuts
+    /// must not fire while the user is typing.
+    #[inline]
+    pub fn text_focused(&self) -> bool {
+        self.memory.text_focus
+    }
+
+    /// Ask the host to repaint immediately (an animation is running).
+    #[inline]
+    pub fn request_repaint(&mut self) {
+        self.request_repaint_after(Duration::ZERO);
+    }
+
+    /// Ask the host to repaint no later than `after` from now (a blinking
+    /// caret, a timed toast). Multiple requests keep the earliest.
+    pub fn request_repaint_after(&mut self, after: Duration) {
+        self.repaint_after = Some(self.repaint_after.map_or(after, |cur| cur.min(after)));
+    }
+
+    /// True when the pointer is inside `rect` *and* not occluded by (or
+    /// blocked from) a floating area other than `area`.
+    pub fn pointer_over(&self, area: Option<Id>, rect: Rect) -> bool {
+        self.input.pointer_in(rect) && self.hovered_area == area
+    }
+
+    /// Run a UI pass within a region. Convenience for the common case of
+    /// filling the whole screen with a single top-level vertical layout.
+    pub fn run_root<R>(
+        &mut self,
+        text: &mut crate::text::TextRenderer,
+        rect: Rect,
+        f: impl FnOnce(&mut Ui) -> R,
+    ) -> R {
+        let mut ui = Ui::new(self, text, rect, Direction::TopDown, UiOptions::default());
+        f(&mut ui)
+    }
+
+    #[inline]
+    pub fn screen_rect(&self) -> Rect {
+        self.screen_rect
+    }
+    #[inline]
+    pub fn pixels_per_point(&self) -> f32 {
+        self.pixels_per_point
+    }
+    #[inline]
+    pub fn dt(&self) -> f32 {
+        self.predicted_dt
+    }
+    #[inline]
+    pub fn time(&self) -> f64 {
+        self.time
+    }
+    #[inline]
+    pub fn frame_index(&self) -> u64 {
+        self.frame_index
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FrameOutput {
+    pub screen_rect: Rect,
+    pub paint: Vec<PaintCmd>,
+    /// The merged paint list differs from the previous frame's (content
+    /// hash). When false and `repaint_after` is `None`, the host can keep
+    /// presenting the last rendered image instead of re-rendering.
+    pub paint_changed: bool,
+    /// The UI claims the pointer this frame: it is over a widget or a
+    /// floating area, or a widget/drag is holding it. A host embedding the
+    /// UI over a scene should not forward pointer input to the scene.
+    pub wants_pointer: bool,
+    /// Stronger than `wants_pointer`: the pointer is over a *floating*
+    /// layer (popup/window), a pressed widget is holding it, or a
+    /// drag-and-drop is active. A host stacking this UI over another UI
+    /// toolkit (not just a scene) must withhold pointer events from the
+    /// UI beneath while this is set, or clicks/drags on floating crusty
+    /// windows leak through them.
+    pub owns_pointer: bool,
+    /// A widget has keyboard focus; the host should not treat keys as
+    /// scene/game input.
+    pub wants_keyboard: bool,
+    /// Cursor the OS window should show, as requested by widgets this frame.
+    pub cursor_icon: CursorIcon,
+    /// Repaint scheduling hint: `Some(ZERO)` = repaint now (animating),
+    /// `Some(d)` = repaint within `d`, `None` = idle until new input.
+    pub repaint_after: Option<Duration>,
+}
+
+/// Backend-agnostic cursor shapes widgets can request via
+/// [`Context::set_cursor_icon`]; the shell maps them to OS cursors.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorIcon {
+    #[default]
+    Default,
+    /// Hand with pointing finger (links, clickable chips).
+    Pointer,
+    /// I-beam over editable text.
+    Text,
+    /// Open hand: something grabbable (slider knob, pannable canvas).
+    Grab,
+    /// Closed hand while actively dragging.
+    Grabbing,
+    /// Horizontal resize (vertical splitter, column edge).
+    ResizeEw,
+    /// Vertical resize (horizontal splitter, row edge).
+    ResizeNs,
+    /// Diagonal ↘ resize (window corner).
+    ResizeNwSe,
+    /// Diagonal ↗ resize.
+    ResizeNeSw,
+    Move,
+    NotAllowed,
+    /// Precise picking (eyedropper, pixel selection).
+    Crosshair,
+}
+
+/// Pointer/keyboard state distilled from a frame's [`RawInput::events`].
+#[derive(Clone, Debug, Default)]
+pub struct InputState {
+    pub pointer_pos: Option<Pos2>,
+    /// Primary pointer button is currently held.
+    pub pointer_down: bool,
+    /// Primary pointer button transitioned to "down" this frame.
+    pub pointer_pressed: bool,
+    /// Primary pointer button transitioned to "up" this frame.
+    pub pointer_released: bool,
+    /// True while the most recent primary press was the second press of
+    /// a double-click (quick + near the previous press). Persists until
+    /// the next press, so a widget's release-click can test it:
+    /// `response.clicked && press_was_double` = double-click.
+    pub press_was_double: bool,
+    /// Time of the previous primary press (double-click detection).
+    last_press_time: f64,
+    /// Position of the previous primary press (double-click detection).
+    last_press_pos: Option<Pos2>,
+    /// Secondary pointer button transitioned to "down" this frame
+    /// (right-click — used to open context menus).
+    pub right_pressed: bool,
+    /// Middle pointer button is currently held (orbit-pan style drags).
+    pub middle_down: bool,
+    pub scroll_delta: crate::math::Vec2,
+    pub modifiers: Modifiers,
+    /// Characters typed this frame (composed text, IME-friendly when
+    /// winit gives us text). Focused TextEdit appends these to its
+    /// value.
+    pub typed_text: String,
+    /// Keys that transitioned to "pressed" this frame (used by
+    /// TextEdit for Backspace / Enter / arrows). Filtered to printable
+    /// non-letter keys plus modifiers when needed.
+    pub key_presses: Vec<KeyPress>,
+    /// Mouse buttons that transitioned to "pressed" this frame,
+    /// including non-primary buttons (middle, back, forward).
+    pub button_presses: Vec<MouseButton>,
+    /// Secondary pointer button is currently *held*. Right-drag needs the held
+    /// state, not just the press edge, to tell a pan from a context click.
+    pub right_down: bool,
+    /// Keys currently held, as opposed to `key_presses`, which is this frame's
+    /// edges only. Needed for chords on non-modifier keys — Space+drag to pan,
+    /// most obviously. Cleared on focus loss: the key-up will be delivered to
+    /// whichever window took focus, not to us, so a held key would stick.
+    keys_down: Vec<Key>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct KeyPress {
+    pub key: Key,
+    pub modifiers: Modifiers,
+    pub repeat: bool,
+}
+
+impl InputState {
+    fn advance_frame(&mut self) {
+        // Edge flags reset every frame; the held flag persists.
+        self.pointer_pressed = false;
+        self.pointer_released = false;
+        self.right_pressed = false;
+        self.scroll_delta = crate::math::Vec2::ZERO;
+        self.typed_text.clear();
+        self.key_presses.clear();
+        self.button_presses.clear();
+    }
+
+    /// Classify this frame's press (if any) as the second of a
+    /// double-click. Called once per frame after events are applied.
+    fn detect_double_press(&mut self, now: f64) {
+        const DOUBLE_CLICK_TIME: f64 = 0.35;
+        const DOUBLE_CLICK_DIST: f32 = 6.0;
+
+        if !self.pointer_pressed {
+            return;
+        }
+        let near = match (self.pointer_pos, self.last_press_pos) {
+            (Some(a), Some(b)) => {
+                let (dx, dy) = (a.x - b.x, a.y - b.y);
+                (dx * dx + dy * dy).sqrt() <= DOUBLE_CLICK_DIST
+            }
+            _ => false,
+        };
+        self.press_was_double = near && now - self.last_press_time <= DOUBLE_CLICK_TIME;
+        if self.press_was_double {
+            // A third quick click starts a fresh cycle instead of
+            // chaining double-clicks.
+            self.last_press_pos = None;
+            self.last_press_time = f64::NEG_INFINITY;
+        } else {
+            self.last_press_pos = self.pointer_pos;
+            self.last_press_time = now;
+        }
+    }
+
+    fn apply_event(&mut self, ev: &Event) {
+        match ev {
+            Event::PointerMoved(p) => {
+                self.pointer_pos = Some(*p);
+            }
+            Event::PointerGone => {
+                self.pointer_pos = None;
+            }
+            Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                ..
+            } => {
+                self.pointer_pos = Some(*pos);
+                if *pressed {
+                    self.button_presses.push(*button);
+                }
+                if matches!(button, MouseButton::Primary) {
+                    if *pressed && !self.pointer_down {
+                        self.pointer_pressed = true;
+                    }
+                    if !*pressed && self.pointer_down {
+                        self.pointer_released = true;
+                    }
+                    self.pointer_down = *pressed;
+                }
+                if matches!(button, MouseButton::Secondary) {
+                    if *pressed && !self.right_down {
+                        self.right_pressed = true;
+                    }
+                    self.right_down = *pressed;
+                }
+                if matches!(button, MouseButton::Middle) {
+                    self.middle_down = *pressed;
+                }
+            }
+            Event::Scroll(delta) => {
+                self.scroll_delta += *delta;
+            }
+            Event::Text(s) => {
+                self.typed_text.push_str(s);
+            }
+            Event::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            } => {
+                if *pressed {
+                    self.key_presses.push(KeyPress {
+                        key: *key,
+                        modifiers: *modifiers,
+                        repeat: *repeat,
+                    });
+                    if !self.keys_down.contains(key) {
+                        self.keys_down.push(*key);
+                    }
+                } else {
+                    self.keys_down.retain(|k| k != key);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Is `key` currently held? (`key_pressed` is the press *edge*.)
+    #[inline]
+    pub fn key_down(&self, key: Key) -> bool {
+        self.keys_down.contains(&key)
+    }
+
+    /// Forget every held key/button. Called on focus loss, where the matching
+    /// releases will never arrive.
+    pub(crate) fn clear_held(&mut self) {
+        self.keys_down.clear();
+        self.pointer_down = false;
+        self.middle_down = false;
+        self.right_down = false;
+    }
+
+    /// True when the pointer is within `rect` (or there's no pointer).
+    pub fn pointer_in(&self, rect: Rect) -> bool {
+        self.pointer_pos.map_or(false, |p| rect.contains(p))
+    }
+
+    /// Returns true once if a press of `key` happened this frame, repeat or
+    /// not. Convenience for widgets that don't care about modifiers.
+    pub fn key_pressed(&self, key: Key) -> bool {
+        self.key_presses.iter().any(|k| k.key == key)
+    }
+
+    /// The *first* press of `key` — the OS auto-repeat stream excluded.
+    ///
+    /// Together with [`key_repeated`](Self::key_repeated) this is the
+    /// coalescing hook for held-key gestures: open one undo transaction on the
+    /// initial press, extend it while repeats keep arriving, and commit it when
+    /// they stop. Holding an arrow key to nudge a node should leave one entry
+    /// on the undo stack, not forty.
+    pub fn key_pressed_initial(&self, key: Key) -> bool {
+        self.key_presses.iter().any(|k| k.key == key && !k.repeat)
+    }
+
+    /// An auto-repeat of `key` arrived this frame (the key is being held).
+    pub fn key_repeated(&self, key: Key) -> bool {
+        self.key_presses.iter().any(|k| k.key == key && k.repeat)
+    }
+
+    /// True if `shortcut` (key + exact modifier set) was pressed this frame,
+    /// without consuming it. Use [`consume_shortcut`](Self::consume_shortcut)
+    /// when only one handler should fire.
+    pub fn shortcut_pressed(&self, shortcut: crate::input::Shortcut) -> bool {
+        self.key_presses
+            .iter()
+            .any(|k| k.key == shortcut.key && k.modifiers == shortcut.modifiers)
+    }
+
+    /// Remove every press of `key` this frame so later handlers won't see it.
+    /// Returns whether anything was removed.
+    pub fn consume_key(&mut self, key: Key) -> bool {
+        let before = self.key_presses.len();
+        self.key_presses.retain(|k| k.key != key);
+        self.key_presses.len() != before
+    }
+
+    /// Swallow this frame's pointer press entirely — the press edge, the
+    /// button list and the double-click classification. The *held* flags
+    /// (`pointer_down`, `middle_down`) survive, so a consumed press still
+    /// can't turn into a phantom drag: widgets only ever become active on the
+    /// press edge.
+    pub fn consume_press(&mut self) {
+        self.pointer_pressed = false;
+        self.right_pressed = false;
+        self.press_was_double = false;
+        self.button_presses.clear();
+    }
+
+    /// Like [`shortcut_pressed`](Self::shortcut_pressed) but removes the
+    /// matching press so later handlers in the same frame won't also see it.
+    pub fn consume_shortcut(&mut self, shortcut: crate::input::Shortcut) -> bool {
+        if let Some(pos) = self
+            .key_presses
+            .iter()
+            .position(|k| k.key == shortcut.key && k.modifiers == shortcut.modifiers)
+        {
+            self.key_presses.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+}

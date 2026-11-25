@@ -1,0 +1,5 @@
+/target
+demo*.log
+.claude/
+.codex/
+crusty_layout.json
