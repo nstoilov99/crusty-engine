@@ -1,6 +1,6 @@
 # Rust Game Engine - Architectural Decision Records
 
-This document records significant architectural decisions made during engine development, including context, alternatives considered, and rationale.
+This document records significant architectural decisions made during engine development, including context, alternatives considered, and rationale. Newer decisions use the `docs/adr/NNNN-slug.md` format (see `docs/agents/domain.md`); task-scoped rulings live in `docs/roadmap/COMPLETED.md`.
 
 ---
 
@@ -195,7 +195,7 @@ Use **deferred rendering** with G-buffer.
 
 **Date**: 2024
 
-**Status**: Accepted
+**Status**: Superseded (2026-07) — the editor UI is the in-house `crusty-gui` crate; egui is fully removed. Rationale: Task 39.4 / M10 in `docs/roadmap/COMPLETED.md`.
 
 ### Context
 
@@ -438,7 +438,7 @@ Current hecs-based ECS lacks:
 
 ### Decision
 
-Implement custom ECS extensions over hecs. See [VULKANO-23.5-ADVANCED-ECS-ARCHITECTURE.md](roadmap/VULKANO-23.5-ADVANCED-ECS-ARCHITECTURE.md).
+Implement custom ECS extensions over hecs (plan document VULKANO-23.5 is local-only history; shipped shape in `ARCHITECTURE.md` ▸ ECS Architecture).
 
 ### Planned Features
 
