@@ -106,7 +106,9 @@ jobs:
   # Optional: Linux for cross-platform validation
   linux:
     name: Linux
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest (GCC 15) cannot compile the glslang sources bundled in
+    # shaderc-sys 0.8.3 (missing <cstdint>). 24.04 = GCC 13, same as the build server.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
