@@ -30,19 +30,52 @@ fn topmost_area_wins_pointer() {
     let a = Id::new("a");
     let b = Id::new("b");
     // Overlapping areas; b registered later → higher z.
-    register_area(&mut ctx, a, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
-    register_area(&mut ctx, b, Pos2::new(50.0, 50.0), Vec2::new(100.0, 100.0), Order::Middle);
+    register_area(
+        &mut ctx,
+        a,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
+    register_area(
+        &mut ctx,
+        b,
+        Pos2::new(50.0, 50.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
 
     ctx.begin_frame(raw_input(Pos2::new(75.0, 75.0)));
     assert_eq!(ctx.hovered_area(), Some(b));
     // Root widgets under the overlap must not react.
-    assert!(!ctx.pointer_over(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))));
+    assert!(!ctx.pointer_over(
+        None,
+        Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))
+    ));
     // Widgets of the occluded area must not react either.
-    assert!(!ctx.pointer_over(Some(a), Rect::from_min_size(Pos2::new(70.0, 70.0), Vec2::new(10.0, 10.0))));
+    assert!(!ctx.pointer_over(
+        Some(a),
+        Rect::from_min_size(Pos2::new(70.0, 70.0), Vec2::new(10.0, 10.0))
+    ));
     // Widgets of the top area do.
-    assert!(ctx.pointer_over(Some(b), Rect::from_min_size(Pos2::new(70.0, 70.0), Vec2::new(10.0, 10.0))));
-    register_area(&mut ctx, a, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
-    register_area(&mut ctx, b, Pos2::new(50.0, 50.0), Vec2::new(100.0, 100.0), Order::Middle);
+    assert!(ctx.pointer_over(
+        Some(b),
+        Rect::from_min_size(Pos2::new(70.0, 70.0), Vec2::new(10.0, 10.0))
+    ));
+    register_area(
+        &mut ctx,
+        a,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
+    register_area(
+        &mut ctx,
+        b,
+        Pos2::new(50.0, 50.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
     ctx.end_frame();
 
     // Bring a to the front → it now owns the overlap.
@@ -57,11 +90,20 @@ fn topmost_area_wins_pointer() {
 fn pointer_outside_areas_belongs_to_root() {
     let mut ctx = Context::new();
     let a = Id::new("a");
-    register_area(&mut ctx, a, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
+    register_area(
+        &mut ctx,
+        a,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
 
     ctx.begin_frame(raw_input(Pos2::new(400.0, 400.0)));
     assert_eq!(ctx.hovered_area(), None);
-    assert!(ctx.pointer_over(None, Rect::from_min_size(Pos2::new(390.0, 390.0), Vec2::new(20.0, 20.0))));
+    assert!(ctx.pointer_over(
+        None,
+        Rect::from_min_size(Pos2::new(390.0, 390.0), Vec2::new(20.0, 20.0))
+    ));
     ctx.end_frame();
 }
 
@@ -70,22 +112,58 @@ fn modal_blocks_everything_beneath() {
     let mut ctx = Context::new();
     let panel = Id::new("panel");
     let modal = Id::new("modal");
-    register_area(&mut ctx, panel, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
-    register_area(&mut ctx, modal, Pos2::new(200.0, 200.0), Vec2::new(100.0, 100.0), Order::Modal);
+    register_area(
+        &mut ctx,
+        panel,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
+    register_area(
+        &mut ctx,
+        modal,
+        Pos2::new(200.0, 200.0),
+        Vec2::new(100.0, 100.0),
+        Order::Modal,
+    );
 
     // Pointer over the non-modal area → still blocked by the modal.
     ctx.begin_frame(raw_input(Pos2::new(50.0, 50.0)));
     assert_eq!(ctx.hovered_area(), Some(modal));
-    assert!(!ctx.pointer_over(Some(panel), Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(20.0, 20.0))));
-    register_area(&mut ctx, panel, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
-    register_area(&mut ctx, modal, Pos2::new(200.0, 200.0), Vec2::new(100.0, 100.0), Order::Modal);
+    assert!(!ctx.pointer_over(
+        Some(panel),
+        Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(20.0, 20.0))
+    ));
+    register_area(
+        &mut ctx,
+        panel,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
+    register_area(
+        &mut ctx,
+        modal,
+        Pos2::new(200.0, 200.0),
+        Vec2::new(100.0, 100.0),
+        Order::Modal,
+    );
     ctx.end_frame();
 
     // Pointer over the modal itself → modal widgets interactable.
     ctx.begin_frame(raw_input(Pos2::new(250.0, 250.0)));
     assert_eq!(ctx.hovered_area(), Some(modal));
-    assert!(ctx.pointer_over(Some(modal), Rect::from_min_size(Pos2::new(240.0, 240.0), Vec2::new(20.0, 20.0))));
-    register_area(&mut ctx, panel, Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0), Order::Middle);
+    assert!(ctx.pointer_over(
+        Some(modal),
+        Rect::from_min_size(Pos2::new(240.0, 240.0), Vec2::new(20.0, 20.0))
+    ));
+    register_area(
+        &mut ctx,
+        panel,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(100.0, 100.0),
+        Order::Middle,
+    );
     ctx.end_frame();
 
     // Modal not shown this frame → next frame the panel is free again.
@@ -99,8 +177,20 @@ fn tooltip_order_beats_modal() {
     let mut ctx = Context::new();
     let modal = Id::new("modal");
     let popup = Id::new("popup");
-    register_area(&mut ctx, modal, Pos2::new(0.0, 0.0), Vec2::new(300.0, 300.0), Order::Modal);
-    register_area(&mut ctx, popup, Pos2::new(100.0, 100.0), Vec2::new(50.0, 50.0), Order::Tooltip);
+    register_area(
+        &mut ctx,
+        modal,
+        Pos2::new(0.0, 0.0),
+        Vec2::new(300.0, 300.0),
+        Order::Modal,
+    );
+    register_area(
+        &mut ctx,
+        popup,
+        Pos2::new(100.0, 100.0),
+        Vec2::new(50.0, 50.0),
+        Order::Tooltip,
+    );
 
     ctx.begin_frame(raw_input(Pos2::new(120.0, 120.0)));
     assert_eq!(ctx.hovered_area(), Some(popup));
@@ -114,8 +204,20 @@ fn layers_compose_in_z_order() {
     let front = Id::new("front");
 
     ctx.begin_frame(raw_input(Pos2::new(0.0, 0.0)));
-    register_area(&mut ctx, back, Pos2::ZERO, Vec2::new(10.0, 10.0), Order::Middle);
-    register_area(&mut ctx, front, Pos2::ZERO, Vec2::new(10.0, 10.0), Order::Middle);
+    register_area(
+        &mut ctx,
+        back,
+        Pos2::ZERO,
+        Vec2::new(10.0, 10.0),
+        Order::Middle,
+    );
+    register_area(
+        &mut ctx,
+        front,
+        Pos2::ZERO,
+        Vec2::new(10.0, 10.0),
+        Order::Middle,
+    );
     // `front` registered later → higher z, must render after `back`
     // even though we paint it first.
     let marker = |v: f32| PaintCmd::Rect {

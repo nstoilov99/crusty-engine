@@ -74,7 +74,10 @@ fn t1_a_press_that_closes_a_menu_is_consumed() {
     ctx.end_frame();
 
     // Frame 2: press well outside it.
-    ctx.begin_frame(input_at(0.1, vec![button(outside, MouseButton::Primary, true)]));
+    ctx.begin_frame(input_at(
+        0.1,
+        vec![button(outside, MouseButton::Primary, true)],
+    ));
     assert_eq!(
         ctx.modal_dismissed(menu_id()),
         Some(crusty_gui::context::DismissCause::PressOutside),
@@ -101,15 +104,15 @@ fn t1_the_widget_under_a_menu_is_not_clicked() {
         ui.ctx_mut().modal_push(menu_id(), menu);
     });
 
-    h.frame(
-        vec![button(on_button, MouseButton::Primary, true)],
-        |ui| {
-            clicked |= ui.button("target").pressed;
-            // The menu's owner sees the dismissal and stops drawing it.
-            assert!(ui.ctx().modal_dismissed(menu_id()).is_some());
-        },
+    h.frame(vec![button(on_button, MouseButton::Primary, true)], |ui| {
+        clicked |= ui.button("target").pressed;
+        // The menu's owner sees the dismissal and stops drawing it.
+        assert!(ui.ctx().modal_dismissed(menu_id()).is_some());
+    });
+    assert!(
+        !clicked,
+        "the button under the menu must not take the press"
     );
-    assert!(!clicked, "the button under the menu must not take the press");
 
     // Once the menu is gone, the very next press does reach the button.
     h.frame(vec![button(on_button, MouseButton::Primary, false)], |ui| {
@@ -131,9 +134,15 @@ fn a_press_inside_the_menu_is_left_alone() {
     open_menu(&mut ctx, menu);
     ctx.end_frame();
 
-    ctx.begin_frame(input_at(0.1, vec![button(inside, MouseButton::Primary, true)]));
+    ctx.begin_frame(input_at(
+        0.1,
+        vec![button(inside, MouseButton::Primary, true)],
+    ));
     assert!(ctx.modal_dismissed(menu_id()).is_none(), "still open");
-    assert!(ctx.input.pointer_pressed, "the menu's own rows still get their press");
+    assert!(
+        ctx.input.pointer_pressed,
+        "the menu's own rows still get their press"
+    );
     ctx.end_frame();
 }
 
@@ -172,10 +181,16 @@ fn a_press_in_a_child_surface_does_not_collapse_its_parent() {
     ctx.modal_push(child_id, child);
     ctx.end_frame();
 
-    ctx.begin_frame(input_at(0.1, vec![button(in_child, MouseButton::Primary, true)]));
+    ctx.begin_frame(input_at(
+        0.1,
+        vec![button(in_child, MouseButton::Primary, true)],
+    ));
     assert!(ctx.modal_dismissed(menu_id()).is_none());
     assert!(ctx.modal_dismissed(child_id).is_none());
-    assert!(ctx.input.pointer_pressed, "the child's rows get their press");
+    assert!(
+        ctx.input.pointer_pressed,
+        "the child's rows get their press"
+    );
     ctx.end_frame();
 }
 
@@ -239,7 +254,10 @@ fn losing_window_focus_dismisses_the_whole_stack_and_drops_held_input() {
 
     ctx.begin_frame(input_at(0.1, vec![Event::Focused(false)]));
     assert!(ctx.focus_lost());
-    assert!(ctx.modal_dismissed(menu_id()).is_some(), "everything goes, not just the top");
+    assert!(
+        ctx.modal_dismissed(menu_id()).is_some(),
+        "everything goes, not just the top"
+    );
     assert!(ctx.modal_dismissed(inner_id).is_some());
     assert!(
         !ctx.input.pointer_down,
@@ -262,7 +280,10 @@ fn a_right_press_outside_hands_its_position_on_for_a_fresh_menu() {
         0.1,
         vec![button(elsewhere, MouseButton::Secondary, true)],
     ));
-    assert!(ctx.modal_dismissed(menu_id()).is_some(), "the old menu goes");
+    assert!(
+        ctx.modal_dismissed(menu_id()).is_some(),
+        "the old menu goes"
+    );
     assert!(!ctx.input.right_pressed, "the press itself is consumed");
     assert_eq!(
         ctx.modal_reopen_at(),
@@ -279,11 +300,7 @@ fn a_right_press_outside_hands_its_position_on_for_a_fresh_menu() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Drive `Canvas` for one frame and report `(right_clicked, view)`.
-fn canvas_frame(
-    h: &mut Harness,
-    view: &mut CanvasView,
-    events: Vec<Event>,
-) -> Option<Pos2> {
+fn canvas_frame(h: &mut Harness, view: &mut CanvasView, events: Vec<Event>) -> Option<Pos2> {
     let mut out = None;
     h.frame(events, |ui| {
         out = Canvas::new().show(ui, view, |_, _| {}).right_clicked;
@@ -300,11 +317,23 @@ fn t5_a_right_press_that_barely_moves_is_a_context_click() {
 
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(a)]);
     let before = view;
-    canvas_frame(&mut h, &mut view, vec![button(a, MouseButton::Secondary, true)]);
+    canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(a, MouseButton::Secondary, true)],
+    );
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(b)]);
-    let click = canvas_frame(&mut h, &mut view, vec![button(b, MouseButton::Secondary, false)]);
+    let click = canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(b, MouseButton::Secondary, false)],
+    );
 
-    assert_eq!(click, Some(a), "the menu opens at the press point, not the release");
+    assert_eq!(
+        click,
+        Some(a),
+        "the menu opens at the press point, not the release"
+    );
     assert_eq!(view, before, "and a context click never pans");
 }
 
@@ -317,9 +346,17 @@ fn t6_a_right_press_that_travels_pans_and_opens_no_menu() {
 
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(a)]);
     let before = view;
-    canvas_frame(&mut h, &mut view, vec![button(a, MouseButton::Secondary, true)]);
+    canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(a, MouseButton::Secondary, true)],
+    );
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(b)]);
-    let click = canvas_frame(&mut h, &mut view, vec![button(b, MouseButton::Secondary, false)]);
+    let click = canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(b, MouseButton::Secondary, false)],
+    );
 
     assert_eq!(click, None, "a drag is a pan, so there is no context menu");
     assert_ne!(view.pan, before.pan, "and the canvas panned");
@@ -335,13 +372,20 @@ fn middle_drag_still_pans_without_any_threshold() {
 
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(a)]);
     let before = view;
-    canvas_frame(&mut h, &mut view, vec![button(a, MouseButton::Middle, true)]);
+    canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(a, MouseButton::Middle, true)],
+    );
     canvas_frame(
         &mut h,
         &mut view,
         vec![Event::PointerMoved(Pos2::new(202.0, 150.0))],
     );
-    assert_ne!(view.pan, before.pan, "middle has no other job, so it pans at once");
+    assert_ne!(
+        view.pan, before.pan,
+        "middle has no other job, so it pans at once"
+    );
 }
 
 #[test]
@@ -353,7 +397,11 @@ fn space_plus_left_drag_pans() {
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(a)]);
     let before = view;
     canvas_frame(&mut h, &mut view, vec![key(Key::Space, true)]);
-    canvas_frame(&mut h, &mut view, vec![button(a, MouseButton::Primary, true)]);
+    canvas_frame(
+        &mut h,
+        &mut view,
+        vec![button(a, MouseButton::Primary, true)],
+    );
     canvas_frame(
         &mut h,
         &mut view,
@@ -394,7 +442,10 @@ fn a_touchpad_flick_moves_a_few_ladder_steps_not_hundreds() {
     assert_eq!(view.zoom, 1.0, "sub-notch dust must not zoom at all");
 
     flick(&mut h, &mut view);
-    assert_eq!(view.zoom, 1.3501, "crossing one notch moves exactly one stop");
+    assert_eq!(
+        view.zoom, 1.3501,
+        "crossing one notch moves exactly one stop"
+    );
 
     // Thirty more events — ten notches' worth — cannot outrun the ladder.
     for _ in 0..30 {
@@ -437,20 +488,27 @@ fn a_plain_wheel_zooms_about_the_cursor_and_no_longer_pans() {
 #[test]
 fn ctrl_wheel_leaves_the_ladder_and_zooms_past_the_ceiling() {
     let mut h = harness_or_skip!([400, 300]);
-    let mut view = CanvasView { pan: Vec2::ZERO, zoom: 2.20 };
+    let mut view = CanvasView {
+        pan: Vec2::ZERO,
+        zoom: 2.20,
+    };
     let p = Pos2::new(200.0, 150.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
 
     // Plain wheel is capped by the ladder...
     h.frame(vec![Event::Scroll(Vec2::new(0.0, 1.0))], |ui| {
-        Canvas::new().zoom_range(0.15, 4.0).show(ui, &mut view, |_, _| {});
+        Canvas::new()
+            .zoom_range(0.15, 4.0)
+            .show(ui, &mut view, |_, _| {});
     });
     assert_eq!(view.zoom, 2.20, "the ladder's ceiling holds a plain wheel");
 
     // ...Ctrl is not.
     h.frame(vec![Event::Scroll(Vec2::new(0.0, 1.0))], |ui| {
         ui.ctx_mut().input.modifiers = Modifiers::CTRL;
-        Canvas::new().zoom_range(0.15, 4.0).show(ui, &mut view, |_, _| {});
+        Canvas::new()
+            .zoom_range(0.15, 4.0)
+            .show(ui, &mut view, |_, _| {});
     });
     assert!(view.zoom > 2.20, "Ctrl goes past 1:1 for close work");
     assert!(view.zoom <= 4.0, "but still stops at the caller's limit");
@@ -464,15 +522,12 @@ fn shift_wheel_pans_horizontally_rather_than_zooming() {
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
     let before = view;
 
-    h.frame(
-        vec![Event::Scroll(Vec2::new(0.0, 2.0))],
-        |ui| {
-            // Shift is carried on `RawInput.modifiers`, which the harness fixes
-            // to empty; drive the modifier through the context directly.
-            ui.ctx_mut().input.modifiers = Modifiers::SHIFT;
-            Canvas::new().show(ui, &mut view, |_, _| {});
-        },
-    );
+    h.frame(vec![Event::Scroll(Vec2::new(0.0, 2.0))], |ui| {
+        // Shift is carried on `RawInput.modifiers`, which the harness fixes
+        // to empty; drive the modifier through the context directly.
+        ui.ctx_mut().input.modifiers = Modifiers::SHIFT;
+        Canvas::new().show(ui, &mut view, |_, _| {});
+    });
     assert_eq!(view.zoom, before.zoom, "Shift+wheel never zooms");
     assert_ne!(view.pan.x, before.pan.x, "it pans horizontally");
     assert_eq!(view.pan.y, before.pan.y);
@@ -493,19 +548,31 @@ fn a_held_key_is_distinguishable_from_its_first_press() {
     };
 
     ctx.begin_frame(input_at(0.0, vec![repeat(true, false)]));
-    assert!(ctx.input.key_pressed_initial(Key::ArrowRight), "opens the transaction");
+    assert!(
+        ctx.input.key_pressed_initial(Key::ArrowRight),
+        "opens the transaction"
+    );
     assert!(!ctx.input.key_repeated(Key::ArrowRight));
     assert!(ctx.input.key_down(Key::ArrowRight));
     ctx.end_frame();
 
     ctx.begin_frame(input_at(0.1, vec![repeat(true, true)]));
-    assert!(!ctx.input.key_pressed_initial(Key::ArrowRight), "extends, never reopens");
+    assert!(
+        !ctx.input.key_pressed_initial(Key::ArrowRight),
+        "extends, never reopens"
+    );
     assert!(ctx.input.key_repeated(Key::ArrowRight));
-    assert!(ctx.input.key_pressed(Key::ArrowRight), "the coarse query still sees it");
+    assert!(
+        ctx.input.key_pressed(Key::ArrowRight),
+        "the coarse query still sees it"
+    );
     ctx.end_frame();
 
     ctx.begin_frame(input_at(0.2, vec![repeat(false, false)]));
-    assert!(!ctx.input.key_down(Key::ArrowRight), "released: commit the transaction");
+    assert!(
+        !ctx.input.key_down(Key::ArrowRight),
+        "released: commit the transaction"
+    );
     ctx.end_frame();
 }
 
@@ -525,11 +592,20 @@ fn acceptance_2_a_right_press_elsewhere_closes_the_old_menu_and_opens_a_new_one(
     open_menu(&mut ctx, menu);
     ctx.end_frame();
 
-    ctx.begin_frame(input_at(0.1, vec![button(elsewhere, MouseButton::Secondary, true)]));
+    ctx.begin_frame(input_at(
+        0.1,
+        vec![button(elsewhere, MouseButton::Secondary, true)],
+    ));
     // Old one goes...
-    assert!(ctx.modal_dismissed(menu_id()).is_some(), "the old menu closes");
+    assert!(
+        ctx.modal_dismissed(menu_id()).is_some(),
+        "the old menu closes"
+    );
     // ...the press is swallowed so nothing underneath acts on it...
-    assert!(!ctx.input.right_pressed, "the press does not reach the canvas");
+    assert!(
+        !ctx.input.right_pressed,
+        "the press does not reach the canvas"
+    );
     // ...and its position is handed on, which is what makes it one gesture
     // rather than "close" then "open".
     let reopen = ctx.take_modal_reopen();
@@ -537,7 +613,10 @@ fn acceptance_2_a_right_press_elsewhere_closes_the_old_menu_and_opens_a_new_one(
     // The owner opens a fresh surface there in the same frame.
     let fresh = Rect::from_min_size(elsewhere, Vec2::new(180.0, 120.0));
     ctx.modal_push(menu_id(), fresh);
-    assert!(ctx.modal_is_open(menu_id()), "a new menu is open at the new point");
+    assert!(
+        ctx.modal_is_open(menu_id()),
+        "a new menu is open at the new point"
+    );
     ctx.end_frame();
 
     // And it survives into the next frame rather than flickering shut.
@@ -553,7 +632,10 @@ fn acceptance_4_alt_tabbing_away_closes_the_menu() {
     let menu = Rect::from_min_size(Pos2::new(200.0, 200.0), Vec2::new(180.0, 120.0));
 
     let mut ctx = Context::new();
-    ctx.begin_frame(input_at(0.0, vec![Event::PointerMoved(Pos2::new(240.0, 240.0))]));
+    ctx.begin_frame(input_at(
+        0.0,
+        vec![Event::PointerMoved(Pos2::new(240.0, 240.0))],
+    ));
     open_menu(&mut ctx, menu);
     ctx.end_frame();
 
@@ -586,9 +668,15 @@ fn acceptance_12_a_bare_alt_does_nothing_at_all() {
     let mut raw = input_at(0.0, vec![]);
     raw.modifiers = Modifiers::ALT;
     ctx.begin_frame(raw);
-    assert!(ctx.input.key_presses.is_empty(), "no key press is synthesised");
+    assert!(
+        ctx.input.key_presses.is_empty(),
+        "no key press is synthesised"
+    );
     assert!(!ctx.input.pointer_pressed);
     assert!(!ctx.modal_any_open(), "and nothing opens");
     let out = ctx.end_frame();
-    assert!(!out.wants_keyboard, "a held modifier does not claim the keyboard");
+    assert!(
+        !out.wants_keyboard,
+        "a held modifier does not claim the keyboard"
+    );
 }

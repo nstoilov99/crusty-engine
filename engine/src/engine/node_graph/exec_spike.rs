@@ -24,8 +24,7 @@ use std::collections::BTreeMap;
 
 use nalgebra_glm as glm;
 use node_graph_exec::{
-    compile, nodes, tick, Effect, EntityRef, GraphInstance, TickInput,
-    TransformSnapshot, WorldRead,
+    compile, nodes, tick, Effect, EntityRef, GraphInstance, TickInput, TransformSnapshot, WorldRead,
 };
 
 use crate::engine::ecs::components::Transform;
@@ -62,8 +61,7 @@ impl WorldRead for EntityView<'_> {
     }
 
     fn exists(&self, entity: EntityRef) -> bool {
-        matches!(entity, EntityRef::SelfEntity)
-            && self.world.get::<Transform>(self.entity).is_ok()
+        matches!(entity, EntityRef::SelfEntity) && self.world.get::<Transform>(self.entity).is_ok()
     }
 }
 
@@ -74,7 +72,10 @@ fn apply(world: &mut GameWorld, self_entity: hecs::Entity, effects: &[Effect]) -
     let mut logged = Vec::new();
     for e in effects {
         match e {
-            Effect::SetPosition { entity: EntityRef::SelfEntity, position } => {
+            Effect::SetPosition {
+                entity: EntityRef::SelfEntity,
+                position,
+            } => {
                 if let Ok(mut t) = world.get_component_mut::<Transform>(self_entity) {
                     t.position = glm::vec3(position[0], position[1], position[2]);
                 }
@@ -151,7 +152,10 @@ fn graph_effects_apply_to_a_real_world() {
     let mut instance = GraphInstance::new(&plan, EntityRef::SelfEntity, 0xC0FFEE);
     let mut effects: Vec<Effect> = Vec::new();
     {
-        let view = EntityView { world: &world, entity };
+        let view = EntityView {
+            world: &world,
+            entity,
+        };
         // The read seam sees the entity's actual position.
         assert_eq!(view.position(EntityRef::SelfEntity), Some([1.0, 2.0, 3.0]));
         assert!(view.exists(EntityRef::SelfEntity));
@@ -159,7 +163,10 @@ fn graph_effects_apply_to_a_real_world() {
             &plan,
             &mut instance,
             &impls,
-            TickInput { dt: 1.0 / 60.0, time: 0.0 },
+            TickInput {
+                dt: 1.0 / 60.0,
+                time: 0.0,
+            },
             &view,
             &mut effects,
         );
@@ -185,13 +192,19 @@ fn graph_effects_apply_to_a_real_world() {
     // every gameplay node will run in.
     effects.clear();
     {
-        let view = EntityView { world: &world, entity };
+        let view = EntityView {
+            world: &world,
+            entity,
+        };
         assert_eq!(view.position(EntityRef::SelfEntity), Some([4.0, 5.0, 6.0]));
         tick(
             &plan,
             &mut instance,
             &impls,
-            TickInput { dt: 1.0 / 60.0, time: 1.0 / 60.0 },
+            TickInput {
+                dt: 1.0 / 60.0,
+                time: 1.0 / 60.0,
+            },
             &view,
             &mut effects,
         );

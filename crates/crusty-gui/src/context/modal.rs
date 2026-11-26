@@ -104,7 +104,10 @@ impl ModalStack {
 
     /// Did `id` get dismissed by this frame's resolve step?
     pub(crate) fn was_dismissed(&self, id: Id) -> Option<DismissCause> {
-        self.dismissed.iter().find(|(i, _)| *i == id).map(|(_, c)| *c)
+        self.dismissed
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map(|(_, c)| *c)
     }
 
     pub(crate) fn reopen_at(&self) -> Option<Pos2> {

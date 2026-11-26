@@ -43,7 +43,11 @@ pub fn template_text(asset_type: AssetType, name: &str) -> Result<String, String
     let ron_err = |e: ron::Error| e.to_string();
     match asset_type {
         AssetType::Scene => {
-            let scene = SceneFile { version: "1.0".into(), name: name.into(), entities: Vec::new() };
+            let scene = SceneFile {
+                version: "1.0".into(),
+                name: name.into(),
+                entities: Vec::new(),
+            };
             ron::ser::to_string_pretty(&scene, pretty()).map_err(ron_err)
         }
         AssetType::Material => {
@@ -60,15 +64,15 @@ pub fn template_text(asset_type: AssetType, name: &str) -> Result<String, String
             };
             ron::ser::to_string_pretty(&def, pretty()).map_err(ron_err)
         }
-        AssetType::Graph => node_graph_types::serialize_graph(&GraphDoc::default())
-            .map_err(|e| e.to_string()),
+        AssetType::Graph => {
+            node_graph_types::serialize_graph(&GraphDoc::default()).map_err(|e| e.to_string())
+        }
         AssetType::AnimGraph => {
             node_graph_types::serialize_graph(&new_animgraph_doc()).map_err(|e| e.to_string())
         }
         AssetType::BlendSpace => serialize_blend_space(&BlendSpaceDoc::default()),
-        AssetType::Curve => {
-            curve_asset::serialize_curve(&curve_asset::CurveDoc::default()).map_err(|e| e.to_string())
-        }
+        AssetType::Curve => curve_asset::serialize_curve(&curve_asset::CurveDoc::default())
+            .map_err(|e| e.to_string()),
         other => Err(format!("no template for {}", other.display_name())),
     }
 }
@@ -100,11 +104,20 @@ mod tests {
     #[test]
     fn names_uniquify_with_numeric_suffixes() {
         let dir = scratch("uniq");
-        assert_eq!(unique_asset_name(&dir, "NewBlendSpace", "blendspace"), "NewBlendSpace.blendspace");
+        assert_eq!(
+            unique_asset_name(&dir, "NewBlendSpace", "blendspace"),
+            "NewBlendSpace.blendspace"
+        );
         std::fs::write(dir.join("NewBlendSpace.blendspace"), "").expect("write");
-        assert_eq!(unique_asset_name(&dir, "NewBlendSpace", "blendspace"), "NewBlendSpace_1.blendspace");
+        assert_eq!(
+            unique_asset_name(&dir, "NewBlendSpace", "blendspace"),
+            "NewBlendSpace_1.blendspace"
+        );
         std::fs::write(dir.join("NewBlendSpace_1.blendspace"), "").expect("write");
-        assert_eq!(unique_asset_name(&dir, "NewBlendSpace", "blendspace"), "NewBlendSpace_2.blendspace");
+        assert_eq!(
+            unique_asset_name(&dir, "NewBlendSpace", "blendspace"),
+            "NewBlendSpace_2.blendspace"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -115,7 +128,9 @@ mod tests {
         use crate::engine::assets::mesh_import::load_material_ron;
         let dir = scratch("parse");
         let created = |t: AssetType| -> PathBuf {
-            let name = create_asset_file(&dir, t).expect("create").expect("template");
+            let name = create_asset_file(&dir, t)
+                .expect("create")
+                .expect("template");
             dir.join(name)
         };
 
@@ -125,23 +140,34 @@ mod tests {
         assert_eq!((scene.name.as_str(), scene.entities.len()), ("NewScene", 0));
 
         let mat = load_material_ron(&created(AssetType::Material)).expect("material parses");
-        assert_eq!((mat.name.as_str(), mat.roughness_factor), ("NewMaterial", 1.0));
+        assert_eq!(
+            (mat.name.as_str(), mat.roughness_factor),
+            ("NewMaterial", 1.0)
+        );
 
         let graph = node_graph_types::load_graph(&created(AssetType::Graph)).expect("graph parses");
         assert!(graph.nodes.is_empty());
 
-        let anim = node_graph_types::load_graph(&created(AssetType::AnimGraph)).expect("animgraph parses");
+        let anim =
+            node_graph_types::load_graph(&created(AssetType::AnimGraph)).expect("animgraph parses");
         assert_eq!(anim.nodes.len(), 2);
 
-        let bs = parse_blend_space(&std::fs::read_to_string(created(AssetType::BlendSpace)).expect("read"))
-            .expect("blend space parses");
+        let bs = parse_blend_space(
+            &std::fs::read_to_string(created(AssetType::BlendSpace)).expect("read"),
+        )
+        .expect("blend space parses");
         assert_eq!(bs, BlendSpaceDoc::default());
 
-        let curve = curve_asset::parse_curve(&std::fs::read_to_string(created(AssetType::Curve)).expect("read"))
-            .expect("curve parses");
+        let curve = curve_asset::parse_curve(
+            &std::fs::read_to_string(created(AssetType::Curve)).expect("read"),
+        )
+        .expect("curve parses");
         assert!(curve.tracks.is_empty());
 
-        assert_eq!(create_asset_file(&dir, AssetType::Texture).expect("ok"), None);
+        assert_eq!(
+            create_asset_file(&dir, AssetType::Texture).expect("ok"),
+            None
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

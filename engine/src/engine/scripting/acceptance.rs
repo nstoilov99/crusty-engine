@@ -71,8 +71,8 @@ fn demo_curve() -> curve_asset::CurveDoc {
         .unwrap()
         .join("content")
         .join(DEMO_CURVE);
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     curve_asset::parse_curve(&text).expect("the committed demo curve parses")
 }
 
@@ -125,9 +125,17 @@ fn count_entry(entry: NodeInst) -> GraphDoc {
     }];
     doc.nodes = vec![
         entry,
-        with(1, node_graph_types::VAR_GET_TYPE_ID, &[(node_graph_types::VAR_PROP, PropValue::Str("n".into()))]),
+        with(
+            1,
+            node_graph_types::VAR_GET_TYPE_ID,
+            &[(node_graph_types::VAR_PROP, PropValue::Str("n".into()))],
+        ),
         with(2, ids::ADD_INT, &[("b", PropValue::Int(1))]),
-        with(3, node_graph_types::VAR_SET_TYPE_ID, &[(node_graph_types::VAR_PROP, PropValue::Str("n".into()))]),
+        with(
+            3,
+            node_graph_types::VAR_SET_TYPE_ID,
+            &[(node_graph_types::VAR_PROP, PropValue::Str("n".into()))],
+        ),
         node(4, ids::INT_TO_FLOAT),
         node(5, ids::MAKE_VEC3),
         node(6, ids::SET_POSITION),
@@ -148,7 +156,10 @@ fn count_entry(entry: NodeInst) -> GraphDoc {
 
 /// A loader over an in-memory map — the same seam the engine fills with a
 /// disk/pak reader.
-struct MapLoader(BTreeMap<String, GraphDoc>, BTreeMap<String, curve_asset::CurveDoc>);
+struct MapLoader(
+    BTreeMap<String, GraphDoc>,
+    BTreeMap<String, curve_asset::CurveDoc>,
+);
 
 impl GraphLoader for MapLoader {
     fn load(&self, content_rel: &str) -> Option<GraphDoc> {
@@ -242,10 +253,7 @@ impl Harness {
     }
 
     /// …with `.curve` assets in the loader as well (45-A P8).
-    fn with_curves(
-        docs: &[(&str, GraphDoc)],
-        curves: &[(&str, curve_asset::CurveDoc)],
-    ) -> Self {
+    fn with_curves(docs: &[(&str, GraphDoc)], curves: &[(&str, curve_asset::CurveDoc)]) -> Self {
         Self::build(docs, curves, std::path::Path::new("content"))
     }
 
@@ -309,8 +317,7 @@ impl Harness {
     /// Give this harness a real [`InputSubsystem`] over [`test_action_set`],
     /// with the `gameplay` context active.
     fn with_input(mut self) -> Self {
-        let mut subsystem =
-            crate::engine::input::subsystem::InputSubsystem::new(test_action_set());
+        let mut subsystem = crate::engine::input::subsystem::InputSubsystem::new(test_action_set());
         subsystem.add_context("gameplay");
         self.resources.insert(subsystem);
         self
@@ -330,8 +337,9 @@ impl Harness {
     /// `Stage::Update`: run the real modifier/trigger pipeline over this
     /// frame's keys so `just_pressed` means what it means in the app.
     fn pump_input(&mut self, dt: f32) {
-        let Some(mut subsystem) =
-            self.resources.remove::<crate::engine::input::subsystem::InputSubsystem>()
+        let Some(mut subsystem) = self
+            .resources
+            .remove::<crate::engine::input::subsystem::InputSubsystem>()
         else {
             return;
         };
@@ -398,8 +406,7 @@ impl Harness {
             .collect();
         self.world.clear();
         for (name, runner, pos) in saved {
-            self.world
-                .spawn((Name(name), Transform::new(pos), runner));
+            self.world.spawn((Name(name), Transform::new(pos), runner));
         }
     }
 }
@@ -417,10 +424,16 @@ fn begin_play_arms_lazily_and_fires_exactly_once() {
 
     // Nothing exists until the first playing tick — that is the whole of the
     // lifecycle rule (addendum #3).
-    assert!(h.world.get::<&GraphRuntime>(e).is_err(), "not armed before the first tick");
+    assert!(
+        h.world.get::<&GraphRuntime>(e).is_err(),
+        "not armed before the first tick"
+    );
 
     h.tick(1.0 / 60.0);
-    assert!(h.world.get::<&GraphRuntime>(e).is_ok(), "armed on the first playing tick");
+    assert!(
+        h.world.get::<&GraphRuntime>(e).is_ok(),
+        "armed on the first playing tick"
+    );
 
     h.ticks(30);
     assert_eq!(
@@ -439,8 +452,16 @@ fn effects_apply_to_the_world_over_ticks() {
     h.tick(1.0 / 60.0);
     assert_eq!(h.position(e).x, 1.0, "one tick, one nudge");
     h.ticks(9);
-    assert_eq!(h.position(e).x, 10.0, "ten ticks, ten nudges — it really moves");
-    assert_eq!(h.position(e).y, 0.0, "and only along the axis the graph touches");
+    assert_eq!(
+        h.position(e).x,
+        10.0,
+        "ten ticks, ten nudges — it really moves"
+    );
+    assert_eq!(
+        h.position(e).y,
+        0.0,
+        "and only along the axis the graph touches"
+    );
 }
 
 /// Play → stop → play: the snapshot restore drops runtime state, so BeginPlay
@@ -490,7 +511,10 @@ fn an_entity_spawned_during_play_arms_and_fires() {
     let late = h.spawn_runner("Latecomer", "graphs/t.graph");
     assert!(h.world.get::<&GraphRuntime>(late).is_err());
     h.tick(1.0 / 60.0);
-    assert!(h.world.get::<&GraphRuntime>(late).is_ok(), "armed on its first tick");
+    assert!(
+        h.world.get::<&GraphRuntime>(late).is_ok(),
+        "armed on its first tick"
+    );
     h.ticks(5);
     assert_eq!(h.position(late).x, 1.0, "and fired BeginPlay once");
 }
@@ -522,7 +546,10 @@ fn the_realm_gate_refuses_a_server_graph_on_a_client() {
 
     // A Shared/Client graph beside it is unaffected — the gate is per
     // instance, not per app.
-    assert!(h.position(allowed).x > 0.0, "the graph next to it ran normally");
+    assert!(
+        h.position(allowed).x > 0.0,
+        "the graph next to it ran normally"
+    );
 }
 
 /// A missing or broken graph disables its instance with a reported reason
@@ -536,7 +563,10 @@ fn a_missing_graph_disables_its_instance_and_is_not_retried() {
 
     let rt = h.world.get::<&GraphRuntime>(e).unwrap();
     assert!(
-        rt.disabled.as_deref().unwrap_or_default().contains("nope.graph"),
+        rt.disabled
+            .as_deref()
+            .unwrap_or_default()
+            .contains("nope.graph"),
         "{:?}",
         rt.disabled
     );
@@ -567,7 +597,10 @@ fn invalidating_the_cache_restarts_live_instances() {
         1.0,
         "the instance restarted: a fresh variable, one fresh BeginPlay"
     );
-    assert!(h.world.get::<&GraphRuntime>(e).is_ok(), "and it is running again");
+    assert!(
+        h.world.get::<&GraphRuntime>(e).is_ok(),
+        "and it is running again"
+    );
 }
 
 /// **Finding 2**: a subgraph edit must recompile its *hosts*, not just
@@ -609,7 +642,10 @@ fn invalidating_a_subgraph_drops_its_hosts_plans_too() {
     h.ticks(3);
     assert!(h.world.get::<&GraphRuntime>(a).is_ok());
     assert!(h.world.get::<&GraphRuntime>(b).is_ok());
-    assert_eq!(h.resources.get::<GraphPlanCache>().map(|c| c.len()), Some(2));
+    assert_eq!(
+        h.resources.get::<GraphPlanCache>().map(|c| c.len()),
+        Some(2)
+    );
 }
 
 /// **Finding 6**: the `GraphRunner` component is read on every tick, not only
@@ -644,7 +680,10 @@ fn runner_config_changes_take_effect_mid_play() {
     }
     h.ticks(3);
     let rt = h.world.get::<&GraphRuntime>(e).expect("re-armed");
-    assert_eq!(rt.graph, "graphs/b.graph", "on the asset the component names");
+    assert_eq!(
+        rt.graph, "graphs/b.graph",
+        "on the asset the component names"
+    );
     drop(rt);
 
     // Re-pointing a *running* instance swaps it too, without a disable step.
@@ -753,7 +792,10 @@ fn spawned_prefabs_join_and_leave_the_physics_world() {
     );
     assert!(h.world.get::<&Collider>(boulder).unwrap().handle.is_some());
     assert_eq!(
-        h.resources.get::<PhysicsWorld>().unwrap().rigid_body_count(),
+        h.resources
+            .get::<PhysicsWorld>()
+            .unwrap()
+            .rigid_body_count(),
         1
     );
 
@@ -763,10 +805,15 @@ fn spawned_prefabs_join_and_leave_the_physics_world() {
             &mut *h.resources.get_mut::<PhysicsWorld>().unwrap(),
             &mut h.world,
         );
-        assert!(crate::engine::physics::deregister_entity(pw, world, boulder));
+        assert!(crate::engine::physics::deregister_entity(
+            pw, world, boulder
+        ));
     }
     assert_eq!(
-        h.resources.get::<PhysicsWorld>().unwrap().rigid_body_count(),
+        h.resources
+            .get::<PhysicsWorld>()
+            .unwrap()
+            .rigid_body_count(),
         0,
         "the body left with the entity"
     );
@@ -815,16 +862,16 @@ fn scene_round_trip_keeps_the_runner_and_never_writes_runtime_state() {
 
     let mut h = Harness::new(&[("graphs/t.graph", count_begin_play())]);
     let e = h.spawn_runner("Scripted", "graphs/t.graph");
-    h.world
-        .get::<&mut GraphRunner>(e)
-        .unwrap()
-        .enabled = false;
+    h.world.get::<&mut GraphRunner>(e).unwrap().enabled = false;
     h.ticks(2);
 
     let roots: Vec<hecs::Entity> = h.world.query::<&Name>().iter().map(|(e, _)| e).collect();
-    let text = scene_serializer::serialize_scene_to_string(&h.world, "Test", &roots)
-        .expect("serialize");
-    assert!(text.contains("GraphRunner"), "the component reached the file");
+    let text =
+        scene_serializer::serialize_scene_to_string(&h.world, "Test", &roots).expect("serialize");
+    assert!(
+        text.contains("GraphRunner"),
+        "the component reached the file"
+    );
     assert!(text.contains("graphs/t.graph"));
     assert!(
         !text.contains("GraphRuntime") && !text.contains("plan"),
@@ -932,7 +979,9 @@ fn a_disabled_plugin_leaves_graphs_readable_but_unrunnable() {
 /// instance's next tick, which is the whole contract D1 describes.
 #[test]
 fn begin_play_spawns_in_a_loop_and_the_aliases_bind() {
-    use node_graph_types::{PinType, VarDecl, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN};
+    use node_graph_types::{
+        PinType, VarDecl, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN,
+    };
 
     // A prefab on disk, in a content root of this test's own.
     let root = std::env::temp_dir().join("rust_engine_p5_spawn");
@@ -944,11 +993,13 @@ fn begin_play_spawns_in_a_loop_and_the_aliases_bind() {
         template: crate::engine::scene::scene_format::EntityData {
             name: "Crate".to_string(),
             guid: None,
-            components: vec![crate::engine::scene::scene_format::ComponentData::Transform {
-                position: [0.0, 0.0, 0.0],
-                rotation: [0.0, 0.0, 0.0, 1.0],
-                scale: [1.0, 1.0, 1.0],
-            }],
+            components: vec![
+                crate::engine::scene::scene_format::ComponentData::Transform {
+                    position: [0.0, 0.0, 0.0],
+                    rotation: [0.0, 0.0, 0.0, 1.0],
+                    scale: [1.0, 1.0, 1.0],
+                },
+            ],
         },
     };
     std::fs::write(
@@ -974,17 +1025,29 @@ fn begin_play_spawns_in_a_loop_and_the_aliases_bind() {
     }];
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, ids::FOR_LOOP, &[("first", PropValue::Int(0)), ("last", PropValue::Int(1))]),
+        with(
+            1,
+            ids::FOR_LOOP,
+            &[("first", PropValue::Int(0)), ("last", PropValue::Int(1))],
+        ),
         with(
             2,
             ids::SPAWN_PREFAB,
             &[("path", PropValue::Str("prefabs/crate.prefab".into()))],
         ),
-        with(3, VAR_SET_TYPE_ID, &[(VAR_PROP, PropValue::Str("last".into()))]),
+        with(
+            3,
+            VAR_SET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("last".into()))],
+        ),
         node(4, ids::INT_TO_FLOAT),
         with(5, ids::MAKE_VEC3, &[("y", PropValue::Float(9.0))]),
         node(6, ids::SET_POSITION),
-        with(7, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("last".into()))]),
+        with(
+            7,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("last".into()))],
+        ),
     ];
     doc.edges = vec![
         edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN),
@@ -1018,7 +1081,9 @@ fn begin_play_spawns_in_a_loop_and_the_aliases_bind() {
     for (e, _) in h.world.query::<&Name>().iter() {
         if e != owner {
             assert!(
-                h.world.get::<&crate::engine::ecs::components::EntityGuid>(e).is_ok(),
+                h.world
+                    .get::<&crate::engine::ecs::components::EntityGuid>(e)
+                    .is_ok(),
                 "a graph-spawned entity is a first-class entity"
             );
         }
@@ -1044,7 +1109,10 @@ fn begin_play_spawns_in_a_loop_and_the_aliases_bind() {
         .filter(|(e, _)| *e != owner)
         .filter(|(_, (_, t))| t.position.y == 9.0)
         .count();
-    assert!(moved >= 1, "the graph moved an entity it had spawned by handle");
+    assert!(
+        moved >= 1,
+        "the graph moved an entity it had spawned by handle"
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -1109,10 +1177,7 @@ fn a_timeline_drives_a_real_transform_from_a_curve_asset() {
         edge(4, "result", 5, "position"),
     ];
 
-    let mut h = Harness::with_curves(
-        &[("graphs/tl.graph", doc)],
-        &[("curves/t.curve", curve)],
-    );
+    let mut h = Harness::with_curves(&[("graphs/tl.graph", doc)], &[("curves/t.curve", curve)]);
     let e = h.spawn_runner("Hopper", "graphs/tl.graph");
 
     // 1. It compiled: the Timeline's `height` output only exists because the
@@ -1135,7 +1200,10 @@ fn a_timeline_drives_a_real_transform_from_a_curve_asset() {
     assert_eq!(h.position(e).z, 0.0);
     h.ticks(15);
     let mid = h.position(e).z;
-    assert!(mid > 0.0 && mid < 10.0, "mid-run Z should be climbing, got {mid}");
+    assert!(
+        mid > 0.0 && mid < 10.0,
+        "mid-run Z should be climbing, got {mid}"
+    );
 
     // 4. …and it comes to rest on the curve's last value rather than
     //    overshooting or snapping back.
@@ -1183,7 +1251,10 @@ fn breakpoints_stop_only_the_bound_instance() {
     let armed = [7u64];
     let bound = Some(watched.to_bits().get());
     let touched = arm_debug(&mut h.world, "graphs/t.graph", bound, &armed, None);
-    assert_eq!(touched, 2, "both instances are re-pointed every frame — one armed, one cleared");
+    assert_eq!(
+        touched, 2,
+        "both instances are re-pointed every frame — one armed, one cleared"
+    );
     h.ticks(3);
 
     let frozen = h.position(watched).x;
@@ -1212,7 +1283,13 @@ fn breakpoints_stop_only_the_bound_instance() {
     );
 
     // Step: exactly one firing, so the entity moves once and stops again.
-    arm_debug(&mut h.world, "graphs/t.graph", bound, &armed, Some(DebugRequest::Step));
+    arm_debug(
+        &mut h.world,
+        "graphs/t.graph",
+        bound,
+        &armed,
+        Some(DebugRequest::Step),
+    );
     h.ticks(1);
     let stepped = h.position(watched).x;
     assert!(stepped > frozen, "one step, one move");
@@ -1220,20 +1297,35 @@ fn breakpoints_stop_only_the_bound_instance() {
     assert_eq!(h.position(watched).x, stepped, "…and it re-parked");
 
     // Resume with the mark cleared: it runs on and stays running.
-    arm_debug(&mut h.world, "graphs/t.graph", bound, &[], Some(DebugRequest::Resume));
+    arm_debug(
+        &mut h.world,
+        "graphs/t.graph",
+        bound,
+        &[],
+        Some(DebugRequest::Resume),
+    );
     h.ticks(5);
     assert!(h.position(watched).x > stepped + 0.005, "resumed for good");
 
     // Stop ends that instance's session without an error: nothing halted, and
     // nothing moves it again.
-    arm_debug(&mut h.world, "graphs/t.graph", bound, &[], Some(DebugRequest::Stop));
+    arm_debug(
+        &mut h.world,
+        "graphs/t.graph",
+        bound,
+        &[],
+        Some(DebugRequest::Stop),
+    );
     h.ticks(2);
     let stopped_at = h.position(watched).x;
     h.ticks(10);
     assert_eq!(h.position(watched).x, stopped_at, "the session is over");
     let rt = h.world.get::<&GraphRuntime>(watched).unwrap();
     assert!(rt.instance.stopped);
-    assert!(rt.instance.halted.is_none(), "Stop is not a kill — no error framing");
+    assert!(
+        rt.instance.halted.is_none(),
+        "Stop is not a kill — no error framing"
+    );
 }
 
 /// 1. *BeginPlay spawns prefabs in a ForLoop* — three cubes, spaced by the
@@ -1272,8 +1364,16 @@ fn the_committed_demo_shows_all_three_behaviours() {
     // 1. One tick is enough: BeginPlay runs the whole loop in a single
     //    statement chain, and the spawns apply at the end of it.
     h.ticks(1);
-    let disabled = h.world.get::<&GraphRuntime>(owner).unwrap().disabled.clone();
-    assert!(disabled.is_none(), "the demo compiles and runs: {disabled:?}");
+    let disabled = h
+        .world
+        .get::<&GraphRuntime>(owner)
+        .unwrap()
+        .disabled
+        .clone();
+    assert!(
+        disabled.is_none(),
+        "the demo compiles and runs: {disabled:?}"
+    );
     let mut cubes: Vec<(hecs::Entity, glm::Vec3)> = h
         .world
         .query::<(&Name, &Transform)>()
@@ -1284,7 +1384,11 @@ fn the_committed_demo_shows_all_three_behaviours() {
     cubes.sort_by(|a, b| a.1.x.total_cmp(&b.1.x));
     assert_eq!(cubes.len(), 3, "three loop iterations, three prefabs");
     let xs: Vec<f32> = cubes.iter().map(|(_, p)| p.x).collect();
-    assert_eq!(xs, vec![1.5, 3.0, 4.5], "each spawn was placed by the loop index");
+    assert_eq!(
+        xs,
+        vec![1.5, 3.0, 4.5],
+        "each spawn was placed by the loop index"
+    );
     assert!(
         cubes.iter().all(|(_, p)| p.z == 0.0),
         "nothing has hopped yet"
@@ -1301,18 +1405,29 @@ fn the_committed_demo_shows_all_three_behaviours() {
     );
     // …meanwhile the Tick chain has been running all along.
     let walked = h.position(owner).x;
-    assert!(walked > 0.0, "Tick walks the graph's own entity, got {walked}");
+    assert!(
+        walked > 0.0,
+        "Tick walks the graph's own entity, got {walked}"
+    );
 
     // 3. Past the delay, the curve drives the last cube's Z — and only its Z.
     h.ticks(60);
     let hop = h.world.get::<&Transform>(hopper).unwrap().position;
-    assert!(hop.z > 0.0, "the Timeline is sampling the curve, z = {}", hop.z);
+    assert!(
+        hop.z > 0.0,
+        "the Timeline is sampling the curve, z = {}",
+        hop.z
+    );
     assert_eq!(hop.x, 4.5, "the hop replaces Z and leaves X alone");
     let others: Vec<f32> = cubes[..2]
         .iter()
         .map(|(e, _)| h.world.get::<&Transform>(*e).unwrap().position.z)
         .collect();
-    assert_eq!(others, vec![0.0, 0.0], "only the handle the graph kept moves");
+    assert_eq!(
+        others,
+        vec![0.0, 0.0],
+        "only the handle the graph kept moves"
+    );
     assert!(
         h.position(owner).x > walked,
         "both effect streams ran in the same ticks"
@@ -1341,7 +1456,10 @@ fn the_committed_demo_shows_all_three_behaviours() {
 ///   replaces only the axis it owns.
 #[test]
 fn write_runner_demo_if_requested() {
-    use node_graph_types::{serialize_graph, PinType, VarDecl, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN};
+    use node_graph_types::{
+        serialize_graph, PinType, VarDecl, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID,
+        VAR_VALUE_PIN,
+    };
 
     if std::env::var("UPDATE_GRAPH_FIXTURES").is_err() {
         return;
@@ -1370,11 +1488,19 @@ fn write_runner_demo_if_requested() {
     doc.nodes = vec![
         // --- BeginPlay: a counted loop that spawns, then a delayed line ----
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, ids::FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))]),
+        with(
+            1,
+            ids::FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))],
+        ),
         node(2, ids::INT_TO_STRING),
         with(3, ids::PRINT, &[]),
         with(4, ids::DELAY, &[("duration", PropValue::Float(1.0))]),
-        with(5, ids::PRINT, &[("text", PropValue::Str("one second later".into()))]),
+        with(
+            5,
+            ids::PRINT,
+            &[("text", PropValue::Str("one second later".into()))],
+        ),
         // --- Tick: walk along +X -------------------------------------------
         node(6, EVENT_TICK_TYPE_ID),
         node(7, ids::GET_POSITION),
@@ -1383,9 +1509,17 @@ fn write_runner_demo_if_requested() {
         node(10, ids::MAKE_VEC3),
         node(11, ids::SET_POSITION),
         // --- …and count the steps in a variable ----------------------------
-        with(12, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("steps".into()))]),
+        with(
+            12,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("steps".into()))],
+        ),
         with(13, ids::ADD_INT, &[("b", PropValue::Int(1))]),
-        with(14, VAR_SET_TYPE_ID, &[(VAR_PROP, PropValue::Str("steps".into()))]),
+        with(
+            14,
+            VAR_SET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("steps".into()))],
+        ),
         // --- …and a looping Timeline hopping the entity along Z (P8) --------
         with(
             15,
@@ -1408,14 +1542,22 @@ fn write_runner_demo_if_requested() {
             ids::SPAWN_PREFAB,
             &[("path", PropValue::Asset(DEMO_PREFAB.into()))],
         ),
-        with(21, VAR_SET_TYPE_ID, &[(VAR_PROP, PropValue::Str("hopper".into()))]),
+        with(
+            21,
+            VAR_SET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("hopper".into()))],
+        ),
         node(22, ids::INT_TO_FLOAT),
         // Spawn at (index * 1.5, 0, 0) so the three cubes stand apart.
         with(23, ids::MUL_FLOAT, &[("b", PropValue::Float(1.5))]),
         node(24, ids::MAKE_VEC3),
         // One Get feeding both ends of the Timeline chain: an output may fan
         // out, and two Gets of one variable would only invite them to drift.
-        with(25, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("hopper".into()))]),
+        with(
+            25,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("hopper".into()))],
+        ),
     ];
     doc.edges = vec![
         edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN),
@@ -1484,7 +1626,11 @@ fn write_runner_demo_if_requested() {
     drop(rt);
     assert!(h.position(e).x > 0.0, "the demo actually moves its entity");
     assert_eq!(
-        h.world.query::<&Name>().iter().filter(|(o, _)| *o != e).count(),
+        h.world
+            .query::<&Name>()
+            .iter()
+            .filter(|(o, _)| *o != e)
+            .count(),
         3,
         "three loop iterations, three spawned prefabs"
     );
@@ -1500,6 +1646,7 @@ fn write_runner_demo_if_requested() {
 
 /// BeginPlay → Print(`text`). The smallest graph whose entire observable
 /// output is a console line.
+#[cfg(feature = "editor")] // only the editor-gated breakpoint test uses it
 fn print_on_begin_play(text: &str) -> GraphDoc {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
@@ -1526,7 +1673,11 @@ fn a_print_reaches_the_log_sink_with_its_tag_fields() {
         .get::<GraphLogSink>()
         .expect("the plugin inserts one in editor builds");
     let entries: Vec<_> = sink.iter().collect();
-    assert_eq!(entries.len(), 1, "BeginPlay printed once, not once per tick");
+    assert_eq!(
+        entries.len(),
+        1,
+        "BeginPlay printed once, not once per tick"
+    );
     let e = entries[0];
     assert_eq!(e.level, node_graph_exec::LogLevel::Info);
     assert_eq!(e.graph, "graphs/t.graph");
@@ -1577,7 +1728,10 @@ fn input_entry_id(id: u64, action: &str) -> NodeInst {
     with(
         id,
         node_graph_types::EVENT_INPUT_ACTION_TYPE_ID,
-        &[(node_graph_types::EVENT_ACTION_PROP, PropValue::Str(action.into()))],
+        &[(
+            node_graph_types::EVENT_ACTION_PROP,
+            PropValue::Str(action.into()),
+        )],
     )
 }
 
@@ -1610,7 +1764,11 @@ fn an_input_action_entry_fires_once_per_press() {
 
     h.hold(KeyCode::Space);
     h.tick(1.0 / 60.0);
-    assert_eq!(h.position(e).x, 1.0, "the press fired the entry on that frame");
+    assert_eq!(
+        h.position(e).x,
+        1.0,
+        "the press fired the entry on that frame"
+    );
 
     h.ticks(5);
     assert_eq!(h.position(e).x, 1.0, "…and holding it fires nothing more");
@@ -1621,7 +1779,11 @@ fn an_input_action_entry_fires_once_per_press() {
 
     h.hold(KeyCode::Space);
     h.tick(1.0 / 60.0);
-    assert_eq!(h.position(e).x, 2.0, "a second press is a second activation");
+    assert_eq!(
+        h.position(e).x,
+        2.0,
+        "a second press is a second activation"
+    );
 }
 
 /// A different action does not deliver. Names match exactly: the entry's
@@ -1669,11 +1831,18 @@ fn an_input_action_drains_before_a_custom_event_queued_for_the_same_tick() {
         // BeginPlay emits "ping", which lands in the queue for the *next*
         // tick — the tick the press is delivered on.
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, ids::EMIT_EVENT, &[("name", PropValue::Str("ping".into()))]),
+        with(
+            1,
+            ids::EMIT_EVENT,
+            &[("name", PropValue::Str("ping".into()))],
+        ),
         with(
             2,
             node_graph_types::EVENT_CUSTOM_TYPE_ID,
-            &[(node_graph_types::EVENT_NAME_PROP, PropValue::Str("ping".into()))],
+            &[(
+                node_graph_types::EVENT_NAME_PROP,
+                PropValue::Str("ping".into()),
+            )],
         ),
         with(3, ids::PRINT, &[("text", PropValue::Str("custom".into()))]),
         input_entry_id(4, "fire"),
@@ -1718,7 +1887,11 @@ fn a_plan_with_no_input_entries_contributes_nothing_to_the_input_scan() {
     h.ticks(2);
 
     assert!(
-        h.world.get::<&GraphRuntime>(e).unwrap().input_actions.is_empty(),
+        h.world
+            .get::<&GraphRuntime>(e)
+            .unwrap()
+            .input_actions
+            .is_empty(),
         "nothing in this plan listens for an action"
     );
     assert!(
@@ -1730,7 +1903,11 @@ fn a_plan_with_no_input_entries_contributes_nothing_to_the_input_scan() {
     let before = h.position(e).x;
     h.hold(KeyCode::Space);
     h.ticks(3);
-    assert_eq!(h.position(e).x, before + 3.0, "three ticks, three nudges, no more");
+    assert_eq!(
+        h.position(e).x,
+        before + 3.0,
+        "three ticks, three nudges, no more"
+    );
 
     // The same probe with a listening instance is non-empty — the guard is a
     // real condition, not a constant.
@@ -1738,7 +1915,9 @@ fn a_plan_with_no_input_entries_contributes_nothing_to_the_input_scan() {
     h.spawn_runner("Shooter", "graphs/t.graph");
     h.ticks(1);
     assert_eq!(
-        wanted_input_actions(&h.world).into_iter().collect::<Vec<_>>(),
+        wanted_input_actions(&h.world)
+            .into_iter()
+            .collect::<Vec<_>>(),
         vec!["fire".to_string()]
     );
 }

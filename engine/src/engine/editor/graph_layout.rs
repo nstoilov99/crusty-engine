@@ -37,7 +37,10 @@ pub struct LayoutSpacing {
 
 impl Default for LayoutSpacing {
     fn default() -> Self {
-        Self { column_gap: 48.0, row_gap: 24.0 }
+        Self {
+            column_gap: 48.0,
+            row_gap: 24.0,
+        }
     }
 }
 
@@ -176,10 +179,7 @@ pub fn layout(
 
     let mut out = BTreeMap::new();
     for (col, members) in &order {
-        let widest = members
-            .iter()
-            .map(|id| size[id].0)
-            .fold(0.0f32, f32::max);
+        let widest = members.iter().map(|id| size[id].0).fold(0.0f32, f32::max);
         let mut y = origin[1] + (tallest - heights[col]) * 0.5;
         for id in members {
             out.insert(*id, [col_x, y]);
@@ -195,7 +195,11 @@ mod tests {
     use super::*;
 
     fn n(id: u64) -> LayoutNode {
-        LayoutNode { id, width: 100.0, height: 40.0 }
+        LayoutNode {
+            id,
+            width: 100.0,
+            height: 40.0,
+        }
     }
     fn e(from: u64, to: u64) -> LayoutEdge {
         LayoutEdge { from, to }
@@ -233,12 +237,20 @@ mod tests {
     #[test]
     fn layout_places_columns_left_to_right_without_overlap() {
         let nodes = [n(0), n(1), n(2)];
-        let pos = layout(&nodes, &[e(0, 1), e(1, 2)], [0.0, 0.0], LayoutSpacing::default());
+        let pos = layout(
+            &nodes,
+            &[e(0, 1), e(1, 2)],
+            [0.0, 0.0],
+            LayoutSpacing::default(),
+        );
         assert_eq!(pos.len(), 3);
         assert!(pos[&0][0] < pos[&1][0], "rank order is left to right");
         assert!(pos[&1][0] < pos[&2][0]);
         // Column pitch is the widest member plus the gap.
-        assert_eq!(pos[&1][0] - pos[&0][0], 100.0 + LayoutSpacing::default().column_gap);
+        assert_eq!(
+            pos[&1][0] - pos[&0][0],
+            100.0 + LayoutSpacing::default().column_gap
+        );
         // A single-node column is a single row.
         assert_eq!(pos[&0][1], pos[&1][1]);
     }
@@ -287,7 +299,12 @@ mod tests {
     fn origin_offsets_the_whole_result() {
         let nodes = [n(0), n(1)];
         let a = layout(&nodes, &[e(0, 1)], [0.0, 0.0], LayoutSpacing::default());
-        let b = layout(&nodes, &[e(0, 1)], [500.0, -200.0], LayoutSpacing::default());
+        let b = layout(
+            &nodes,
+            &[e(0, 1)],
+            [500.0, -200.0],
+            LayoutSpacing::default(),
+        );
         for id in [0u64, 1] {
             assert_eq!(b[&id][0] - a[&id][0], 500.0);
             assert_eq!(b[&id][1] - a[&id][1], -200.0);

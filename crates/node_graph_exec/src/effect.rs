@@ -44,13 +44,25 @@ impl Default for TransformSnapshot {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Effect {
     /// Console + on-screen print, tagged with the graph by the runner.
-    Log { level: LogLevel, text: String },
+    Log {
+        level: LogLevel,
+        text: String,
+    },
     /// Non-structural: the runner writes these directly, having declared
     /// `writes::<Transform>()`.
-    SetPosition { entity: EntityRef, position: [f32; 3] },
+    SetPosition {
+        entity: EntityRef,
+        position: [f32; 3],
+    },
     /// Quaternion, `xyzw`.
-    SetRotation { entity: EntityRef, rotation: [f32; 4] },
-    SetScale { entity: EntityRef, scale: [f32; 3] },
+    SetRotation {
+        entity: EntityRef,
+        rotation: [f32; 4],
+    },
+    SetScale {
+        entity: EntityRef,
+        scale: [f32; 3],
+    },
     /// Structural: goes through the command buffer. `alias` is the
     /// instance-local id the graph already holds — the runner binds it to the
     /// real entity once the spawn runs, and the instance lists it in
@@ -61,12 +73,17 @@ pub enum Effect {
         transform: TransformSnapshot,
     },
     /// Structural.
-    DestroyEntity { entity: EntityRef },
+    DestroyEntity {
+        entity: EntityRef,
+    },
     /// A custom event. **The core has already queued this on the emitting
     /// instance** (same-entity scope, resolved question 3); the effect is in
     /// the stream so the console and the P7 trace can see it. A runner must
     /// not deliver it a second time.
-    EmitEvent { name: String, payload: Vec<(String, Value)> },
+    EmitEvent {
+        name: String,
+        payload: Vec<(String, Value)>,
+    },
 }
 
 /// Where emitted effects go. `Vec<Effect>` is the implementation the tests

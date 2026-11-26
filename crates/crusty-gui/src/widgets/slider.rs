@@ -58,11 +58,10 @@ impl<'a> Slider<'a> {
             ui.ctx_mut().set_cursor_icon(CursorIcon::Grab);
         }
 
-        if pressed
-            && let Some(p) = ui.ctx().input.pointer_pos {
-                let t = ((p.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
-                *self.value = min + t * span;
-            }
+        if pressed && let Some(p) = ui.ctx().input.pointer_pos {
+            let t = ((p.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+            *self.value = min + t * span;
+        }
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;
@@ -87,10 +86,18 @@ impl<'a> Slider<'a> {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
-        mem.press_anim =
-            approach_half_life(mem.press_anim, target_press, dt, style.motion.press_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = approach_half_life(
+            mem.press_anim,
+            target_press,
+            dt,
+            style.motion.press_half_life,
+        );
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
@@ -101,15 +108,11 @@ impl<'a> Slider<'a> {
             Vec2::new(rect.width(), track_h),
         );
         // Track reads inset: darkest surface, no border, no shadow.
-        let track_shape = RectShape::fill(
-            track,
-            Rounding::same(track_h * 0.5),
-            style.palette.input,
-        );
+        let track_shape =
+            RectShape::fill(track, Rounding::same(track_h * 0.5), style.palette.input);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
-        let filled =
-            Rect::from_min_size(track.min, Vec2::new(track.width() * t, track_h));
+        let filled = Rect::from_min_size(track.min, Vec2::new(track.width() * t, track_h));
         if filled.width() > 0.0 {
             let filled_shape = RectShape::fill(
                 filled,
@@ -123,8 +126,7 @@ impl<'a> Slider<'a> {
         let handle_radius = 6.0 + hover_anim * 1.0;
         let handle_x = rect.min.x + rect.width() * t;
         let handle_center = Pos2::new(handle_x, rect.min.y + rect.height() * 0.5);
-        let handle_rect =
-            Rect::from_center_size(handle_center, Vec2::splat(handle_radius * 2.0));
+        let handle_rect = Rect::from_center_size(handle_center, Vec2::splat(handle_radius * 2.0));
         let handle_fill = lerp_color(style.palette.text_mono, Color::WHITE, hover_anim);
         let handle_stroke = if focused {
             style.palette.focus_ring

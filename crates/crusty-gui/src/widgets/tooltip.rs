@@ -54,7 +54,8 @@ impl Tooltip {
         let elapsed = ui.ctx().time() - ui.ctx().tooltip.hover_start;
         if committed != Some(anchor) {
             // Not yet the winner — arbitration lands next frame.
-            ui.ctx_mut().request_repaint_after(Duration::from_millis(16));
+            ui.ctx_mut()
+                .request_repaint_after(Duration::from_millis(16));
             return;
         }
         if elapsed < DELAY {
@@ -111,7 +112,10 @@ impl Tooltip {
             RectShape::fill(
                 tip_rect,
                 style.rounding.small,
-                style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                style
+                    .palette
+                    .elevated
+                    .with_alpha(style.palette.popover_alpha),
             )
             .with_stroke(style.metrics.border, style.palette.stroke_strong),
         ));

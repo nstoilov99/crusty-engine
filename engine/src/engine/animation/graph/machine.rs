@@ -14,8 +14,8 @@ use crate::engine::animation::sampling;
 use crate::engine::assets::model_loader::RawAnimationClip;
 
 use super::plan::{
-    AnimGraphPlan, CmpOp, MathOp, ParamDecl, PlanClip, PlanSlot, PlanSpace, PlanTree,
-    PoseSource, RuleExpr, TransitionFrom,
+    AnimGraphPlan, CmpOp, MathOp, ParamDecl, PlanClip, PlanSlot, PlanSpace, PlanTree, PoseSource,
+    RuleExpr, TransitionFrom,
 };
 
 // ---------------------------------------------------------------------------
@@ -47,10 +47,7 @@ pub struct AnimParams {
 impl AnimParams {
     pub fn from_decls(decls: &[ParamDecl]) -> Self {
         Self {
-            values: decls
-                .iter()
-                .map(|d| (d.slug.clone(), d.default))
-                .collect(),
+            values: decls.iter().map(|d| (d.slug.clone(), d.default)).collect(),
         }
     }
 
@@ -359,12 +356,13 @@ impl AnimMachine {
     /// exponential approach over the space's smoothing time, a snap when
     /// smoothing is off or the state has no memory yet (just entered).
     fn advance_input(&mut self, state: usize, plan: &AnimGraphPlan, params: &AnimParams, dt: f32) {
-        let Some(PoseSource::Tree(PlanTree::Space(sp))) =
-            plan.states.get(state).map(|s| &s.source)
+        let Some(PoseSource::Tree(PlanTree::Space(sp))) = plan.states.get(state).map(|s| &s.source)
         else {
             return;
         };
-        let Some(slot) = self.inputs.get_mut(state) else { return };
+        let Some(slot) = self.inputs.get_mut(state) else {
+            return;
+        };
         let target = sp.target(params);
         *slot = Some(match *slot {
             Some(mut x) if sp.smoothing > 0.0 => {
@@ -438,7 +436,7 @@ impl AnimMachine {
                 }
             }
             // Nothing fires mid-fade, so this never replaces a running fade.
-            self.fade = (t.duration > 0.0).then(|| Crossfade {
+            self.fade = (t.duration > 0.0).then_some(Crossfade {
                 from: current,
                 from_time: self.time,
                 elapsed: 0.0,
@@ -509,8 +507,12 @@ impl AnimMachine {
     /// Tick the child machine of `state`, if it has one, on the state's
     /// speed-scaled clock.
     fn tick_sub(&mut self, state: usize, plan: &AnimGraphPlan, params: &mut AnimParams, dt: f32) {
-        let Some(st) = plan.states.get(state) else { return };
-        let PoseSource::Machine { plan: child, .. } = &st.source else { return };
+        let Some(st) = plan.states.get(state) else {
+            return;
+        };
+        let PoseSource::Machine { plan: child, .. } = &st.source else {
+            return;
+        };
         if let Some(Some(sub)) = self.subs.get_mut(state) {
             sub.tick(child, params, dt * st.speed);
         }
@@ -681,9 +683,10 @@ fn sample_tree<'a, F>(
         PlanTree::Space(sp) => {
             return sample_space(sp, sp.target(params), time, clip_for, pose, scratch, level);
         }
-        PlanTree::Blend1D { param, children } => {
-            (children, pick_1d(children, params.get_float(param).unwrap_or(0.0)))
-        }
+        PlanTree::Blend1D { param, children } => (
+            children,
+            pick_1d(children, params.get_float(param).unwrap_or(0.0)),
+        ),
         PlanTree::Blend2D {
             param_x,
             param_y,
@@ -811,15 +814,15 @@ fn sample_state<'a, F>(
 ) where
     F: Fn(&PlanClip) -> Option<&'a RawAnimationClip>,
 {
-    let Some(st) = plan.states.get(state) else { return };
+    let Some(st) = plan.states.get(state) else {
+        return;
+    };
     match &st.source {
         PoseSource::Tree(PlanTree::Space(sp)) => {
             let input = machine.space_input(state, plan, params);
             sample_space(sp, input, time, clip_for, pose, scratch, level)
         }
-        PoseSource::Tree(tree) => {
-            sample_tree(tree, time, params, clip_for, pose, scratch, level)
-        }
+        PoseSource::Tree(tree) => sample_tree(tree, time, params, clip_for, pose, scratch, level),
         PoseSource::Machine { plan: child, .. } => {
             if let Some(sub) = machine.sub(state) {
                 eval_machine(sub, child, params, clip_for, pose, scratch, level);
@@ -979,7 +982,9 @@ impl PlayOnceSlot {
             if params.trigger_set(&slot.trigger) == Some(true) {
                 // Arming refused missing clips; a race just leaves the
                 // trigger buffered for the next tick.
-                let Some(clip) = clip_for(&slot.clip) else { continue };
+                let Some(clip) = clip_for(&slot.clip) else {
+                    continue;
+                };
                 params.consume_trigger(&slot.trigger);
                 self.playing = Some(SlotPlayback {
                     slot: i,
@@ -1025,8 +1030,12 @@ impl PlayOnceSlot {
             return;
         }
         let Some(p) = &self.playing else { return };
-        let Some(slot) = plan.slots.get(p.slot) else { return };
-        let Some(clip) = clip_for(&slot.clip) else { return };
+        let Some(slot) = plan.slots.get(p.slot) else {
+            return;
+        };
+        let Some(clip) = clip_for(&slot.clip) else {
+            return;
+        };
         // The overlay starts from the same pre-sample transforms as the base
         // — the agreement every blend in this module keeps.
         let mut buf = scratch.take(0);
@@ -1127,9 +1136,10 @@ fn tree_events<'a, F>(
         PlanTree::Space(sp) => {
             return space_events(sp, sp.target(params), t0, t1, weight, clip_for, out);
         }
-        PlanTree::Blend1D { param, children } => {
-            (children, pick_1d(children, params.get_float(param).unwrap_or(0.0)))
-        }
+        PlanTree::Blend1D { param, children } => (
+            children,
+            pick_1d(children, params.get_float(param).unwrap_or(0.0)),
+        ),
         PlanTree::Blend2D {
             param_x,
             param_y,
@@ -1218,7 +1228,11 @@ fn space_events<'a, F>(
             None => (d, t0 * rate_i, t1 * rate_i),
         };
         for m in &clip.events {
-            let at = if sync.is_some() { m.time_seconds / d } else { m.time_seconds };
+            let at = if sync.is_some() {
+                m.time_seconds / d
+            } else {
+                m.time_seconds
+            };
             crossings(at, period, s0, s1, || {
                 out.push(AnimEventFire {
                     name: m.name.clone(),
@@ -1259,9 +1273,7 @@ fn machine_events<'a, F>(
                 let input = machine.space_input(state, plan, params);
                 space_events(sp, input, t0, t1, w, clip_for, out)
             }
-            Some(PoseSource::Tree(tree)) => {
-                tree_events(tree, t0, t1, w, params, clip_for, out)
-            }
+            Some(PoseSource::Tree(tree)) => tree_events(tree, t0, t1, w, params, clip_for, out),
             Some(PoseSource::Machine { plan: child, .. }) => {
                 if let Some(sub) = machine.sub(state) {
                     machine_events(sub, child, params, w, clip_for, out);

@@ -14,8 +14,7 @@ use std::sync::Arc;
 
 use ahash::AHasher;
 use cosmic_text::{
-    Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, SwashCache,
-    SwashContent,
+    Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, SwashCache, SwashContent,
 };
 use vulkano::device::Device;
 use vulkano::memory::allocator::StandardMemoryAllocator;
@@ -76,8 +75,7 @@ pub struct TextRenderer {
 
 impl TextRenderer {
     pub fn new(device: Arc<Device>, atlas_extent: [u32; 2]) -> Self {
-        let memory_allocator =
-            Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
         let font_system = FontSystem::new();
         let swash_cache = SwashCache::new();
         let atlas = GlyphAtlas::new(memory_allocator, device, atlas_extent);
@@ -214,7 +212,15 @@ impl TextRenderer {
         color: Color,
         max_width: Option<f32>,
     ) {
-        self.add_text_family(paint, text, size_px, position, color, max_width, FontFamily::Ui)
+        self.add_text_family(
+            paint,
+            text,
+            size_px,
+            position,
+            color,
+            max_width,
+            FontFamily::Ui,
+        )
     }
 
     /// [`add_text`](Self::add_text) with an explicit font family.
@@ -301,10 +307,11 @@ impl TextRenderer {
         // the RGBA page (Phase 10).
         let is_color = matches!(image.content, SwashContent::Color);
         let atlas_rect = match image.content {
-            SwashContent::Mask => {
-                self.atlas
-                    .insert(image.placement.width, image.placement.height, image.data.clone())
-            }
+            SwashContent::Mask => self.atlas.insert(
+                image.placement.width,
+                image.placement.height,
+                image.data.clone(),
+            ),
             SwashContent::SubpixelMask => {
                 // SubpixelMask stores 3 sub-channels per pixel; collapse to
                 // luminance by averaging.

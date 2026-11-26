@@ -12,12 +12,21 @@
 #[macro_use]
 mod common;
 
-
 use crusty_gui::math::{Color, Pos2, Rect, Rounding, Vec2};
 use crusty_gui::paint::{PaintCmd, RectShape};
 
-const RED: Color = Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
-const BLUE: Color = Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
+const RED: Color = Color {
+    r: 1.0,
+    g: 0.0,
+    b: 0.0,
+    a: 1.0,
+};
+const BLUE: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 1.0,
+    a: 1.0,
+};
 
 /// An opaque red field with `overlay` drawn on top of its middle.
 fn over_red(overlay: PaintCmd) -> Vec<PaintCmd> {
@@ -115,5 +124,8 @@ fn opacity_scales_the_way_the_number_says() {
         );
         last = r;
     }
-    assert!(last < 20, "at alpha 1.0 the red is fully covered, got {last}");
+    assert!(
+        last < 20,
+        "at alpha 1.0 the red is fully covered, got {last}"
+    );
 }

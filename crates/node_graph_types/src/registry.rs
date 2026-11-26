@@ -538,10 +538,8 @@ mod tests {
             category: "Math".into(),
             version: 1,
             inputs: vec![
-                PinDescriptor::new("a", "A", PinType::Float)
-                    .with_default(PropValue::Float(0.0)),
-                PinDescriptor::new("b", "B", PinType::Float)
-                    .with_default(PropValue::Float(0.0)),
+                PinDescriptor::new("a", "A", PinType::Float).with_default(PropValue::Float(0.0)),
+                PinDescriptor::new("b", "B", PinType::Float).with_default(PropValue::Float(0.0)),
             ],
             outputs: vec![PinDescriptor::new("sum", "Sum", PinType::Float)],
             pure: true,
@@ -591,7 +589,9 @@ mod tests {
 
         let mut dup_pin = pure_add();
         dup_pin.id = "bad_pins".into();
-        dup_pin.inputs.push(PinDescriptor::new("a", "A again", PinType::Float));
+        dup_pin
+            .inputs
+            .push(PinDescriptor::new("a", "A again", PinType::Float));
         assert!(reg.register(dup_pin).is_err());
 
         // Every reserved slug is refused: those types take their pins from

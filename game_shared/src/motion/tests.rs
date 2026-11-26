@@ -42,18 +42,12 @@ fn quad(c: [[f32; 3]; 4], flags: u32) -> [Tri; 2] {
 
 /// Horizontal floor at height `z` (normal +Z).
 fn floor(x0: f32, y0: f32, x1: f32, y1: f32, z: f32, flags: u32) -> [Tri; 2] {
-    quad(
-        [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]],
-        flags,
-    )
+    quad([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], flags)
 }
 
 /// Vertical wall in the YZ plane at `x`, facing −X.
 fn wall_neg_x(x: f32, y0: f32, y1: f32, z0: f32, z1: f32, flags: u32) -> [Tri; 2] {
-    quad(
-        [[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0]],
-        flags,
-    )
+    quad([[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0]], flags)
 }
 
 /// Ramp rising along +X from `(x0, z0)` to `(x1, z1)`.
@@ -77,7 +71,13 @@ fn walk_x(sprint: bool) -> MoveIntent {
     }
 }
 
-fn run(cfg: &MotionConfig, state: MotionState, intent: &MoveIntent, n: usize, store: &ChunkStore) -> MotionState {
+fn run(
+    cfg: &MotionConfig,
+    state: MotionState,
+    intent: &MoveIntent,
+    n: usize,
+    store: &ChunkStore,
+) -> MotionState {
     (0..n).fold(state, |s, _| step(cfg, &s, intent, store))
 }
 
@@ -95,7 +95,11 @@ fn falls_and_lands() {
     state.grounded = false;
     state = run(&cfg, state, &MoveIntent::IDLE, 40, &store);
     assert!(state.grounded);
-    assert!((feet(&cfg, &state)).abs() < 0.05, "feet at {}", feet(&cfg, &state));
+    assert!(
+        (feet(&cfg, &state)).abs() < 0.05,
+        "feet at {}",
+        feet(&cfg, &state)
+    );
     assert_eq!(state.vel.z, 0.0);
 }
 
@@ -188,8 +192,16 @@ fn slides_along_wall() {
         ..MoveIntent::IDLE
     };
     let state = run(&cfg, start, &intent, 40, &store);
-    assert!(state.pos.x < 33.0 - cfg.capsule_radius + 0.05, "clipped into wall: x {}", state.pos.x);
-    assert!(state.pos.y > start.pos.y + 3.0, "did not slide: y {}", state.pos.y);
+    assert!(
+        state.pos.x < 33.0 - cfg.capsule_radius + 0.05,
+        "clipped into wall: x {}",
+        state.pos.x
+    );
+    assert!(
+        state.pos.y > start.pos.y + 3.0,
+        "did not slide: y {}",
+        state.pos.y
+    );
     assert!(state.grounded);
 }
 
@@ -204,7 +216,11 @@ fn climbs_walkable_slope() {
     let start = MotionState::standing_at(&cfg, START);
     let state = run(&cfg, start, &walk_x(false), 40, &store);
     assert!(state.grounded);
-    assert!(state.pos.z > start.pos.z + 1.0, "did not climb: z {}", state.pos.z);
+    assert!(
+        state.pos.z > start.pos.z + 1.0,
+        "did not climb: z {}",
+        state.pos.z
+    );
 }
 
 #[test]
@@ -217,7 +233,11 @@ fn steep_slope_is_not_climbable() {
     let cfg = MotionConfig::default();
     let start = MotionState::standing_at(&cfg, START);
     let state = run(&cfg, start, &walk_x(false), 40, &store);
-    assert!(feet(&cfg, &state) < 1.0, "climbed steep slope to {}", feet(&cfg, &state));
+    assert!(
+        feet(&cfg, &state) < 1.0,
+        "climbed steep slope to {}",
+        feet(&cfg, &state)
+    );
 }
 
 #[test]
@@ -229,7 +249,11 @@ fn walkable_flag_overrides_slope() {
     let cfg = MotionConfig::default();
     let start = MotionState::standing_at(&cfg, START);
     let state = run(&cfg, start, &walk_x(false), 40, &store);
-    assert!(state.pos.z > start.pos.z + 0.5, "flagged slope not climbed: z {}", state.pos.z);
+    assert!(
+        state.pos.z > start.pos.z + 0.5,
+        "flagged slope not climbed: z {}",
+        state.pos.z
+    );
 }
 
 #[test]
@@ -255,7 +279,11 @@ fn steps_up_small_ledge() {
     let state = run(&cfg, start, &walk_x(false), 30, &store);
     assert!(state.pos.x > 34.0, "did not pass ledge: x {}", state.pos.x);
     assert!(state.grounded);
-    assert!((feet(&cfg, &state) - 0.3).abs() < 0.05, "feet at {}", feet(&cfg, &state));
+    assert!(
+        (feet(&cfg, &state) - 0.3).abs() < 0.05,
+        "feet at {}",
+        feet(&cfg, &state)
+    );
 }
 
 #[test]
@@ -283,7 +311,11 @@ fn snaps_down_small_drop() {
         assert!(state.grounded, "lost ground at x {}", state.pos.x);
     }
     assert!(state.pos.x > 34.0);
-    assert!((feet(&cfg, &state) + 0.2).abs() < 0.05, "feet at {}", feet(&cfg, &state));
+    assert!(
+        (feet(&cfg, &state) + 0.2).abs() < 0.05,
+        "feet at {}",
+        feet(&cfg, &state)
+    );
 }
 
 #[test]
@@ -293,9 +325,16 @@ fn depenetrates_bounded() {
     let mut state = MotionState::standing_at(&cfg, START);
     state.pos.z -= 0.12; // buried 0.12 m
     let first = step(&cfg, &state, &MoveIntent::IDLE, &store);
-    assert!(first.pos.z - state.pos.z <= 2.0 * cfg.skin + 1e-4, "push not bounded");
+    assert!(
+        first.pos.z - state.pos.z <= 2.0 * cfg.skin + 1e-4,
+        "push not bounded"
+    );
     state = run(&cfg, first, &MoveIntent::IDLE, 10, &store);
-    assert!(feet(&cfg, &state) > -0.02, "still buried: feet {}", feet(&cfg, &state));
+    assert!(
+        feet(&cfg, &state) > -0.02,
+        "still buried: feet {}",
+        feet(&cfg, &state)
+    );
     assert!(state.grounded);
 }
 
@@ -505,7 +544,10 @@ fn walk(dir: [f32; 2], sprint: bool, jump: bool) -> MoveIntent {
     }
 }
 
-fn for_steps(n: usize, intent: MoveIntent) -> impl FnMut(usize, &MotionState) -> Option<MoveIntent> {
+fn for_steps(
+    n: usize,
+    intent: MoveIntent,
+) -> impl FnMut(usize, &MotionState) -> Option<MoveIntent> {
     move |i, _| (i < n).then_some(intent)
 }
 
@@ -516,8 +558,9 @@ fn for_steps(n: usize, intent: MoveIntent) -> impl FnMut(usize, &MotionState) ->
 fn parity_battery_replays() {
     let store = greybox_store();
     for (id, _) in trace::EMBEDDED_TRACES {
-        let t = trace::load_embedded(id)
-            .unwrap_or_else(|e| panic!("{e}; run `cargo test -p game_shared record_parity_traces -- --ignored`"));
+        let t = trace::load_embedded(id).unwrap_or_else(|e| {
+            panic!("{e}; run `cargo test -p game_shared record_parity_traces -- --ignored`")
+        });
         let report = t
             .replay(&store)
             .unwrap_or_else(|e| panic!("trace {id:?} failed: {e}"));
@@ -536,7 +579,9 @@ fn randomized_intent_fuzz() {
     for seed in [1u64, 0xDEAD_BEEF, 0x00C0_FFEE] {
         let run = |mut rng: u64| {
             let mut next = move || {
-                rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                rng = rng
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
                 (rng >> 33) as u32
             };
             // Start mid-gym so the stream wanders through real stations.
@@ -545,8 +590,14 @@ fn randomized_intent_fuzz() {
             for i in 0..1500 {
                 if i % 7 == 0 {
                     let dirs: [[f32; 2]; 8] = [
-                        [1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0],
-                        [1.0, 1.0], [1.0, -1.0], [-1.0, 1.0], [-1.0, -1.0],
+                        [1.0, 0.0],
+                        [-1.0, 0.0],
+                        [0.0, 1.0],
+                        [0.0, -1.0],
+                        [1.0, 1.0],
+                        [1.0, -1.0],
+                        [-1.0, 1.0],
+                        [-1.0, -1.0],
                     ];
                     let r = next();
                     intent = walk(dirs[(r % 8) as usize], r % 3 == 0, r % 11 == 0);
@@ -554,8 +605,15 @@ fn randomized_intent_fuzz() {
                     intent.jump = false;
                 }
                 state = step(&cfg, &state, &intent, &store);
-                assert!(state.pos.is_finite() && state.vel.is_finite(), "seed {seed} step {i}");
-                assert!(state.pos.z > -50.0 && state.pos.z < 100.0, "seed {seed} step {i}: z {}", state.pos.z);
+                assert!(
+                    state.pos.is_finite() && state.vel.is_finite(),
+                    "seed {seed} step {i}"
+                );
+                assert!(
+                    state.pos.z > -50.0 && state.pos.z < 100.0,
+                    "seed {seed} step {i}: z {}",
+                    state.pos.z
+                );
                 let h = Vec3::new(state.vel.x, state.vel.y, 0.0).length();
                 assert!(h <= max_speed, "seed {seed} step {i}: speed {h}");
             }
@@ -582,24 +640,37 @@ fn record_parity_traces() {
     };
 
     // Slope up/down: 30° ramp (foot x=88, y=96); up, pause, back down.
-    let t = build_trace("slope_up_down", &store, standing_on(&store, &cfg, 85.0, 96.0), |i, _| {
-        match i {
+    let t = build_trace(
+        "slope_up_down",
+        &store,
+        standing_on(&store, &cfg, 85.0, 96.0),
+        |i, _| match i {
             0..=24 => Some(walk([1.0, 0.0], false, false)),
             25..=29 => Some(MoveIntent::IDLE),
             30..=59 => Some(walk([-1.0, 0.0], false, false)),
             _ => None,
-        }
-    });
+        },
+    );
     let peak = t.expected.iter().map(|p| p[2]).fold(f32::MIN, f32::max);
-    assert!(peak > rest_z(9.0) + 1.0, "never climbed the 30° ramp (peak {peak})");
+    assert!(
+        peak > rest_z(9.0) + 1.0,
+        "never climbed the 30° ramp (peak {peak})"
+    );
     save(&t);
 
     // Over-limit slope: 60° ramp (foot x=168) refuses to be climbed.
-    let t = build_trace("slope_blocked", &store, standing_on(&store, &cfg, 165.0, 96.0), |i, _| {
-        (i < 40).then_some(walk([1.0, 0.0], false, false))
-    });
+    let t = build_trace(
+        "slope_blocked",
+        &store,
+        standing_on(&store, &cfg, 165.0, 96.0),
+        |i, _| (i < 40).then_some(walk([1.0, 0.0], false, false)),
+    );
     let end = t.expected.last().unwrap();
-    assert!(end[2] < rest_z(9.0) + 0.4, "climbed a 60° slope (z {})", end[2]);
+    assert!(
+        end[2] < rest_z(9.0) + 0.4,
+        "climbed a 60° slope (z {})",
+        end[2]
+    );
     save(&t);
 
     // Step-up: 0.3 m riser array (x0=108, y=72): up 5, across, down 5.
@@ -608,89 +679,151 @@ fn record_parity_traces() {
         move |i, s| f(i, s)
     });
     let peak = t.expected.iter().map(|p| p[2]).fold(f32::MIN, f32::max);
-    assert!(peak > rest_z(9.0) + 1.3, "never reached the step-array top (peak {peak})");
-    assert!(t.expected.last().unwrap()[0] > 119.0, "did not cross the step array");
+    assert!(
+        peak > rest_z(9.0) + 1.3,
+        "never reached the step-array top (peak {peak})"
+    );
+    assert!(
+        t.expected.last().unwrap()[0] > 119.0,
+        "did not cross the step array"
+    );
     save(&t);
 
     // Over-limit riser: 0.6 m (x0=168) blocks at the first face (x=168).
     // (The 0.45 array is climbable: the capsule's rounded bottom rolls over
     // risers up to roughly `step_height + radius` — a property both sides
     // share, so parity holds; the trace pins the genuinely-blocking case.)
-    let t = build_trace("step_blocked", &store, standing_on(&store, &cfg, 166.0, 72.0), {
-        let mut f = for_steps(30, walk([1.0, 0.0], false, false));
-        move |i, s| f(i, s)
-    });
+    let t = build_trace(
+        "step_blocked",
+        &store,
+        standing_on(&store, &cfg, 166.0, 72.0),
+        {
+            let mut f = for_steps(30, walk([1.0, 0.0], false, false));
+            move |i, s| f(i, s)
+        },
+    );
     let end = t.expected.last().unwrap();
-    assert!(end[0] < 167.8 && end[2] < rest_z(9.0) + 0.1, "stepped a 0.6 riser ({end:?})");
+    assert!(
+        end[0] < 167.8 && end[2] < rest_z(9.0) + 0.1,
+        "stepped a 0.6 riser ({end:?})"
+    );
     save(&t);
 
     // Jump arc over the 1 m and 2 m gap-gauntlet gaps (platform tops z=10,
     // east edges x=92 and 97); jump when the live state nears an edge.
-    let t = build_trace("jump_gap", &store, standing_on(&store, &cfg, 89.5, 48.0), |i, s| {
-        if i >= 120 || (s.pos.x > 100.5 && s.grounded) {
-            return None;
-        }
-        let near_edge = [92.0f32, 97.0]
-            .iter()
-            .any(|e| s.pos.x < *e && e - s.pos.x < 0.45);
-        Some(walk([1.0, 0.0], false, s.grounded && near_edge))
-    });
+    let t = build_trace(
+        "jump_gap",
+        &store,
+        standing_on(&store, &cfg, 89.5, 48.0),
+        |i, s| {
+            if i >= 120 || (s.pos.x > 100.5 && s.grounded) {
+                return None;
+            }
+            let near_edge = [92.0f32, 97.0]
+                .iter()
+                .any(|e| s.pos.x < *e && e - s.pos.x < 0.45);
+            Some(walk([1.0, 0.0], false, s.grounded && near_edge))
+        },
+    );
     let end = t.expected.last().unwrap();
-    assert!(end[0] > 99.0 && (end[2] - rest_z(10.0)).abs() < 0.1, "missed a gap landing ({end:?})");
+    assert!(
+        end[0] > 99.0 && (end[2] - rest_z(10.0)).abs() < 0.1,
+        "missed a gap landing ({end:?})"
+    );
     save(&t);
 
     // Fall + land: walk off the tower top floor (z=18) onto the drop pad
     // (top z=9.25) — an ~8.75 m fall.
-    let t = build_trace("fall_land", &store, standing_on(&store, &cfg, 96.0, 16.0), |i, _| {
-        match i {
+    let t = build_trace(
+        "fall_land",
+        &store,
+        standing_on(&store, &cfg, 96.0, 16.0),
+        |i, _| match i {
             0..=37 => Some(walk([0.0, 1.0], false, false)),
             38..=94 => Some(MoveIntent::IDLE),
             _ => None,
-        }
-    });
+        },
+    );
     let end = t.expected.last().unwrap();
-    assert!((end[2] - rest_z(9.25)).abs() < 0.1, "did not land on the drop pad ({end:?})");
+    assert!(
+        (end[2] - rest_z(9.25)).abs() < 0.1,
+        "did not land on the drop pad ({end:?})"
+    );
     save(&t);
 
     // Wall slide: run diagonally into the 16 m gym wall (y≈12.25 north
     // face), sliding along +X.
-    let t = build_trace("wall_slide", &store, standing_on(&store, &cfg, 166.0, 14.5), {
-        let mut f = for_steps(60, walk([1.0, -1.0], false, false));
-        move |i, s| f(i, s)
-    });
+    let t = build_trace(
+        "wall_slide",
+        &store,
+        standing_on(&store, &cfg, 166.0, 14.5),
+        {
+            let mut f = for_steps(60, walk([1.0, -1.0], false, false));
+            move |i, s| f(i, s)
+        },
+    );
     let end = t.expected.last().unwrap();
     assert!(end[0] > 169.0, "did not slide along the wall ({end:?})");
-    assert!(end[1] > 12.4 && end[1] < 13.5, "clipped through the wall ({end:?})");
+    assert!(
+        end[1] > 12.4 && end[1] < 13.5,
+        "clipped through the wall ({end:?})"
+    );
     save(&t);
 
     // Chunk seam (named failure mode): the walled corridor across the cell
     // border x=128, over the 0.35 m threshold step straddling it.
-    let t = build_trace("chunk_seam", &store, standing_on(&store, &cfg, 122.0, 32.0), {
-        let mut f = for_steps(80, walk([1.0, 0.0], false, false));
-        move |i, s| f(i, s)
-    });
+    let t = build_trace(
+        "chunk_seam",
+        &store,
+        standing_on(&store, &cfg, 122.0, 32.0),
+        {
+            let mut f = for_steps(80, walk([1.0, 0.0], false, false));
+            move |i, s| f(i, s)
+        },
+    );
     let peak = t.expected.iter().map(|p| p[2]).fold(f32::MIN, f32::max);
-    assert!(t.expected.last().unwrap()[0] > 134.0, "did not cross the seam corridor");
-    assert!(peak > rest_z(9.0) + 0.25, "never mounted the threshold step (peak {peak})");
+    assert!(
+        t.expected.last().unwrap()[0] > 134.0,
+        "did not cross the seam corridor"
+    );
+    assert!(
+        peak > rest_z(9.0) + 0.25,
+        "never mounted the threshold step (peak {peak})"
+    );
     save(&t);
 
     // 60 s long-run on the spawn plateau (ground z=8): 24 paired
     // out-and-back blocks of 50 steps, alternating axis, sprint on odd
     // pairs, one jump per block — bounds terminal drift natively so the
     // WASM replay bounds native/WASM divergence over a long horizon.
-    let t = build_trace("long_run", &store, standing_on(&store, &cfg, 0.0, 0.0), |i, _| {
-        if i >= 1200 {
-            return None;
-        }
-        let block = i / 50;
-        let pair = block / 2;
-        let sign = if block % 2 == 0 { 1.0 } else { -1.0 };
-        let dir = if pair % 2 == 0 { [sign, 0.0] } else { [0.0, sign] };
-        Some(walk(dir, pair % 2 == 1, i % 50 == 25))
-    });
+    let t = build_trace(
+        "long_run",
+        &store,
+        standing_on(&store, &cfg, 0.0, 0.0),
+        |i, _| {
+            if i >= 1200 {
+                return None;
+            }
+            let block = i / 50;
+            let pair = block / 2;
+            let sign = if block % 2 == 0 { 1.0 } else { -1.0 };
+            let dir = if pair % 2 == 0 {
+                [sign, 0.0]
+            } else {
+                [0.0, sign]
+            };
+            Some(walk(dir, pair % 2 == 1, i % 50 == 25))
+        },
+    );
     let end = t.expected.last().unwrap();
-    assert!(end[0].abs() < 40.0 && end[1].abs() < 40.0, "long_run left the plateau ({end:?})");
-    assert!((end[2] - rest_z(8.0)).abs() < 0.2, "long_run ended airborne ({end:?})");
+    assert!(
+        end[0].abs() < 40.0 && end[1].abs() < 40.0,
+        "long_run left the plateau ({end:?})"
+    );
+    assert!(
+        (end[2] - rest_z(8.0)).abs() < 0.2,
+        "long_run ended airborne ({end:?})"
+    );
     save(&t);
 }
 
@@ -732,7 +865,11 @@ mod combat_tests {
         let (origin, dir) = level_ray(&cfg);
         let hit = hitscan(&cfg, &store, &Broadphase::new(), origin, dir * 3.0, 100.0).unwrap();
         assert!(matches!(hit.kind, HitKind::World { .. }));
-        assert!((hit.distance - 35.0).abs() < 1e-3, "distance {}", hit.distance);
+        assert!(
+            (hit.distance - 35.0).abs() < 1e-3,
+            "distance {}",
+            hit.distance
+        );
         assert!((hit.normal - Vec3::NEG_X).length() < 1e-3);
     }
 
@@ -768,7 +905,10 @@ mod combat_tests {
         let bp = targets(&cfg, &[(7, [20.0, 35.0])]); // 5 m off the ray line
         let (origin, dir) = level_ray(&cfg);
         let hit = hitscan(&cfg, &store, &bp, origin, dir, 100.0).unwrap();
-        assert!(matches!(hit.kind, HitKind::World { .. }), "offset capsule was hit");
+        assert!(
+            matches!(hit.kind, HitKind::World { .. }),
+            "offset capsule was hit"
+        );
         // Range shorter than every obstacle → no hit at all.
         assert!(hitscan(&cfg, &store, &bp, origin, dir, 10.0).is_none());
         // Zero direction → None.
@@ -818,8 +958,15 @@ mod combat_tests {
         };
         let (hit, _) = fly(&cfg, &store, &Broadphase::new(), p, cfg.gravity, 100);
         assert!(matches!(hit.kind, HitKind::World { .. }));
-        assert!(hit.position.z.abs() < 1e-3, "did not land on the floor: {:?}", hit.position);
-        assert!(hit.position.x < 40.0 - 1e-3, "reached the wall despite gravity");
+        assert!(
+            hit.position.z.abs() < 1e-3,
+            "did not land on the floor: {:?}",
+            hit.position
+        );
+        assert!(
+            hit.position.x < 40.0 - 1e-3,
+            "reached the wall despite gravity"
+        );
         assert!((hit.normal - Vec3::Z).length() < 1e-3);
     }
 

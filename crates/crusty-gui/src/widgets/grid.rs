@@ -109,9 +109,7 @@ impl GridUi<'_, '_> {
         // first frame at an effectively unbounded width; the natural size
         // is stored and constrains/aligns every later frame.
         let known = self.prev_widths.get(col).copied();
-        let col_width = known
-            .map(|w| w.max(self.min_col_width))
-            .unwrap_or(1.0e4);
+        let col_width = known.map(|w| w.max(self.min_col_width)).unwrap_or(1.0e4);
 
         let rect = Rect::from_min_size(
             Pos2::new(self.cur_x, self.row_y),

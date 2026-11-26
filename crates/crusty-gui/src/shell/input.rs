@@ -94,10 +94,9 @@ pub fn push_key_event(
         repeat: key_event.repeat,
         modifiers,
     });
-    if pressed
-        && let Some(text) = &key_event.text {
-            pending_events.push(Event::Text(text.as_str().to_string()));
-        }
+    if pressed && let Some(text) = &key_event.text {
+        pending_events.push(Event::Text(text.as_str().to_string()));
+    }
 }
 
 /// Translate one winit [`WindowEvent`] into queued [`Event`]s for a window's
@@ -135,7 +134,9 @@ pub fn apply_input_event(
         WindowEvent::MouseWheel { delta, .. } => {
             pending_events.push(Event::Scroll(map_scroll(delta)));
         }
-        WindowEvent::KeyboardInput { event: key_event, .. } => {
+        WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } => {
             push_key_event(&key_event, *modifiers, pending_events);
         }
         WindowEvent::Focused(focused) => {

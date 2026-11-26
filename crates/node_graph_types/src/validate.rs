@@ -27,32 +27,67 @@ pub enum ErrorSeverity {
 #[derive(Debug, Clone, PartialEq)]
 pub enum GraphError {
     DuplicateNodeId(u64),
-    UnknownNodeType { node: u64, type_id: String },
+    UnknownNodeType {
+        node: u64,
+        type_id: String,
+    },
     /// Edge endpoint references a node id not present in the doc.
-    DanglingEdgeNode { edge: Edge },
+    DanglingEdgeNode {
+        edge: Edge,
+    },
     /// Edge endpoint references a pin slug the node type doesn't have on
     /// that side (outputs feed `from`, inputs feed `to`).
-    UnknownPin { node: u64, pin: String, output: bool },
-    TypeMismatch { edge: Edge, from_ty: PinType, to_ty: PinType },
+    UnknownPin {
+        node: u64,
+        pin: String,
+        output: bool,
+    },
+    TypeMismatch {
+        edge: Edge,
+        from_ty: PinType,
+        to_ty: PinType,
+    },
     /// An input pin has more than one incoming edge (data outputs may fan
     /// out; inputs may not).
-    InputMultiplyConnected { node: u64, pin: String },
+    InputMultiplyConnected {
+        node: u64,
+        pin: String,
+    },
     /// An **exec** output pin has more than one outgoing edge. Control has
     /// one continuation: fanning out is what `Sequence` is for. Reported on
     /// every wire past the first, so the offending wires are the ones that
     /// light up rather than the pin they leave.
-    ExecOutputFanOut { edge: Edge },
-    RealmViolation { node: u64, node_realm: NodeRealm, graph_realm: GraphRealm },
+    ExecOutputFanOut {
+        edge: Edge,
+    },
+    RealmViolation {
+        node: u64,
+        node_realm: NodeRealm,
+        graph_realm: GraphRealm,
+    },
     /// A `Domain` pin type nobody registered with the registry.
-    UnknownDomainPin { node: u64, pin: String, domain: String },
+    UnknownDomainPin {
+        node: u64,
+        pin: String,
+        domain: String,
+    },
     /// Subgraph node references an asset the resolver can't find
     /// (`validate_refs`).
-    MissingSubgraph { node: u64, path: String },
+    MissingSubgraph {
+        node: u64,
+        path: String,
+    },
     /// Edge references a pin the referenced subgraph's interface no longer
     /// declares (`validate_refs`).
-    SubgraphPinUnknown { node: u64, pin: String, output: bool },
+    SubgraphPinUnknown {
+        node: u64,
+        pin: String,
+        output: bool,
+    },
     /// The subgraph reference graph has a cycle (`validate_refs`).
-    SubgraphCycle { chain: Vec<String> },
+    SubgraphCycle {
+        chain: Vec<String>,
+    },
     /// A cycle in *data* wires that no impure node breaks. Exec wires may
     /// loop — that is what a loop node is — but a pure pull chain that feeds
     /// itself has no fixed point, so the interpreter rejects it up front
@@ -60,17 +95,28 @@ pub enum GraphError {
     ///
     /// `nodes` is the cycle in traversal order, rotated to start at its
     /// lowest node id so the same cycle always reports the same way.
-    DataCycle { nodes: Vec<u64> },
+    DataCycle {
+        nodes: Vec<u64>,
+    },
     /// A `var_get` / `var_set` node naming a variable the document does not
     /// declare (deleted, or renamed without updating the node).
-    UnknownVariable { node: u64, slug: String },
+    UnknownVariable {
+        node: u64,
+        slug: String,
+    },
     /// A `graph_input` / `graph_output` node in a document that declares no
     /// matching interface — the node has nothing to mirror.
-    InterfaceNodeInvalid { node: u64, output: bool },
+    InterfaceNodeInvalid {
+        node: u64,
+        output: bool,
+    },
     /// A declared interface pin that no `graph_input`/`graph_output` node
     /// wires to anything. The subgraph still loads and still runs; that pin
     /// just goes nowhere, which is a warning, not a broken document.
-    InterfacePinUnbound { pin: String, output: bool },
+    InterfacePinUnbound {
+        pin: String,
+        output: bool,
+    },
     /// A Timeline node naming a `.curve` the resolver cannot produce — an
     /// empty reference, or a file that is missing or unreadable. Its track
     /// outputs are unknowable, so every wire leaving it is dangling; the same
@@ -80,7 +126,10 @@ pub enum GraphError {
     /// ([`DocDescriptors::has_curves`]): a doc-local validation pass has no
     /// business claiming a file is missing when it was never handed a way to
     /// look.
-    MissingCurve { node: u64, path: String },
+    MissingCurve {
+        node: u64,
+        path: String,
+    },
 }
 
 /// Where an error belongs on the canvas. The error UI is complete rather than
@@ -91,12 +140,20 @@ pub enum ErrorAnchor {
     /// Node border + one gutter badge in the header.
     Node(u64),
     /// A 1px error ring around that pin.
-    Pin { node: u64, pin: String, output: bool },
+    Pin {
+        node: u64,
+        pin: String,
+        output: bool,
+    },
     /// The wire itself — `TypeMismatch` is the only error that colors one.
     Edge(Edge),
     /// A dashed ghost row appended to the node, so the wire has somewhere to
     /// land instead of vanishing.
-    GhostPin { node: u64, pin: String, output: bool },
+    GhostPin {
+        node: u64,
+        pin: String,
+        output: bool,
+    },
     /// Nothing on the canvas owns it — it goes in the compiler-row popover.
     Document,
 }
@@ -144,8 +201,9 @@ impl GraphError {
             GraphError::InterfaceNodeInvalid { node, .. } => ErrorAnchor::Node(*node),
             // The cycle's entry node — the lowest id in it, so the badge
             // lands in the same place every validation pass.
-            GraphError::DataCycle { nodes } => ErrorAnchor::Node(nodes.first().copied()
-                .unwrap_or_default()),
+            GraphError::DataCycle { nodes } => {
+                ErrorAnchor::Node(nodes.first().copied().unwrap_or_default())
+            }
             // An unbound interface pin is declared on the *document*, not on
             // any node, so the compiler-row popover owns it.
             GraphError::DanglingEdgeNode { .. }
@@ -201,7 +259,11 @@ impl std::fmt::Display for GraphError {
                  more than one thing",
                 edge.from_node, edge.from_pin
             ),
-            GraphError::TypeMismatch { edge, from_ty, to_ty } => write!(
+            GraphError::TypeMismatch {
+                edge,
+                from_ty,
+                to_ty,
+            } => write!(
                 f,
                 "edge {}:{} -> {}:{}: {from_ty:?} does not connect to {to_ty:?}",
                 edge.from_node, edge.from_pin, edge.to_node, edge.to_pin
@@ -209,12 +271,19 @@ impl std::fmt::Display for GraphError {
             GraphError::InputMultiplyConnected { node, pin } => {
                 write!(f, "node {node}: input '{pin}' has multiple connections")
             }
-            GraphError::RealmViolation { node, node_realm, graph_realm } => write!(
+            GraphError::RealmViolation {
+                node,
+                node_realm,
+                graph_realm,
+            } => write!(
                 f,
                 "node {node}: realm {node_realm:?} not allowed in a {graph_realm:?} graph"
             ),
             GraphError::UnknownDomainPin { node, pin, domain } => {
-                write!(f, "node {node}: pin '{pin}' uses unregistered domain type '{domain}'")
+                write!(
+                    f,
+                    "node {node}: pin '{pin}' uses unregistered domain type '{domain}'"
+                )
             }
             GraphError::MissingSubgraph { node, path } => {
                 write!(f, "node {node}: subgraph '{path}' not found")
@@ -330,7 +399,11 @@ pub fn validate_doc_with(d: &DocDescriptors<'_>) -> Vec<GraphError> {
             // reroute has no descriptor by design.
             NodeKind::Subgraph | NodeKind::Reroute => continue,
             NodeKind::GraphInput | NodeKind::GraphOutput => {
-                let iface = if kind == NodeKind::GraphInput { &doc.inputs } else { &doc.outputs };
+                let iface = if kind == NodeKind::GraphInput {
+                    &doc.inputs
+                } else {
+                    &doc.outputs
+                };
                 if iface.is_empty() {
                     errors.push(GraphError::InterfaceNodeInvalid {
                         node: n.id,
@@ -500,7 +573,11 @@ pub fn validate_doc_with(d: &DocDescriptors<'_>) -> Vec<GraphError> {
             // No implicit conversions in v1; exec only connects to exec
             // (both are exactly this equality rule).
             if from_ty != to_ty {
-                errors.push(GraphError::TypeMismatch { edge: e.clone(), from_ty, to_ty });
+                errors.push(GraphError::TypeMismatch {
+                    edge: e.clone(),
+                    from_ty,
+                    to_ty,
+                });
             }
         }
     }
@@ -532,7 +609,11 @@ pub fn validate_doc_with(d: &DocDescriptors<'_>) -> Vec<GraphError> {
         });
     }
 
-    errors.extend(fan_out.into_iter().map(|edge| GraphError::ExecOutputFanOut { edge }));
+    errors.extend(
+        fan_out
+            .into_iter()
+            .map(|edge| GraphError::ExecOutputFanOut { edge }),
+    );
 
     errors.extend(data_cycles(d));
 
@@ -557,7 +638,11 @@ fn unbound_interface_pins(doc: &GraphDoc) -> Vec<GraphError> {
         if iface.is_empty() {
             continue;
         }
-        let want = if output { GRAPH_OUTPUT_TYPE_ID } else { GRAPH_INPUT_TYPE_ID };
+        let want = if output {
+            GRAPH_OUTPUT_TYPE_ID
+        } else {
+            GRAPH_INPUT_TYPE_ID
+        };
         let binders: Vec<u64> = doc
             .nodes
             .iter()
@@ -630,7 +715,9 @@ fn data_cycles(d: &DocDescriptors<'_>) -> Vec<GraphError> {
         let mut path: Vec<u64> = Vec::new();
         let mut stack: Vec<(u64, Vec<u64>)> = vec![(
             start,
-            deps.get(&start).map(|s| s.iter().copied().collect()).unwrap_or_default(),
+            deps.get(&start)
+                .map(|s| s.iter().copied().collect())
+                .unwrap_or_default(),
         )];
         path.push(start);
         while let Some((node, todo)) = stack.last_mut() {
@@ -663,7 +750,9 @@ fn data_cycles(d: &DocDescriptors<'_>) -> Vec<GraphError> {
             path.push(next);
             stack.push((
                 next,
-                deps.get(&next).map(|s| s.iter().copied().collect()).unwrap_or_default(),
+                deps.get(&next)
+                    .map(|s| s.iter().copied().collect())
+                    .unwrap_or_default(),
             ));
         }
     }
@@ -696,15 +785,25 @@ mod tests {
         };
         let all = [
             GraphError::DuplicateNodeId(1),
-            GraphError::UnknownNodeType { node: 1, type_id: "x".into() },
+            GraphError::UnknownNodeType {
+                node: 1,
+                type_id: "x".into(),
+            },
             GraphError::DanglingEdgeNode { edge: e.clone() },
-            GraphError::UnknownPin { node: 1, pin: "p".into(), output: false },
+            GraphError::UnknownPin {
+                node: 1,
+                pin: "p".into(),
+                output: false,
+            },
             GraphError::TypeMismatch {
                 edge: e.clone(),
                 from_ty: PinType::Float,
                 to_ty: PinType::Bool,
             },
-            GraphError::InputMultiplyConnected { node: 1, pin: "a".into() },
+            GraphError::InputMultiplyConnected {
+                node: 1,
+                pin: "a".into(),
+            },
             GraphError::RealmViolation {
                 node: 1,
                 node_realm: NodeRealm::ServerSafe,
@@ -715,13 +814,31 @@ mod tests {
                 pin: "p".into(),
                 domain: "shader".into(),
             },
-            GraphError::MissingSubgraph { node: 1, path: "a.subgraph".into() },
-            GraphError::SubgraphPinUnknown { node: 1, pin: "p".into(), output: true },
-            GraphError::SubgraphCycle { chain: vec!["a".into(), "b".into()] },
+            GraphError::MissingSubgraph {
+                node: 1,
+                path: "a.subgraph".into(),
+            },
+            GraphError::SubgraphPinUnknown {
+                node: 1,
+                pin: "p".into(),
+                output: true,
+            },
+            GraphError::SubgraphCycle {
+                chain: vec!["a".into(), "b".into()],
+            },
             GraphError::DataCycle { nodes: vec![3, 7] },
-            GraphError::UnknownVariable { node: 1, slug: "score".into() },
-            GraphError::InterfaceNodeInvalid { node: 1, output: false },
-            GraphError::InterfacePinUnbound { pin: "amount".into(), output: false },
+            GraphError::UnknownVariable {
+                node: 1,
+                slug: "score".into(),
+            },
+            GraphError::InterfaceNodeInvalid {
+                node: 1,
+                output: false,
+            },
+            GraphError::InterfacePinUnbound {
+                pin: "amount".into(),
+                output: false,
+            },
             GraphError::ExecOutputFanOut { edge: e.clone() },
         ];
         // The closed set is sixteen (eleven from Task 40, five from 45-A);
@@ -740,7 +857,11 @@ mod tests {
         assert!(matches!(all[9].anchor(), ErrorAnchor::GhostPin { .. }));
         assert_eq!(all[10].anchor(), ErrorAnchor::Document);
 
-        assert_eq!(all[11].anchor(), ErrorAnchor::Node(3), "the cycle's lowest id");
+        assert_eq!(
+            all[11].anchor(),
+            ErrorAnchor::Node(3),
+            "the cycle's lowest id"
+        );
         assert_eq!(all[12].anchor(), ErrorAnchor::Node(1));
         assert_eq!(all[13].anchor(), ErrorAnchor::Node(1));
         assert_eq!(all[14].anchor(), ErrorAnchor::Document);
@@ -757,7 +878,10 @@ mod tests {
             .filter(|e| e.severity() == ErrorSeverity::Warning)
             .collect();
         assert_eq!(warnings.len(), 1, "{warnings:?}");
-        assert!(matches!(warnings[0], GraphError::InterfacePinUnbound { .. }));
+        assert!(matches!(
+            warnings[0],
+            GraphError::InterfacePinUnbound { .. }
+        ));
     }
 
     /// **An exec output takes one wire; data outputs fan out freely.**
@@ -801,7 +925,11 @@ mod tests {
 
         // A *data* output still fans out to as many inputs as it likes.
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, "test_add"), node(1, "test_add"), node(2, "test_add")];
+        doc.nodes = vec![
+            node(0, "test_add"),
+            node(1, "test_add"),
+            node(2, "test_add"),
+        ];
         doc.edges = vec![edge(0, "sum", 1, "a"), edge(0, "sum", 2, "a")];
         assert!(
             !validate_doc(&doc, &reg)
@@ -826,7 +954,8 @@ mod tests {
                 position: [0.0, 0.0],
                 properties: BTreeMap::new(),
                 subgraph: None,
-                tint: None, title: None,
+                tint: None,
+                title: None,
             });
         }
         // Unwired: untyped, and that is not an error.
@@ -835,7 +964,12 @@ mod tests {
 
         // sum -> r1 -> r2 -> r3
         doc.edges = vec![
-            Edge { from_node: 0, from_pin: "sum".into(), to_node: 1, to_pin: REROUTE_IN.into() },
+            Edge {
+                from_node: 0,
+                from_pin: "sum".into(),
+                to_node: 1,
+                to_pin: REROUTE_IN.into(),
+            },
             Edge {
                 from_node: 1,
                 from_pin: REROUTE_OUT.into(),
@@ -896,7 +1030,8 @@ mod tests {
             position: [0.0, 0.0],
             properties: Default::default(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         });
         doc.nodes.push(NodeInst {
             id: 2,
@@ -905,12 +1040,16 @@ mod tests {
             position: [200.0, 0.0],
             properties: Default::default(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         });
 
         // Unwired: untyped, and that is not an error.
         assert_eq!(reroute_type(&doc, &reg, 2), None);
-        assert!(validate_doc(&doc, &reg).is_empty(), "an empty reroute is legal");
+        assert!(
+            validate_doc(&doc, &reg).is_empty(),
+            "an empty reroute is legal"
+        );
 
         // Wire the Float in; the reroute adopts it.
         doc.edges.push(Edge {
@@ -924,7 +1063,11 @@ mod tests {
             Some(PinType::Float),
             "the type flows through the moment the first wire lands"
         );
-        assert!(validate_doc(&doc, &reg).is_empty(), "{:?}", validate_doc(&doc, &reg));
+        assert!(
+            validate_doc(&doc, &reg).is_empty(),
+            "{:?}",
+            validate_doc(&doc, &reg)
+        );
     }
 
     #[test]
@@ -939,10 +1082,16 @@ mod tests {
             position: [0.0, 0.0],
             properties: BTreeMap::new(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         });
         doc.edges = vec![
-            Edge { from_node: 0, from_pin: "sum".into(), to_node: 2, to_pin: REROUTE_IN.into() },
+            Edge {
+                from_node: 0,
+                from_pin: "sum".into(),
+                to_node: 2,
+                to_pin: REROUTE_IN.into(),
+            },
             // Float out of the reroute into an exec pin.
             Edge {
                 from_node: 2,
@@ -953,7 +1102,8 @@ mod tests {
         ];
         let errs = validate_doc(&doc, &reg);
         assert!(
-            errs.iter().any(|e| matches!(e, GraphError::TypeMismatch { .. })),
+            errs.iter()
+                .any(|e| matches!(e, GraphError::TypeMismatch { .. })),
             "expected a mismatch through the reroute, got {errs:?}"
         );
     }
@@ -972,7 +1122,8 @@ mod tests {
             position: [0.0, 0.0],
             properties: BTreeMap::new(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         });
         doc.edges = vec![Edge {
             from_node: 0,
@@ -998,8 +1149,10 @@ mod tests {
             position: [0.0, 0.0],
             properties: BTreeMap::new(),
             subgraph: None,
-        
-        tint: None, title: None,}
+
+            tint: None,
+            title: None,
+        }
     }
 
     fn edge(from: u64, fp: &str, to: u64, tp: &str) -> Edge {
@@ -1032,12 +1185,18 @@ mod tests {
         // Exec output into a float input: exactly the exec-to-data violation.
         doc.edges = vec![edge(0, "exec_out", 1, "a")];
         let errs = validate_doc(&doc, &registry());
-        assert!(matches!(errs.as_slice(), [GraphError::TypeMismatch { .. }]), "{errs:?}");
+        assert!(
+            matches!(errs.as_slice(), [GraphError::TypeMismatch { .. }]),
+            "{errs:?}"
+        );
     }
 
     #[test]
     fn realm_violation_detected() {
-        let mut doc = GraphDoc { realm: GraphRealm::Shared, ..GraphDoc::default() };
+        let mut doc = GraphDoc {
+            realm: GraphRealm::Shared,
+            ..GraphDoc::default()
+        };
         doc.nodes = vec![node(0, "test_editor_note")];
         let errs = validate_doc(&doc, &registry());
         assert!(
@@ -1059,9 +1218,15 @@ mod tests {
         doc.nodes = vec![node(0, "no_such_type"), node(0, "test_event")];
         doc.edges = vec![edge(5, "x", 6, "y")];
         let errs = validate_doc(&doc, &registry());
-        assert!(errs.iter().any(|e| matches!(e, GraphError::DuplicateNodeId(0))));
-        assert!(errs.iter().any(|e| matches!(e, GraphError::UnknownNodeType { .. })));
-        assert!(errs.iter().any(|e| matches!(e, GraphError::DanglingEdgeNode { .. })));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, GraphError::DuplicateNodeId(0))));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, GraphError::UnknownNodeType { .. })));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, GraphError::DanglingEdgeNode { .. })));
     }
 
     #[test]
@@ -1116,8 +1281,14 @@ mod tests {
         assert_eq!(
             errs,
             vec![
-                GraphError::InterfacePinUnbound { pin: "amount".into(), output: false },
-                GraphError::InterfacePinUnbound { pin: "total".into(), output: true },
+                GraphError::InterfacePinUnbound {
+                    pin: "amount".into(),
+                    output: false
+                },
+                GraphError::InterfacePinUnbound {
+                    pin: "total".into(),
+                    output: true
+                },
             ],
             "{errs:?}"
         );
@@ -1126,7 +1297,11 @@ mod tests {
         // Wired through: the binding node's pins mirror the interface, so
         // these edges type-check like any other.
         doc.edges = vec![edge(0, "amount", 1, "a"), edge(1, "sum", 2, "total")];
-        assert_eq!(validate_doc(&doc, &reg), vec![], "a bound interface is clean");
+        assert_eq!(
+            validate_doc(&doc, &reg),
+            vec![],
+            "a bound interface is clean"
+        );
 
         // …and the mirroring is *typed*: retyping the interface breaks the
         // wire it no longer matches.
@@ -1135,7 +1310,11 @@ mod tests {
         assert!(
             errs.iter().any(|e| matches!(
                 e,
-                GraphError::TypeMismatch { from_ty: PinType::Int, to_ty: PinType::Float, .. }
+                GraphError::TypeMismatch {
+                    from_ty: PinType::Int,
+                    to_ty: PinType::Float,
+                    ..
+                }
             )),
             "{errs:?}"
         );
@@ -1150,8 +1329,14 @@ mod tests {
         assert_eq!(
             errs,
             vec![
-                GraphError::InterfaceNodeInvalid { node: 0, output: false },
-                GraphError::InterfaceNodeInvalid { node: 1, output: true },
+                GraphError::InterfaceNodeInvalid {
+                    node: 0,
+                    output: false
+                },
+                GraphError::InterfaceNodeInvalid {
+                    node: 1,
+                    output: true
+                },
             ],
             "{errs:?}"
         );
@@ -1173,19 +1358,22 @@ mod tests {
             group: None,
         }];
         let mut get = node(0, VAR_GET_TYPE_ID);
-        get.properties.insert(
-            VAR_PROP.into(),
-            crate::PropValue::Str("score".into()),
-        );
+        get.properties
+            .insert(VAR_PROP.into(), crate::PropValue::Str("score".into()));
         doc.nodes = vec![get, node(1, "test_add")];
         doc.edges = vec![edge(0, VAR_VALUE_PIN, 1, "a")];
-        assert_eq!(validate_doc(&doc, &reg), vec![], "a declared variable wires like any pin");
+        assert_eq!(
+            validate_doc(&doc, &reg),
+            vec![],
+            "a declared variable wires like any pin"
+        );
 
         // Retype the variable and the same wire stops type-checking.
         doc.variables[0].ty = PinType::String;
         let errs = validate_doc(&doc, &reg);
         assert!(
-            errs.iter().any(|e| matches!(e, GraphError::TypeMismatch { .. })),
+            errs.iter()
+                .any(|e| matches!(e, GraphError::TypeMismatch { .. })),
             "{errs:?}"
         );
 
@@ -1267,10 +1455,7 @@ mod tests {
         // add.sum -> reroute -> add.a
         let mut doc = GraphDoc::default();
         doc.nodes = vec![node(0, "test_add"), node(1, REROUTE_TYPE_ID)];
-        doc.edges = vec![
-            edge(0, "sum", 1, REROUTE_IN),
-            edge(1, REROUTE_OUT, 0, "a"),
-        ];
+        doc.edges = vec![edge(0, "sum", 1, REROUTE_IN), edge(1, REROUTE_OUT, 0, "a")];
         let errs = validate_doc(&doc, &reg);
         assert!(
             errs.iter().any(|e| matches!(
@@ -1363,8 +1548,10 @@ mod tests {
             tint: None,
             title: None,
         };
-        n.properties
-            .insert(CURVE_PROP.into(), PropValue::Asset("curves/gone.curve".into()));
+        n.properties.insert(
+            CURVE_PROP.into(),
+            PropValue::Asset("curves/gone.curve".into()),
+        );
         doc.nodes = vec![n];
 
         // No resolver: the question was not asked, so neither path answers it.
@@ -1392,7 +1579,10 @@ mod tests {
 
         // Resolved: silence from both.
         let mut curves = BTreeMap::new();
-        curves.insert("curves/gone.curve".to_string(), curve_asset::CurveDoc::default());
+        curves.insert(
+            "curves/gone.curve".to_string(),
+            curve_asset::CurveDoc::default(),
+        );
         let d = DocDescriptors::new(&doc, &reg).with_curves(&curves);
         assert!(validate_curves(&d).is_empty());
         assert!(!validate_doc_with(&d)
@@ -1427,9 +1617,9 @@ mod tests {
             nodes: vec![node(0, "arr")],
             ..GraphDoc::default()
         };
-        assert!(validate_doc(&doc, &reg)
-            .iter()
-            .any(|e| matches!(e, GraphError::UnknownDomainPin { domain, .. } if domain == "shader")));
+        assert!(validate_doc(&doc, &reg).iter().any(
+            |e| matches!(e, GraphError::UnknownDomainPin { domain, .. } if domain == "shader")
+        ));
 
         reg.register_domain_pin("shader");
         assert_eq!(validate_doc(&doc, &reg), vec![]);
@@ -1447,9 +1637,20 @@ mod tests {
 
         // Two exec outputs into one exec input: legal.
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, "test_event"), node(1, "test_event"), node(2, "test_damage")];
-        doc.edges = vec![edge(0, "exec_out", 2, "exec_in"), edge(1, "exec_out", 2, "exec_in")];
-        assert_eq!(validate_doc(&doc, &reg), vec![], "exec convergence is legal");
+        doc.nodes = vec![
+            node(0, "test_event"),
+            node(1, "test_event"),
+            node(2, "test_damage"),
+        ];
+        doc.edges = vec![
+            edge(0, "exec_out", 2, "exec_in"),
+            edge(1, "exec_out", 2, "exec_in"),
+        ];
+        assert_eq!(
+            validate_doc(&doc, &reg),
+            vec![],
+            "exec convergence is legal"
+        );
 
         // Three, for good measure — the rule is not "exactly two".
         doc.nodes.push(node(3, "test_event"));
@@ -1458,12 +1659,16 @@ mod tests {
 
         // Two data outputs into one data input: still refused.
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, "test_add"), node(1, "test_add"), node(2, "test_add")];
+        doc.nodes = vec![
+            node(0, "test_add"),
+            node(1, "test_add"),
+            node(2, "test_add"),
+        ];
         doc.edges = vec![edge(0, "sum", 2, "a"), edge(1, "sum", 2, "a")];
         assert!(
-            validate_doc(&doc, &reg)
-                .iter()
-                .any(|e| matches!(e, GraphError::InputMultiplyConnected { node: 2, pin } if pin == "a")),
+            validate_doc(&doc, &reg).iter().any(
+                |e| matches!(e, GraphError::InputMultiplyConnected { node: 2, pin } if pin == "a")
+            ),
             "{:?}",
             validate_doc(&doc, &reg)
         );
@@ -1485,9 +1690,9 @@ mod tests {
             edge(3, REROUTE_OUT, 4, "a"),
         ];
         assert!(
-            validate_doc(&doc, &reg)
-                .iter()
-                .any(|e| matches!(e, GraphError::InputMultiplyConnected { node: 4, pin } if pin == "a")),
+            validate_doc(&doc, &reg).iter().any(
+                |e| matches!(e, GraphError::InputMultiplyConnected { node: 4, pin } if pin == "a")
+            ),
             "two values through reroutes are still two values: {:?}",
             validate_doc(&doc, &reg)
         );
@@ -1495,7 +1700,11 @@ mod tests {
         // Two *data* wires into one reroute's `in` is the same violation one
         // step earlier.
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, "test_add"), node(1, "test_add"), node(2, REROUTE_TYPE_ID)];
+        doc.nodes = vec![
+            node(0, "test_add"),
+            node(1, "test_add"),
+            node(2, REROUTE_TYPE_ID),
+        ];
         doc.edges = vec![edge(0, "sum", 2, REROUTE_IN), edge(1, "sum", 2, REROUTE_IN)];
         assert!(validate_doc(&doc, &reg)
             .iter()
@@ -1504,8 +1713,15 @@ mod tests {
         // An *untyped* reroute stays strict: refusing is the honest answer
         // when the type cannot be proven exec.
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, REROUTE_TYPE_ID), node(1, REROUTE_TYPE_ID), node(2, REROUTE_TYPE_ID)];
-        doc.edges = vec![edge(0, REROUTE_OUT, 2, REROUTE_IN), edge(1, REROUTE_OUT, 2, REROUTE_IN)];
+        doc.nodes = vec![
+            node(0, REROUTE_TYPE_ID),
+            node(1, REROUTE_TYPE_ID),
+            node(2, REROUTE_TYPE_ID),
+        ];
+        doc.edges = vec![
+            edge(0, REROUTE_OUT, 2, REROUTE_IN),
+            edge(1, REROUTE_OUT, 2, REROUTE_IN),
+        ];
         assert!(validate_doc(&doc, &reg)
             .iter()
             .any(|e| matches!(e, GraphError::InputMultiplyConnected { node: 2, .. })));
@@ -1530,7 +1746,7 @@ mod tests {
     /// resolve its type through `DocDescriptors`, not through the registry.
     #[test]
     fn exec_fan_in_works_on_doc_dependent_nodes() {
-        use crate::{VAR_SET_TYPE_ID, VAR_PROP};
+        use crate::{VAR_PROP, VAR_SET_TYPE_ID};
         let reg = registry();
         let mut doc = GraphDoc::default();
         doc.variables = vec![crate::VarDecl {
@@ -1544,7 +1760,10 @@ mod tests {
         set.properties
             .insert(VAR_PROP.into(), crate::PropValue::Str("n".into()));
         doc.nodes = vec![node(0, "test_event"), node(1, "test_event"), set];
-        doc.edges = vec![edge(0, "exec_out", 2, "exec_in"), edge(1, "exec_out", 2, "exec_in")];
+        doc.edges = vec![
+            edge(0, "exec_out", 2, "exec_in"),
+            edge(1, "exec_out", 2, "exec_in"),
+        ];
         assert_eq!(validate_doc(&doc, &reg), vec![]);
 
         // Its *value* input still takes one wire.
@@ -1552,9 +1771,9 @@ mod tests {
         doc.nodes.push(node(4, "test_add"));
         doc.edges.push(edge(3, "sum", 2, "value"));
         doc.edges.push(edge(4, "sum", 2, "value"));
-        assert!(validate_doc(&doc, &reg)
-            .iter()
-            .any(|e| matches!(e, GraphError::InputMultiplyConnected { node: 2, pin } if pin == "value")));
+        assert!(validate_doc(&doc, &reg).iter().any(
+            |e| matches!(e, GraphError::InputMultiplyConnected { node: 2, pin } if pin == "value")
+        ));
     }
 
     /// A **flow-like domain** (Task 41) takes the Exec exemptions — fan-in
@@ -1571,7 +1790,11 @@ mod tests {
             category: "Dev".into(),
             version: 1,
             inputs: vec![PinDescriptor::new("in", "", PinType::Domain("wire".into()))],
-            outputs: vec![PinDescriptor::new("out", "", PinType::Domain("wire".into()))],
+            outputs: vec![PinDescriptor::new(
+                "out",
+                "",
+                PinType::Domain("wire".into()),
+            )],
             pure: true,
             realm: NodeRealm::Shared,
             deterministic: true,
@@ -1598,8 +1821,16 @@ mod tests {
             name: "Hop2".into(),
             category: "Dev".into(),
             version: 1,
-            inputs: vec![PinDescriptor::new("in", "", PinType::Domain("plain".into()))],
-            outputs: vec![PinDescriptor::new("out", "", PinType::Domain("plain".into()))],
+            inputs: vec![PinDescriptor::new(
+                "in",
+                "",
+                PinType::Domain("plain".into()),
+            )],
+            outputs: vec![PinDescriptor::new(
+                "out",
+                "",
+                PinType::Domain("plain".into()),
+            )],
             pure: true,
             realm: NodeRealm::Shared,
             deterministic: true,
@@ -1618,7 +1849,9 @@ mod tests {
         assert!(errs
             .iter()
             .any(|e| matches!(e, GraphError::InputMultiplyConnected { node: 2, .. })));
-        assert!(errs.iter().any(|e| matches!(e, GraphError::DataCycle { .. })));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, GraphError::DataCycle { .. })));
     }
 
     #[test]

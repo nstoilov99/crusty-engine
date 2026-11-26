@@ -47,7 +47,12 @@ impl<'a> Painter<'a> {
 
     /// A single straight segment with square caps.
     pub fn line_segment(&mut self, from: Pos2, to: Pos2, width: f32, color: Color) {
-        self.paint.push(PaintCmd::Line { from, to, width, color });
+        self.paint.push(PaintCmd::Line {
+            from,
+            to,
+            width,
+            color,
+        });
     }
 
     /// A connected open polyline through `points`.
@@ -82,12 +87,7 @@ impl<'a> Painter<'a> {
 
     // ── rects ────────────────────────────────────────────────────────────
 
-    pub fn rect_filled(
-        &mut self,
-        rect: Rect,
-        rounding: impl Into<Rounding>,
-        color: Color,
-    ) {
+    pub fn rect_filled(&mut self, rect: Rect, rounding: impl Into<Rounding>, color: Color) {
         self.paint
             .push(PaintCmd::Rrect(RectShape::fill(rect, rounding, color)));
     }
@@ -119,7 +119,8 @@ impl<'a> Painter<'a> {
         // `fill` must be `None`: `Some(TRANSPARENT)` takes the shader's glass
         // path, which composites the opaque backdrop over the interior instead
         // of leaving it transparent.
-        let mut shape = RectShape::fill(rect, rounding, Color::TRANSPARENT).with_stroke(width, color);
+        let mut shape =
+            RectShape::fill(rect, rounding, Color::TRANSPARENT).with_stroke(width, color);
         shape.fill = None;
         self.paint.push(PaintCmd::Rrect(shape));
     }
@@ -176,14 +177,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Stroke a quadratic bezier through its three control points.
-    pub fn bezier_quadratic(
-        &mut self,
-        p0: Pos2,
-        p1: Pos2,
-        p2: Pos2,
-        width: f32,
-        color: Color,
-    ) {
+    pub fn bezier_quadratic(&mut self, p0: Pos2, p1: Pos2, p2: Pos2, width: f32, color: Color) {
         // Promote to a cubic so we share one sampler.
         let c1 = lerp(p0, p1, 2.0 / 3.0);
         let c2 = lerp(p2, p1, 2.0 / 3.0);

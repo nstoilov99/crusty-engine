@@ -71,12 +71,9 @@ pub fn context_menu_at(
     let mut menu_rect = Rect::ZERO;
     if is_open {
         let menu_root_id = id.with("menu");
-        let anchor_rect =
-            Rect::from_min_size(Pos2::new(anchor.x, anchor.y), Vec2::ZERO);
-        let menu_pos =
-            super::popup_pos(ui, menu_area_id, anchor_rect, 180.0, 20.0, 0.0);
-        let scratch_rect =
-            Rect::from_min_size(menu_pos, Vec2::new(180.0, 600.0));
+        let anchor_rect = Rect::from_min_size(Pos2::new(anchor.x, anchor.y), Vec2::ZERO);
+        let menu_pos = super::popup_pos(ui, menu_area_id, anchor_rect, 180.0, 20.0, 0.0);
+        let scratch_rect = Rect::from_min_size(menu_pos, Vec2::new(180.0, 600.0));
 
         let body_start = ui.ctx().paint.len();
         let used_h = {
@@ -98,29 +95,27 @@ pub fn context_menu_at(
             inner.used_rect().height()
         };
 
-        let drained: Vec<PaintCmd> =
-            ui.ctx_mut().paint.drain(body_start..).collect();
+        let drained: Vec<PaintCmd> = ui.ctx_mut().paint.drain(body_start..).collect();
 
-        menu_rect = Rect::from_min_size(
-            menu_pos,
-            Vec2::new(180.0, (used_h + 8.0).max(20.0)),
-        );
+        menu_rect = Rect::from_min_size(menu_pos, Vec2::new(180.0, (used_h + 8.0).max(20.0)));
 
         ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
             RectShape::fill(
                 menu_rect,
                 style.rounding.panel,
-                style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                style
+                    .palette
+                    .elevated
+                    .with_alpha(style.palette.popover_alpha),
             )
             .with_stroke(style.metrics.border, style.palette.stroke_strong),
         ));
         ui.ctx_mut().overlay_paint.extend(drained);
 
-        let area = ui.ctx_mut().memory.area_entry(
-            menu_area_id,
-            menu_rect.min,
-            Order::Tooltip,
-        );
+        let area = ui
+            .ctx_mut()
+            .memory
+            .area_entry(menu_area_id, menu_rect.min, Order::Tooltip);
         area.pos = menu_rect.min;
         area.size = menu_rect.size();
 

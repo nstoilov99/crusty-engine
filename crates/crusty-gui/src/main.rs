@@ -33,18 +33,16 @@ enum Quality {
 // Static id strings for demo selection. We use &'static str so the
 // selection state can be `Copy`.
 const NPC_IDS: [&str; 24] = [
-    "npc_00", "npc_01", "npc_02", "npc_03", "npc_04", "npc_05",
-    "npc_06", "npc_07", "npc_08", "npc_09", "npc_10", "npc_11",
-    "npc_12", "npc_13", "npc_14", "npc_15", "npc_16", "npc_17",
+    "npc_00", "npc_01", "npc_02", "npc_03", "npc_04", "npc_05", "npc_06", "npc_07", "npc_08",
+    "npc_09", "npc_10", "npc_11", "npc_12", "npc_13", "npc_14", "npc_15", "npc_16", "npc_17",
     "npc_18", "npc_19", "npc_20", "npc_21", "npc_22", "npc_23",
 ];
 const LIGHT_IDS: [&str; 8] = [
-    "light_0", "light_1", "light_2", "light_3",
-    "light_4", "light_5", "light_6", "light_7",
+    "light_0", "light_1", "light_2", "light_3", "light_4", "light_5", "light_6", "light_7",
 ];
 const PROP_IDS: [&str; 12] = [
-    "prop_00", "prop_01", "prop_02", "prop_03", "prop_04", "prop_05",
-    "prop_06", "prop_07", "prop_08", "prop_09", "prop_10", "prop_11",
+    "prop_00", "prop_01", "prop_02", "prop_03", "prop_04", "prop_05", "prop_06", "prop_07",
+    "prop_08", "prop_09", "prop_10", "prop_11",
 ];
 
 /// A node in the demo Hierarchy panel's mutable scene tree. Real nesting so
@@ -57,31 +55,51 @@ struct HierNode {
 
 impl HierNode {
     fn leaf(id: &'static str, label: impl Into<String>) -> Self {
-        Self { id, label: label.into(), children: Vec::new() }
+        Self {
+            id,
+            label: label.into(),
+            children: Vec::new(),
+        }
     }
 
     fn branch(id: &'static str, label: impl Into<String>, children: Vec<HierNode>) -> Self {
-        Self { id, label: label.into(), children }
+        Self {
+            id,
+            label: label.into(),
+            children,
+        }
     }
 }
 
 fn default_hierarchy() -> Vec<HierNode> {
     vec![
-        HierNode::branch("camera", "Camera", vec![
-            HierNode::leaf("camera_transform", "Transform"),
-            HierNode::leaf("camera_component", "CameraComponent"),
-            HierNode::leaf("camera_audio", "AudioListener"),
-        ]),
-        HierNode::branch("sun", "Sun", vec![
-            HierNode::leaf("sun_transform", "Transform"),
-            HierNode::leaf("sun_light", "DirectionalLight"),
-        ]),
-        HierNode::branch("world", "World", vec![
-            HierNode::leaf("world_terrain", "Terrain"),
-            HierNode::leaf("world_foliage", "Foliage"),
-            HierNode::leaf("world_water", "Water"),
-            HierNode::leaf("world_skybox", "Skybox"),
-        ]),
+        HierNode::branch(
+            "camera",
+            "Camera",
+            vec![
+                HierNode::leaf("camera_transform", "Transform"),
+                HierNode::leaf("camera_component", "CameraComponent"),
+                HierNode::leaf("camera_audio", "AudioListener"),
+            ],
+        ),
+        HierNode::branch(
+            "sun",
+            "Sun",
+            vec![
+                HierNode::leaf("sun_transform", "Transform"),
+                HierNode::leaf("sun_light", "DirectionalLight"),
+            ],
+        ),
+        HierNode::branch(
+            "world",
+            "World",
+            vec![
+                HierNode::leaf("world_terrain", "Terrain"),
+                HierNode::leaf("world_foliage", "Foliage"),
+                HierNode::leaf("world_water", "Water"),
+                HierNode::leaf("world_skybox", "Skybox"),
+            ],
+        ),
         HierNode::branch(
             "props",
             "Props",
@@ -208,8 +226,17 @@ fn render_hier_nodes(
 /// Every panel `render_panel` knows how to draw. The Window menu lists these
 /// so a panel that was closed (or torn off) can always be re-opened.
 const ALL_PANELS: [&str; 11] = [
-    "Hierarchy", "Viewport", "Inspector", "Console", "Profiler", "Errors", "Warnings",
-    "Texture", "Mesh", "Animation", "Node Canvas",
+    "Hierarchy",
+    "Viewport",
+    "Inspector",
+    "Console",
+    "Profiler",
+    "Errors",
+    "Warnings",
+    "Texture",
+    "Mesh",
+    "Animation",
+    "Node Canvas",
 ];
 
 /// Asset-editor panels — these open as their own standalone dock windows from
@@ -536,7 +563,6 @@ impl DockApp for Editor {
     }
 }
 
-
 fn default_dock_tree() -> DockNode {
     // Left | (top center over bottom console). Top center = viewport |
     // inspector. Console leaf has 3 tabs to showcase tab switching.
@@ -562,7 +588,6 @@ fn default_dock_tree() -> DockNode {
 
 /// Where the demo persists its dock layout + UI memory between runs.
 const LAYOUT_PATH: &str = "crusty_layout.json";
-
 
 impl Editor {
     /// Open the secondary "Mesh Editor" window, sharing the device/queue from
@@ -722,217 +747,205 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
     let demo_texture = stats.demo_texture;
     let mesh_already_open = stats.mesh_already_open;
     match panel {
-                        "Node Canvas" => {
-                            render_node_canvas(ui, canvas_view, canvas_nodes, canvas_drag);
-                        }
-                        "Hierarchy" => {
-                            let avail = ui.available().height();
-                            let mut drops = Vec::new();
-                            ui.scroll_area(avail, |ui| {
-                                render_hier_nodes(ui, hierarchy, selected_entity, &mut drops);
-                            });
-                            for (dragged, target, pos) in drops {
-                                // Refuse dropping a node into its own subtree —
-                                // it would orphan the whole branch.
-                                let cycle = hier_find(hierarchy, dragged)
-                                    .is_some_and(|n| hier_subtree_contains(n, target));
-                                if cycle {
-                                    ui.toast_error(format!(
-                                        "Can't move {dragged} into its own subtree"
-                                    ));
-                                    continue;
-                                }
-                                if let Some(node) = hier_remove(hierarchy, dragged) {
-                                    match hier_insert(hierarchy, target, pos, node) {
-                                        Ok(()) => {
-                                            let verb = match pos {
-                                                TreeDropPos::Before => "before",
-                                                TreeDropPos::After => "after",
-                                                TreeDropPos::Into => "into",
-                                            };
-                                            ui.toast_success(format!(
-                                                "Moved {dragged} {verb} {target}"
-                                            ));
-                                        }
-                                        Err(node) => hierarchy.push(node),
-                                    }
-                                }
-                            }
-                        }
-                        "Viewport" => {
-                            let st = ui.style();
-                            let avail = ui.available().height();
-                            ui.scroll_area(avail, |ui| {
-                            // Phase 13: menu bar with nested submenu. Picks
-                            // raise toasts so the action is visible.
-                            ui.menu_bar(|ui| {
-                                ui.menu_button("File", |ui| {
-                                    if ui.menu_item("New Scene") {
-                                        ui.toast("Created a new scene");
-                                    }
-                                    if ui.menu_item("Save") {
-                                        ui.toast_success("Scene saved");
-                                    }
-                                    ui.submenu("Export", |ui| {
-                                        if ui.menu_item("glTF") {
-                                            ui.toast("Exported glTF");
-                                        }
-                                        if ui.menu_item("FBX") {
-                                            ui.toast("Exported FBX");
-                                        }
-                                    });
-                                    if ui.menu_item("Quit") {
-                                        ui.toast_error("Quit is just a demo here");
-                                    }
-                                });
-                                ui.menu_button("Edit", |ui| {
-                                    if ui.menu_item("Undo") {
-                                        ui.toast("Nothing to undo");
-                                    }
-                                    let _ = ui.menu_item("Redo");
-                                });
-                            });
-                            ui.add_space(st.spacing.padding);
-                            // Phase 13: a draggable asset chip (drag source).
-                            let chip_label = "metal.png";
-                            let chip = ui.allocate(Vec2::new(120.0, 24.0));
-                            let chip_id = ui.alloc_id("asset_metal");
-                            let dragging = ui.dnd_drag_source(
-                                chip_id,
-                                chip,
-                                chip_label,
-                                || chip_label.to_string(),
-                            );
-                            let chip_fill = if dragging {
-                                st.palette.active
-                            } else {
-                                st.palette.hover
+        "Node Canvas" => {
+            render_node_canvas(ui, canvas_view, canvas_nodes, canvas_drag);
+        }
+        "Hierarchy" => {
+            let avail = ui.available().height();
+            let mut drops = Vec::new();
+            ui.scroll_area(avail, |ui| {
+                render_hier_nodes(ui, hierarchy, selected_entity, &mut drops);
+            });
+            for (dragged, target, pos) in drops {
+                // Refuse dropping a node into its own subtree —
+                // it would orphan the whole branch.
+                let cycle =
+                    hier_find(hierarchy, dragged).is_some_and(|n| hier_subtree_contains(n, target));
+                if cycle {
+                    ui.toast_error(format!("Can't move {dragged} into its own subtree"));
+                    continue;
+                }
+                if let Some(node) = hier_remove(hierarchy, dragged) {
+                    match hier_insert(hierarchy, target, pos, node) {
+                        Ok(()) => {
+                            let verb = match pos {
+                                TreeDropPos::Before => "before",
+                                TreeDropPos::After => "after",
+                                TreeDropPos::Into => "into",
                             };
-                            ui.ctx_mut().paint.push(PaintCmd::Rrect(
-                                RectShape::fill(chip, st.rounding.small, chip_fill)
-                                    .with_stroke(1.0, st.palette.stroke),
-                            ));
-                            {
-                                let pos = Pos2::new(chip.min.x + 8.0, chip.min.y + 5.0);
-                                let mut tmp = Vec::new();
-                                ui.text_mut().add_text(
-                                    &mut tmp,
-                                    chip_label,
-                                    st.fonts.small,
-                                    pos,
-                                    st.palette.text,
-                                    None,
-                                );
-                                ui.ctx_mut().paint.extend(tmp);
-                            }
-                            ui.add_space(st.spacing.padding);
-                            Label::new("Viewport")
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.padding);
-                            Label::new("Scene render placeholder")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.padding);
-                            // Phase 14: a custom-drawn canvas via the public
-                            // Painter — polyline sparkline, filled markers, a
-                            // bezier, and text-at-pos, none of which the
-                            // widget set covers.
-                            {
-                                let canvas =
-                                    ui.allocate(Vec2::new(220.0, 90.0));
-                                let accent = st.palette.accent_active;
-                                let dim = st.palette.text_secondary;
-                                let surf = st.palette.header;
-                                let mut p = ui.painter();
-                                p.rect_filled(canvas, 4.0, surf);
-                                // Sparkline across the canvas width.
-                                let n = 48;
-                                let pts: Vec<Pos2> = (0..n)
-                                    .map(|i| {
-                                        let t = i as f32 / (n - 1) as f32;
-                                        let x = canvas.min.x + 6.0
-                                            + t * (canvas.width() - 12.0);
-                                        let phase = t * std::f32::consts::TAU * 2.0;
-                                        let y = canvas.center().y
-                                            - phase.sin() * 22.0
-                                            - (t * 6.0).cos() * 6.0;
-                                        Pos2::new(x, y)
-                                    })
-                                    .collect();
-                                p.polyline(&pts, 1.5, accent);
-                                if let Some(last) = pts.last() {
-                                    p.circle_filled(*last, 3.5, accent);
-                                }
-                                // A bezier swoosh under the line.
-                                p.bezier_cubic(
-                                    Pos2::new(canvas.min.x + 6.0, canvas.max.y - 8.0),
-                                    Pos2::new(canvas.center().x - 30.0, canvas.max.y - 30.0),
-                                    Pos2::new(canvas.center().x + 30.0, canvas.max.y + 4.0),
-                                    Pos2::new(canvas.max.x - 6.0, canvas.max.y - 14.0),
-                                    1.0,
-                                    dim,
-                                );
-                                // A small play-triangle gizmo, top-left.
-                                let g = canvas.min;
-                                p.triangle(
-                                    Pos2::new(g.x + 8.0, g.y + 8.0),
-                                    Pos2::new(g.x + 8.0, g.y + 22.0),
-                                    Pos2::new(g.x + 20.0, g.y + 15.0),
-                                    accent,
-                                );
-                                p.text(
-                                    Pos2::new(canvas.min.x + 26.0, canvas.min.y + 8.0),
-                                    "painter()",
-                                    12.0,
-                                    dim,
-                                    None,
-                                );
-                            }
-                            ui.add_space(st.spacing.padding);
-                            // Phase 10: a registered texture sampled through
-                            // the new MODE_IMAGE path.
-                            Image::new(demo_texture, Vec2::new(160.0, 160.0)).show(ui);
-                            ui.add_space(st.spacing.padding);
-                            Label::new(format!("Frame: {:.2} ms", frame_time_ms))
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            Label::new(format!("UI pass: {:.0} µs", ui_us))
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            Label::new(format!("Tessellate: {:.0} µs", tess_us))
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            Label::new(format!("Quality: {:?}", *quality))
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.padding);
-                            if ui.button("Open Settings window").clicked() {
-                                *settings_open = true;
-                            }
-                            if ui.button("Open About (modal)").clicked() {
-                                *about_open = true;
-                            }
-                            // Phase 15: spawn an independent second window.
-                            let mesh_label = if mesh_already_open {
-                                "Mesh Editor window (open)"
-                            } else {
-                                "Open Mesh Editor window"
-                            };
-                            if ui.button(mesh_label).clicked() && !mesh_already_open {
-                                *open_mesh = true;
-                            }
-                            });
+                            ui.toast_success(format!("Moved {dragged} {verb} {target}"));
                         }
-                        "Inspector" => {
-                            let st = ui.style();
-                            let avail = ui.available().height();
-                            ui.scroll_area(avail, |ui| {
+                        Err(node) => hierarchy.push(node),
+                    }
+                }
+            }
+        }
+        "Viewport" => {
+            let st = ui.style();
+            let avail = ui.available().height();
+            ui.scroll_area(avail, |ui| {
+                // Phase 13: menu bar with nested submenu. Picks
+                // raise toasts so the action is visible.
+                ui.menu_bar(|ui| {
+                    ui.menu_button("File", |ui| {
+                        if ui.menu_item("New Scene") {
+                            ui.toast("Created a new scene");
+                        }
+                        if ui.menu_item("Save") {
+                            ui.toast_success("Scene saved");
+                        }
+                        ui.submenu("Export", |ui| {
+                            if ui.menu_item("glTF") {
+                                ui.toast("Exported glTF");
+                            }
+                            if ui.menu_item("FBX") {
+                                ui.toast("Exported FBX");
+                            }
+                        });
+                        if ui.menu_item("Quit") {
+                            ui.toast_error("Quit is just a demo here");
+                        }
+                    });
+                    ui.menu_button("Edit", |ui| {
+                        if ui.menu_item("Undo") {
+                            ui.toast("Nothing to undo");
+                        }
+                        let _ = ui.menu_item("Redo");
+                    });
+                });
+                ui.add_space(st.spacing.padding);
+                // Phase 13: a draggable asset chip (drag source).
+                let chip_label = "metal.png";
+                let chip = ui.allocate(Vec2::new(120.0, 24.0));
+                let chip_id = ui.alloc_id("asset_metal");
+                let dragging =
+                    ui.dnd_drag_source(chip_id, chip, chip_label, || chip_label.to_string());
+                let chip_fill = if dragging {
+                    st.palette.active
+                } else {
+                    st.palette.hover
+                };
+                ui.ctx_mut().paint.push(PaintCmd::Rrect(
+                    RectShape::fill(chip, st.rounding.small, chip_fill)
+                        .with_stroke(1.0, st.palette.stroke),
+                ));
+                {
+                    let pos = Pos2::new(chip.min.x + 8.0, chip.min.y + 5.0);
+                    let mut tmp = Vec::new();
+                    ui.text_mut().add_text(
+                        &mut tmp,
+                        chip_label,
+                        st.fonts.small,
+                        pos,
+                        st.palette.text,
+                        None,
+                    );
+                    ui.ctx_mut().paint.extend(tmp);
+                }
+                ui.add_space(st.spacing.padding);
+                Label::new("Viewport")
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                ui.add_space(st.spacing.padding);
+                Label::new("Scene render placeholder")
+                    .size(st.fonts.small)
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                ui.add_space(st.spacing.padding);
+                // Phase 14: a custom-drawn canvas via the public
+                // Painter — polyline sparkline, filled markers, a
+                // bezier, and text-at-pos, none of which the
+                // widget set covers.
+                {
+                    let canvas = ui.allocate(Vec2::new(220.0, 90.0));
+                    let accent = st.palette.accent_active;
+                    let dim = st.palette.text_secondary;
+                    let surf = st.palette.header;
+                    let mut p = ui.painter();
+                    p.rect_filled(canvas, 4.0, surf);
+                    // Sparkline across the canvas width.
+                    let n = 48;
+                    let pts: Vec<Pos2> = (0..n)
+                        .map(|i| {
+                            let t = i as f32 / (n - 1) as f32;
+                            let x = canvas.min.x + 6.0 + t * (canvas.width() - 12.0);
+                            let phase = t * std::f32::consts::TAU * 2.0;
+                            let y = canvas.center().y - phase.sin() * 22.0 - (t * 6.0).cos() * 6.0;
+                            Pos2::new(x, y)
+                        })
+                        .collect();
+                    p.polyline(&pts, 1.5, accent);
+                    if let Some(last) = pts.last() {
+                        p.circle_filled(*last, 3.5, accent);
+                    }
+                    // A bezier swoosh under the line.
+                    p.bezier_cubic(
+                        Pos2::new(canvas.min.x + 6.0, canvas.max.y - 8.0),
+                        Pos2::new(canvas.center().x - 30.0, canvas.max.y - 30.0),
+                        Pos2::new(canvas.center().x + 30.0, canvas.max.y + 4.0),
+                        Pos2::new(canvas.max.x - 6.0, canvas.max.y - 14.0),
+                        1.0,
+                        dim,
+                    );
+                    // A small play-triangle gizmo, top-left.
+                    let g = canvas.min;
+                    p.triangle(
+                        Pos2::new(g.x + 8.0, g.y + 8.0),
+                        Pos2::new(g.x + 8.0, g.y + 22.0),
+                        Pos2::new(g.x + 20.0, g.y + 15.0),
+                        accent,
+                    );
+                    p.text(
+                        Pos2::new(canvas.min.x + 26.0, canvas.min.y + 8.0),
+                        "painter()",
+                        12.0,
+                        dim,
+                        None,
+                    );
+                }
+                ui.add_space(st.spacing.padding);
+                // Phase 10: a registered texture sampled through
+                // the new MODE_IMAGE path.
+                Image::new(demo_texture, Vec2::new(160.0, 160.0)).show(ui);
+                ui.add_space(st.spacing.padding);
+                Label::new(format!("Frame: {:.2} ms", frame_time_ms))
+                    .size(st.fonts.small)
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                Label::new(format!("UI pass: {:.0} µs", ui_us))
+                    .size(st.fonts.small)
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                Label::new(format!("Tessellate: {:.0} µs", tess_us))
+                    .size(st.fonts.small)
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                Label::new(format!("Quality: {:?}", *quality))
+                    .size(st.fonts.small)
+                    .color(st.palette.text_secondary)
+                    .show(ui);
+                ui.add_space(st.spacing.padding);
+                if ui.button("Open Settings window").clicked() {
+                    *settings_open = true;
+                }
+                if ui.button("Open About (modal)").clicked() {
+                    *about_open = true;
+                }
+                // Phase 15: spawn an independent second window.
+                let mesh_label = if mesh_already_open {
+                    "Mesh Editor window (open)"
+                } else {
+                    "Open Mesh Editor window"
+                };
+                if ui.button(mesh_label).clicked() && !mesh_already_open {
+                    *open_mesh = true;
+                }
+            });
+        }
+        "Inspector" => {
+            let st = ui.style();
+            let avail = ui.available().height();
+            ui.scroll_area(avail, |ui| {
                                 Label::new("Theme")
                                     .size(st.fonts.small)
                                     .color(st.palette.text_secondary)
@@ -1091,222 +1104,221 @@ fn render_panel(ui: &mut Ui, panel: &str, ed: &mut EditorState, stats: &PanelSta
                                     .color(st.palette.text_secondary)
                                     .show(ui);
                             });
-                        }
-                        "Console" => {
-                            let st = ui.style();
-                            // Reserve room for the input row below the log.
-                            let input_h = st.fonts.body + 10.0;
-                            let log_h = (ui.available().height()
-                                - input_h
-                                - st.spacing.item * 2.0)
-                                .max(60.0);
-                            ScrollArea::new(log_h)
-                                .auto_shrink(false)
-                                .stick_to_bottom(true)
-                                .show(ui, |ui| {
-                                    for line in console_lines.iter() {
-                                        let color = if line.starts_with("> ") {
-                                            st.palette.text
-                                        } else if line.starts_with("[error]") {
-                                            Color::rgba(0.95, 0.45, 0.45, 1.0)
-                                        } else {
-                                            st.palette.text_secondary
-                                        };
-                                        Label::new(line)
-                                            .size(st.fonts.small)
-                                            .color(color)
-                                            .show(ui);
-                                    }
-                                });
-                            ui.add_space(st.spacing.item);
+        }
+        "Console" => {
+            let st = ui.style();
+            // Reserve room for the input row below the log.
+            let input_h = st.fonts.body + 10.0;
+            let log_h = (ui.available().height() - input_h - st.spacing.item * 2.0).max(60.0);
+            ScrollArea::new(log_h)
+                .auto_shrink(false)
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    for line in console_lines.iter() {
+                        let color = if line.starts_with("> ") {
+                            st.palette.text
+                        } else if line.starts_with("[error]") {
+                            Color::rgba(0.95, 0.45, 0.45, 1.0)
+                        } else {
+                            st.palette.text_secondary
+                        };
+                        Label::new(line).size(st.fonts.small).color(color).show(ui);
+                    }
+                });
+            ui.add_space(st.spacing.item);
 
-                            let out = TextEdit::new(console_input)
-                                .width(ui.available().width())
-                                .hint("command (Enter to run, Up/Down for history)")
-                                .keep_focus_on_submit(true)
-                                .show_full(ui);
+            let out = TextEdit::new(console_input)
+                .width(ui.available().width())
+                .hint("command (Enter to run, Up/Down for history)")
+                .keep_focus_on_submit(true)
+                .show_full(ui);
 
-                            if out.submitted && !console_input.trim().is_empty() {
-                                let cmd = console_input.trim().to_string();
-                                console_lines.push(format!("> {cmd}"));
-                                let mut parts = cmd.splitn(2, ' ');
-                                match (parts.next().unwrap_or(""), parts.next()) {
-                                    ("help", _) => console_lines.push(
-                                        "commands: help, clear, echo <text>, gpu"
-                                            .to_string(),
-                                    ),
-                                    ("clear", _) => console_lines.clear(),
-                                    ("echo", rest) => console_lines
-                                        .push(rest.unwrap_or("").to_string()),
-                                    ("gpu", _) => console_lines
-                                        .push(format!("Vulkano 0.35 — {gpu_name}")),
-                                    (other, _) => console_lines.push(format!(
-                                        "[error] unknown command '{other}'"
-                                    )),
-                                }
-                                console_history.push(cmd);
-                                *console_history_pos = None;
-                                console_input.clear();
+            if out.submitted && !console_input.trim().is_empty() {
+                let cmd = console_input.trim().to_string();
+                console_lines.push(format!("> {cmd}"));
+                let mut parts = cmd.splitn(2, ' ');
+                match (parts.next().unwrap_or(""), parts.next()) {
+                    ("help", _) => {
+                        console_lines.push("commands: help, clear, echo <text>, gpu".to_string())
+                    }
+                    ("clear", _) => console_lines.clear(),
+                    ("echo", rest) => console_lines.push(rest.unwrap_or("").to_string()),
+                    ("gpu", _) => console_lines.push(format!("Vulkano 0.35 — {gpu_name}")),
+                    (other, _) => console_lines.push(format!("[error] unknown command '{other}'")),
+                }
+                console_history.push(cmd);
+                *console_history_pos = None;
+                console_input.clear();
+            }
+            if out.nav_up && !console_history.is_empty() {
+                let pos = match *console_history_pos {
+                    Some(p) => p.saturating_sub(1),
+                    None => console_history.len() - 1,
+                };
+                *console_history_pos = Some(pos);
+                *console_input = console_history[pos].clone();
+            }
+            if out.nav_down {
+                match *console_history_pos {
+                    Some(p) if p + 1 < console_history.len() => {
+                        *console_history_pos = Some(p + 1);
+                        *console_input = console_history[p + 1].clone();
+                    }
+                    Some(_) => {
+                        *console_history_pos = None;
+                        console_input.clear();
+                    }
+                    None => {}
+                }
+            }
+        }
+        "Profiler" => {
+            let st = ui.style();
+            Label::new("Frame breakdown (drag a header border to resize, click to sort)")
+                .size(st.fonts.small)
+                .color(st.palette.text_secondary)
+                .show(ui);
+            ui.add_space(st.spacing.padding);
+
+            // 200 synthetic samples to exercise virtualization.
+            let mut rows: Vec<(usize, &str, f32)> = (0..200)
+                .map(|i| {
+                    let systems = [
+                        "render",
+                        "physics",
+                        "audio",
+                        "scripting",
+                        "ui",
+                        "animation",
+                        "networking",
+                        "streaming",
+                    ];
+                    let name = systems[i % systems.len()];
+                    let ms = 0.05 + ((i * 37 % 100) as f32) * 0.04;
+                    (i, name, ms)
+                })
+                .collect();
+
+            ui.table(
+                Table::new("profiler")
+                    .row_height(20.0)
+                    .max_height(220.0)
+                    .column(Column::new("#", 48.0).sortable(true))
+                    .column(Column::new("System", 140.0).resizable(true).sortable(true))
+                    .column(Column::new("ms", 80.0).sortable(true)),
+                |body| {
+                    match body.sort() {
+                        Some((0, dir)) => rows.sort_by(|a, b| {
+                            let o = a.0.cmp(&b.0);
+                            if dir == SortDir::Ascending {
+                                o
+                            } else {
+                                o.reverse()
                             }
-                            if out.nav_up && !console_history.is_empty() {
-                                let pos = match *console_history_pos {
-                                    Some(p) => p.saturating_sub(1),
-                                    None => console_history.len() - 1,
-                                };
-                                *console_history_pos = Some(pos);
-                                *console_input = console_history[pos].clone();
+                        }),
+                        Some((1, dir)) => rows.sort_by(|a, b| {
+                            let o = a.1.cmp(b.1);
+                            if dir == SortDir::Ascending {
+                                o
+                            } else {
+                                o.reverse()
                             }
-                            if out.nav_down {
-                                match *console_history_pos {
-                                    Some(p) if p + 1 < console_history.len() => {
-                                        *console_history_pos = Some(p + 1);
-                                        *console_input =
-                                            console_history[p + 1].clone();
-                                    }
-                                    Some(_) => {
-                                        *console_history_pos = None;
-                                        console_input.clear();
-                                    }
-                                    None => {}
-                                }
+                        }),
+                        Some((2, dir)) => rows.sort_by(|a, b| {
+                            let o = a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal);
+                            if dir == SortDir::Ascending {
+                                o
+                            } else {
+                                o.reverse()
                             }
-                        }
-                        "Profiler" => {
-                            let st = ui.style();
-                            Label::new("Frame breakdown (drag a header border to resize, click to sort)")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.padding);
-
-                            // 200 synthetic samples to exercise virtualization.
-                            let mut rows: Vec<(usize, &str, f32)> = (0..200)
-                                .map(|i| {
-                                    let systems = [
-                                        "render", "physics", "audio", "scripting", "ui",
-                                        "animation", "networking", "streaming",
-                                    ];
-                                    let name = systems[i % systems.len()];
-                                    let ms = 0.05 + ((i * 37 % 100) as f32) * 0.04;
-                                    (i, name, ms)
-                                })
-                                .collect();
-
-                            ui.table(
-                                Table::new("profiler")
-                                    .row_height(20.0)
-                                    .max_height(220.0)
-                                    .column(Column::new("#", 48.0).sortable(true))
-                                    .column(
-                                        Column::new("System", 140.0)
-                                            .resizable(true)
-                                            .sortable(true),
-                                    )
-                                    .column(Column::new("ms", 80.0).sortable(true)),
-                                |body| {
-                                    match body.sort() {
-                                        Some((0, dir)) => rows.sort_by(|a, b| {
-                                            let o = a.0.cmp(&b.0);
-                                            if dir == SortDir::Ascending { o } else { o.reverse() }
-                                        }),
-                                        Some((1, dir)) => rows.sort_by(|a, b| {
-                                            let o = a.1.cmp(b.1);
-                                            if dir == SortDir::Ascending { o } else { o.reverse() }
-                                        }),
-                                        Some((2, dir)) => rows.sort_by(|a, b| {
-                                            let o = a
-                                                .2
-                                                .partial_cmp(&b.2)
-                                                .unwrap_or(std::cmp::Ordering::Equal);
-                                            if dir == SortDir::Ascending { o } else { o.reverse() }
-                                        }),
-                                        _ => {}
-                                    }
-                                    body.rows(rows.len(), |i, row| {
-                                        let (idx, name, ms) = rows[i];
-                                        row.cell(|ui| {
-                                            ui.label(format!("{idx}"));
-                                        });
-                                        row.cell(|ui| {
-                                            ui.label(name);
-                                        });
-                                        row.cell(|ui| {
-                                            ui.label(format!("{ms:.2}"));
-                                        });
-                                    });
-                                },
-                            );
-                        }
-                        "Errors" => {
-                            Splitter::horizontal("errors_split")
-                                .default_ratio(0.35)
-                                .min_sizes(80.0, 120.0)
-                                .show(
-                                    ui,
-                                    |left| {
-                                        left.label("Sources");
-                                        left.label("compiler");
-                                        left.label("linker");
-                                    },
-                                    |right| {
-                                        right.label("No errors.");
-                                    },
-                                );
-                        }
-                        "Warnings" => {
-                            let st = ui.style();
-                            Label::new("\u{26A0} texture 'metal.png' exceeds 2K target")
-                                .size(st.fonts.small)
-                                .color(st.palette.accent_active)
-                                .show(ui);
-                            Label::new("\u{26A0} 3 unused materials in scene")
-                                .size(st.fonts.small)
-                                .color(st.palette.accent_active)
-                                .show(ui);
-                        }
-                        "Texture" => {
-                            ui.label("metal_albedo.png");
-                            let st = ui.style();
-                            Label::new("2048 \u{00D7} 2048 \u{00B7} BC7 \u{00B7} 5.3 MB")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.item);
-                            Image::new(demo_texture, Vec2::new(200.0, 200.0)).show(ui);
-                            ui.add_space(st.spacing.item);
-                            ui.checkbox(preview_enabled, "sRGB");
-                            ui.checkbox(auto_save, "Generate mipmaps");
-                        }
-                        "Mesh" => {
-                            ui.label("character_lod0.mesh");
-                            let st = ui.style();
-                            Label::new("12,480 tris \u{00B7} 6,210 verts \u{00B7} 1 material")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.item);
-                            Image::new(demo_texture, Vec2::new(220.0, 160.0)).show(ui);
-                            ui.add_space(st.spacing.item);
-                            ui.label("LOD bias");
-                            ui.slider(brightness, 0.0..=1.0);
-                            ui.checkbox(preview_enabled, "Wireframe");
-                        }
-                        "Animation" => {
-                            ui.label("run_cycle.anim");
-                            let st = ui.style();
-                            Label::new("32 frames \u{00B7} 30 fps \u{00B7} 1.07 s \u{00B7} looping")
-                                .size(st.fonts.small)
-                                .color(st.palette.text_secondary)
-                                .show(ui);
-                            ui.add_space(st.spacing.item);
-                            ui.label("Timeline");
-                            ui.slider(volume, 0.0..=1.0);
-                            ui.progress_bar(*volume);
-                            ui.add_space(st.spacing.item);
-                            ui.checkbox(preview_enabled, "Play");
-                            ui.checkbox(auto_save, "Loop");
-                        }
+                        }),
                         _ => {}
+                    }
+                    body.rows(rows.len(), |i, row| {
+                        let (idx, name, ms) = rows[i];
+                        row.cell(|ui| {
+                            ui.label(format!("{idx}"));
+                        });
+                        row.cell(|ui| {
+                            ui.label(name);
+                        });
+                        row.cell(|ui| {
+                            ui.label(format!("{ms:.2}"));
+                        });
+                    });
+                },
+            );
+        }
+        "Errors" => {
+            Splitter::horizontal("errors_split")
+                .default_ratio(0.35)
+                .min_sizes(80.0, 120.0)
+                .show(
+                    ui,
+                    |left| {
+                        left.label("Sources");
+                        left.label("compiler");
+                        left.label("linker");
+                    },
+                    |right| {
+                        right.label("No errors.");
+                    },
+                );
+        }
+        "Warnings" => {
+            let st = ui.style();
+            Label::new("\u{26A0} texture 'metal.png' exceeds 2K target")
+                .size(st.fonts.small)
+                .color(st.palette.accent_active)
+                .show(ui);
+            Label::new("\u{26A0} 3 unused materials in scene")
+                .size(st.fonts.small)
+                .color(st.palette.accent_active)
+                .show(ui);
+        }
+        "Texture" => {
+            ui.label("metal_albedo.png");
+            let st = ui.style();
+            Label::new("2048 \u{00D7} 2048 \u{00B7} BC7 \u{00B7} 5.3 MB")
+                .size(st.fonts.small)
+                .color(st.palette.text_secondary)
+                .show(ui);
+            ui.add_space(st.spacing.item);
+            Image::new(demo_texture, Vec2::new(200.0, 200.0)).show(ui);
+            ui.add_space(st.spacing.item);
+            ui.checkbox(preview_enabled, "sRGB");
+            ui.checkbox(auto_save, "Generate mipmaps");
+        }
+        "Mesh" => {
+            ui.label("character_lod0.mesh");
+            let st = ui.style();
+            Label::new("12,480 tris \u{00B7} 6,210 verts \u{00B7} 1 material")
+                .size(st.fonts.small)
+                .color(st.palette.text_secondary)
+                .show(ui);
+            ui.add_space(st.spacing.item);
+            Image::new(demo_texture, Vec2::new(220.0, 160.0)).show(ui);
+            ui.add_space(st.spacing.item);
+            ui.label("LOD bias");
+            ui.slider(brightness, 0.0..=1.0);
+            ui.checkbox(preview_enabled, "Wireframe");
+        }
+        "Animation" => {
+            ui.label("run_cycle.anim");
+            let st = ui.style();
+            Label::new("32 frames \u{00B7} 30 fps \u{00B7} 1.07 s \u{00B7} looping")
+                .size(st.fonts.small)
+                .color(st.palette.text_secondary)
+                .show(ui);
+            ui.add_space(st.spacing.item);
+            ui.label("Timeline");
+            ui.slider(volume, 0.0..=1.0);
+            ui.progress_bar(*volume);
+            ui.add_space(st.spacing.item);
+            ui.checkbox(preview_enabled, "Play");
+            ui.checkbox(auto_save, "Loop");
+        }
+        _ => {}
     }
 }
 
@@ -1346,11 +1358,9 @@ fn render_node_canvas(
 
             // Wires: chain the demo nodes with horizontal-tangent beziers.
             for w in 0..nodes.len().saturating_sub(1) {
-                let a = scope.world_to_screen(
-                    nodes[w].0 + Vec2::new(node_size.x, node_size.y * 0.5),
-                );
-                let b = scope
-                    .world_to_screen(nodes[w + 1].0 + Vec2::new(0.0, node_size.y * 0.5));
+                let a =
+                    scope.world_to_screen(nodes[w].0 + Vec2::new(node_size.x, node_size.y * 0.5));
+                let b = scope.world_to_screen(nodes[w + 1].0 + Vec2::new(0.0, node_size.y * 0.5));
                 // Tangent length grows with vertical separation too, so
                 // steep connections keep a smooth S instead of pinching.
                 let dx = ((b.x - a.x).abs() * 0.5)
@@ -1393,10 +1403,7 @@ fn render_node_canvas(
                 st.palette.elevated
             };
             p.rect_filled(srect, 4.0 * scope.zoom(), body_color);
-            let header = Rect::from_min_size(
-                srect.min,
-                Vec2::new(srect.width(), header_h),
-            );
+            let header = Rect::from_min_size(srect.min, Vec2::new(srect.width(), header_h));
             p.rect_filled(header, 4.0 * scope.zoom(), st.palette.header);
             p.rect_stroke(
                 srect,
@@ -1411,8 +1418,16 @@ fn render_node_canvas(
             // Pins on the vertical midline of the body.
             let pin_r = 4.0 * scope.zoom();
             let mid_y = srect.min.y + srect.height() * 0.5;
-            p.circle_filled(Pos2::new(srect.min.x, mid_y), pin_r, st.palette.accent_active);
-            p.circle_filled(Pos2::new(srect.max.x, mid_y), pin_r, st.palette.accent_active);
+            p.circle_filled(
+                Pos2::new(srect.min.x, mid_y),
+                pin_r,
+                st.palette.accent_active,
+            );
+            p.circle_filled(
+                Pos2::new(srect.max.x, mid_y),
+                pin_r,
+                st.palette.accent_active,
+            );
             if let Some(px) = label_px {
                 p.text(
                     srect.min + Vec2::new(6.0 * scope.zoom(), header_h + 4.0 * scope.zoom()),

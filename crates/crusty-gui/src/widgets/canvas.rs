@@ -13,7 +13,7 @@
 use crate::context::{Direction, Ui, UiOptions};
 use crate::id::Id;
 use crate::input::{
-    DragTracker, GestureEnd, Key, Modifiers, MouseButton, ScrollAccumulator, DRAG_THRESHOLD,
+    DRAG_THRESHOLD, DragTracker, GestureEnd, Key, Modifiers, MouseButton, ScrollAccumulator,
 };
 use crate::math::{Pos2, Rect, Vec2};
 use crate::paint::PaintCmd;
@@ -30,7 +30,10 @@ pub struct CanvasView {
 
 impl Default for CanvasView {
     fn default() -> Self {
-        Self { pan: Vec2::ZERO, zoom: 1.0 }
+        Self {
+            pan: Vec2::ZERO,
+            zoom: 1.0,
+        }
     }
 }
 
@@ -277,24 +280,26 @@ impl Canvas {
         let right_clicked = self.apply_input(ui, id, rect, hovered, view);
         view.zoom = view.zoom.clamp(self.min_zoom, self.max_zoom);
 
-        let scope = CanvasScope { right_clicked, rect, pan: view.pan, zoom: view.zoom };
+        let scope = CanvasScope {
+            right_clicked,
+            rect,
+            pan: view.pan,
+            zoom: view.zoom,
+        };
 
         // Clip body paint to the widget rect (a child Ui inherits the parent
         // clip only) and give the child the same rect as its hit-test clip.
         let clip = rect.intersect(ui.clip_rect());
         ui.ctx_mut().paint.push(PaintCmd::PushClip(clip));
         let inner = {
-            let opts = UiOptions { padding: Vec2::ZERO, spacing: 0.0 };
+            let opts = UiOptions {
+                padding: Vec2::ZERO,
+                spacing: 0.0,
+            };
             let parent_area = ui.area();
             let Ui { ctx, text, .. } = ui;
-            let mut child = Ui::with_root(
-                ctx,
-                text,
-                rect,
-                Direction::TopDown,
-                opts,
-                id.with("body"),
-            );
+            let mut child =
+                Ui::with_root(ctx, text, rect, Direction::TopDown, opts, id.with("body"));
             child.set_area(parent_area);
             child.set_clip(clip);
             body(&mut child, &scope)
@@ -461,8 +466,7 @@ impl Canvas {
                     self.min_zoom.max(ZOOM_LADDER[0])
                 }
                 .min(hi);
-                let world_at_pointer =
-                    Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
+                let world_at_pointer = Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
                 view.zoom = target.clamp(lo, hi);
                 // Keep the world point under the cursor pinned — zooming at
                 // the cursor is the whole reason the wheel does this.
@@ -488,11 +492,13 @@ mod tests {
         }
     }
 
-
     #[test]
     fn the_zoom_ladder_is_monotonic_spans_its_range_and_contains_one_to_one() {
         assert_eq!(ZOOM_LADDER.len(), 12);
-        assert!(ZOOM_LADDER.windows(2).all(|w| w[0] < w[1]), "strictly ascending");
+        assert!(
+            ZOOM_LADDER.windows(2).all(|w| w[0] < w[1]),
+            "strictly ascending"
+        );
         assert!((ZOOM_LADDER[0] - 0.15).abs() < 1e-6, "starts at 15%");
         assert!((ZOOM_LADDER[11] - 2.20).abs() < 1e-6, "ends at 220%");
         assert!(
@@ -553,16 +559,28 @@ mod tests {
         // Reproduce the zoom step from `apply_input` and assert the world
         // point under the pointer stays put across the zoom change.
         let rect = Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(200.0, 200.0));
-        let mut view = CanvasView { pan: Vec2::new(10.0, 10.0), zoom: 1.0 };
+        let mut view = CanvasView {
+            pan: Vec2::new(10.0, 10.0),
+            zoom: 1.0,
+        };
         let p = Pos2::new(150.0, 60.0);
-        let before = CanvasScope { right_clicked: None, rect, pan: view.pan, zoom: view.zoom }
-            .screen_to_world(p);
-        let world_at_pointer =
-            Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
+        let before = CanvasScope {
+            right_clicked: None,
+            rect,
+            pan: view.pan,
+            zoom: view.zoom,
+        }
+        .screen_to_world(p);
+        let world_at_pointer = Pos2::new(0.0, 0.0) + view.pan + (p - rect.min) / view.zoom;
         view.zoom = (view.zoom * 0.6_f32.exp()).clamp(0.25, 2.5);
         view.pan = world_at_pointer.to_vec2() - (p - rect.min) / view.zoom;
-        let after = CanvasScope { right_clicked: None, rect, pan: view.pan, zoom: view.zoom }
-            .screen_to_world(p);
+        let after = CanvasScope {
+            right_clicked: None,
+            rect,
+            pan: view.pan,
+            zoom: view.zoom,
+        }
+        .screen_to_world(p);
         assert!((after.x - before.x).abs() < 1e-3 && (after.y - before.y).abs() < 1e-3);
     }
 

@@ -272,8 +272,12 @@ impl CommandRegistry {
                 "Engine: Open Settings",
                 EditorAction::OpenSettings,
             ),
-            Command::new("graph.save", "Graph: Save Graph", EditorAction::GraphSaveGraph)
-                .with_keywords(["node"]),
+            Command::new(
+                "graph.save",
+                "Graph: Save Graph",
+                EditorAction::GraphSaveGraph,
+            )
+            .with_keywords(["node"]),
         ];
 
         for command in defaults {

@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn re_anchor_hysteresis() {
         let a = IVec2::new(0, 0); // AABB [0,64)²
-        // Border wiggle around x=64: inside margin, never re-anchors.
+                                  // Border wiggle around x=64: inside margin, never re-anchors.
         assert_eq!(re_anchor(a, Vec2::new(63.9, 10.0)), None);
         assert_eq!(re_anchor(a, Vec2::new(64.0 + 7.9, 10.0)), None);
         // Committed crossing re-anchors to the position's cell.
@@ -148,10 +148,7 @@ mod tests {
             Some(IVec2::new(1, 0))
         );
         // Corner: 7 m past on both axes is √98 > 8 m box distance.
-        assert_eq!(
-            re_anchor(a, Vec2::new(71.0, 71.0)),
-            Some(IVec2::new(1, 1))
-        );
+        assert_eq!(re_anchor(a, Vec2::new(71.0, 71.0)), Some(IVec2::new(1, 1)));
         // 5 m past on both axes is √50 < 8 m: still anchored.
         assert_eq!(re_anchor(a, Vec2::new(69.0, 69.0)), None);
         // Negative side too.

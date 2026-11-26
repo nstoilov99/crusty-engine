@@ -76,11 +76,7 @@ impl Ui<'_> {
     pub fn show_toasts(&mut self) {
         let dt = self.ctx().dt();
         // Pull the queue out so we can render without holding the borrow.
-        let mut items = match self
-            .ctx_mut()
-            .memory
-            .data_get_mut::<ToastQueue>(queue_id())
-        {
+        let mut items = match self.ctx_mut().memory.data_get_mut::<ToastQueue>(queue_id()) {
             Some(q) => std::mem::take(&mut q.items),
             None => return,
         };
@@ -102,7 +98,9 @@ impl Ui<'_> {
         let mut y = screen.min.y + margin;
 
         for t in &items {
-            let text_size = self.text_mut().measure(&t.text, style.fonts.body, Some(width - pad.x * 2.0));
+            let text_size =
+                self.text_mut()
+                    .measure(&t.text, style.fonts.body, Some(width - pad.x * 2.0));
             let height = text_size.y + pad.y * 2.0;
             let x = screen.max.x - margin - width;
             let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(width, height));
@@ -113,7 +111,10 @@ impl Ui<'_> {
             let fade_out = (remaining / 0.5).clamp(0.0, 1.0);
             let alpha = fade_in.min(fade_out);
 
-            let mut fill = style.palette.elevated.with_alpha(style.palette.popover_alpha);
+            let mut fill = style
+                .palette
+                .elevated
+                .with_alpha(style.palette.popover_alpha);
             fill.a *= alpha;
             let mut stroke = style.palette.stroke_strong;
             stroke.a *= alpha;

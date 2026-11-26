@@ -159,9 +159,7 @@ impl DockNode {
     pub fn tabs_hidden(&self, tab: &str) -> bool {
         match self {
             DockNode::Leaf(leaf) => leaf.tabs_hidden && leaf.tabs.iter().any(|t| t == tab),
-            DockNode::Split(split) => {
-                split.first.tabs_hidden(tab) || split.second.tabs_hidden(tab)
-            }
+            DockNode::Split(split) => split.first.tabs_hidden(tab) || split.second.tabs_hidden(tab),
         }
     }
 

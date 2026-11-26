@@ -340,7 +340,12 @@ pub fn import_dialog_panel(ui: &mut Ui, state: &mut ImportDialogState) -> Import
         let pad = ((ui.available_size().x - (button.x * 2.0 + spacing)) * 0.5).max(0.0);
         ui.horizontal(|ui| {
             ui.add_space(pad);
-            if Button::new("Cancel").ghost().min_size(button).show(ui).clicked {
+            if Button::new("Cancel")
+                .ghost()
+                .min_size(button)
+                .show(ui)
+                .clicked
+            {
                 action = ImportDialogAction::Cancel;
             }
             ui.add_space(spacing);

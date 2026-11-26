@@ -82,10 +82,16 @@ impl Splitter {
 
         // Drag updates the ratio before rects are computed so the bar
         // tracks the pointer within the same frame.
-        let extent = if self.side_by_side { rect.width() } else { rect.height() };
+        let extent = if self.side_by_side {
+            rect.width()
+        } else {
+            rect.height()
+        };
         let bar_rect = |r: f32| bar_rect(rect, self.side_by_side, r);
         let resp = ui.interact(bar_id, bar_rect(ratio).expand(HIT_PADDING));
-        if resp.pressed && let Some(p) = ui.ctx().input.pointer_pos {
+        if resp.pressed
+            && let Some(p) = ui.ctx().input.pointer_pos
+        {
             ratio = if self.side_by_side {
                 (p.x - rect.min.x) / rect.width()
             } else {
@@ -129,7 +135,10 @@ impl Splitter {
             .paint
             .push(PaintCmd::Rrect(RectShape::fill(visual, 0.0, color)));
 
-        let opts = UiOptions { padding: Vec2::ZERO, spacing: style.spacing.item };
+        let opts = UiOptions {
+            padding: Vec2::ZERO,
+            spacing: style.spacing.item,
+        };
         let parent_clip = ui.clip_rect();
         let (ra, _) = ui.run_at(a, Direction::TopDown, id.with("first"), opts, |child| {
             child.set_clip(a.intersect(parent_clip));

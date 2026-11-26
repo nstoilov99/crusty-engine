@@ -43,11 +43,7 @@ pub fn cell_model(cx: i32, cy: i32) -> Model {
         for i in 0..VERTS {
             let gx = cx * CELL_QUADS + i;
             let gy = cy * CELL_QUADS + j;
-            let pos_zup = Vec3::new(
-                gx as f32 * SPACING,
-                gy as f32 * SPACING,
-                height_at(gx, gy),
-            );
+            let pos_zup = Vec3::new(gx as f32 * SPACING, gy as f32 * SPACING, height_at(gx, gy));
             let p = convert_position_zup_to_yup(pos_zup);
             let n = convert_position_zup_to_yup(normal_zup(gx, gy));
             min = min.min(p);
@@ -127,10 +123,18 @@ mod tests {
         for c in MIN_CELL..MAX_CELL - 1 {
             let a = cell_model(c, 0);
             let b = cell_model(c + 1, 0);
-            assert_eq!(border_column(&a, CELL_QUADS), border_column(&b, 0), "x seam at cell {c}");
+            assert_eq!(
+                border_column(&a, CELL_QUADS),
+                border_column(&b, 0),
+                "x seam at cell {c}"
+            );
             let a = cell_model(0, c);
             let b = cell_model(0, c + 1);
-            assert_eq!(border_row(&a, CELL_QUADS), border_row(&b, 0), "y seam at cell {c}");
+            assert_eq!(
+                border_row(&a, CELL_QUADS),
+                border_row(&b, 0),
+                "y seam at cell {c}"
+            );
         }
     }
 

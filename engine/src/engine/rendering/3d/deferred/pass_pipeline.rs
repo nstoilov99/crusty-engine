@@ -129,8 +129,8 @@ impl PassPipelineBuilder {
                 .into_pipeline_layout_create_info(self.device.clone())?,
         )?;
 
-        let subpass = Subpass::from(self.render_pass.clone(), 0)
-            .ok_or("render pass has no subpass 0")?;
+        let subpass =
+            Subpass::from(self.render_pass.clone(), 0).ok_or("render pass has no subpass 0")?;
 
         let color_blend_state = self.color_attachment.map(|state| {
             ColorBlendState::with_attachment_states(subpass.num_color_attachments(), state)

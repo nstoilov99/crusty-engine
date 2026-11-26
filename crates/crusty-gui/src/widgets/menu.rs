@@ -24,10 +24,7 @@ impl Ui<'_> {
     pub fn menu_bar(&mut self, body: impl FnOnce(&mut Ui)) {
         let style = self.style();
         let height = style.fonts.body + 12.0;
-        let strip = Rect::from_min_size(
-            self.cursor(),
-            Vec2::new(self.available().width(), height),
-        );
+        let strip = Rect::from_min_size(self.cursor(), Vec2::new(self.available().width(), height));
         self.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
             strip,
             style.rounding.small,
@@ -229,10 +226,7 @@ impl Ui<'_> {
         let style = self.style();
         let font = style.fonts.small;
         let text_str = label.as_ref().to_uppercase();
-        let rect = self.allocate(Vec2::new(
-            self.available().width(),
-            font * 1.25 + 8.0,
-        ));
+        let rect = self.allocate(Vec2::new(self.available().width(), font * 1.25 + 8.0));
         let Ui { ctx, text, .. } = self;
         text.add_text_family(
             &mut ctx.paint,
@@ -366,18 +360,21 @@ fn menu_panel(
             padding: Vec2::new(4.0, 4.0),
             spacing: 2.0,
         };
-        let mut inner =
-            Ui::with_root(ctx, text, scratch, Direction::TopDown, opts, id.with("root"));
+        let mut inner = Ui::with_root(
+            ctx,
+            text,
+            scratch,
+            Direction::TopDown,
+            opts,
+            id.with("root"),
+        );
         inner.set_area(Some(area_id));
         body(&mut inner);
         inner.used_rect().height()
     };
     let drained: Vec<PaintCmd> = ui.ctx_mut().paint.drain(body_start..).collect();
 
-    let panel = Rect::from_min_size(
-        anchor,
-        Vec2::new(width, (used_h + 8.0).max(20.0)),
-    );
+    let panel = Rect::from_min_size(anchor, Vec2::new(width, (used_h + 8.0).max(20.0)));
 
     // Nested popups (submenus, combo dropdowns) pushed into `overlay_paint`
     // while the body ran; they must render above this panel's bg/shadow, so
@@ -387,14 +384,20 @@ fn menu_panel(
         RectShape::fill(
             panel,
             style.rounding.panel,
-            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+            style
+                .palette
+                .elevated
+                .with_alpha(style.palette.popover_alpha),
         )
         .with_stroke(style.metrics.border, style.palette.stroke_strong),
     ));
     ui.ctx_mut().overlay_paint.extend(drained);
     ui.ctx_mut().overlay_paint.extend(children);
 
-    let area = ui.ctx_mut().memory.area_entry(area_id, panel.min, Order::Tooltip);
+    let area = ui
+        .ctx_mut()
+        .memory
+        .area_entry(area_id, panel.min, Order::Tooltip);
     area.pos = panel.min;
     area.size = panel.size();
 
@@ -406,8 +409,8 @@ fn menu_panel(
     // child from collapsing the chain (this replaces `topmost_area_contains`).
     ui.ctx_mut().modal_push(area_id, trigger.union(panel));
 
-    let closed = ui.ctx().memory.popup_close_requested
-        || ui.ctx().modal_dismissed(area_id).is_some();
+    let closed =
+        ui.ctx().memory.popup_close_requested || ui.ctx().modal_dismissed(area_id).is_some();
     if closed {
         ui.ctx_mut().modal_dismiss(area_id);
     }

@@ -11,16 +11,15 @@ use std::path::Path;
 use std::time::Instant;
 
 use crusty_gui::math::Vec2;
-use serde::{Deserialize, Serialize};
 use crusty_gui::widgets::CanvasView;
+use serde::{Deserialize, Serialize};
 
 use crate::engine::node_graph::{
-    endpoint_type, load_graph, migrate_doc, save_graph, validate_doc, CommentBox, Edge,
-    GraphDoc, GraphRegion, GraphResolver, IfacePin, PinType, VarDecl,
-    DocDescriptors, GraphError, GroupBox, NodeInst, NodeRegistry, PropValue, GRAPH_INPUT_TYPE_ID,
-    GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_OUT,
-    REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID, EVENT_CUSTOM_TYPE_ID, EVENT_NAME_PROP,
-    EVENT_PAYLOAD_PREFIX,
+    endpoint_type, load_graph, migrate_doc, save_graph, validate_doc, CommentBox, DocDescriptors,
+    Edge, GraphDoc, GraphError, GraphRegion, GraphResolver, GroupBox, IfacePin, NodeInst,
+    NodeRegistry, PinType, PropValue, VarDecl, EVENT_CUSTOM_TYPE_ID, EVENT_NAME_PROP,
+    EVENT_PAYLOAD_PREFIX, GRAPH_INPUT_TYPE_ID, GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_OUT,
+    REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID,
 };
 
 /// The type a freshly added payload field takes (GS-1): the commonest one, and
@@ -96,7 +95,11 @@ pub enum GraphEdit {
     /// (Task 40 identity rules), which is exactly what lets every existing
     /// `var_get`/`var_set` keep pointing at the same declaration across a
     /// rename.
-    RenameVariable { slug: String, old: String, new: String },
+    RenameVariable {
+        slug: String,
+        old: String,
+        new: String,
+    },
     /// The declared type changed, carrying the default with it because a
     /// retype resets a default it can no longer hold.
     RetypeVariable {
@@ -136,19 +139,35 @@ pub enum GraphEdit {
     /// A comment box's rect origin moved by a delta (drag-coalesced).
     MoveComment { index: usize, delta: [f32; 2] },
     /// A comment box's text changed.
-    SetCommentText { index: usize, old: String, new: String },
+    SetCommentText {
+        index: usize,
+        old: String,
+        new: String,
+    },
     /// A group frame was appended.
     AddGroup(GroupBox),
     /// A group frame was removed from `index` (nodes are untouched).
     RemoveGroup { index: usize, group: GroupBox },
     /// A group moved by a delta, carrying the captured member nodes with it.
-    MoveGroup { index: usize, node_ids: Vec<u64>, delta: [f32; 2] },
+    MoveGroup {
+        index: usize,
+        node_ids: Vec<u64>,
+        delta: [f32; 2],
+    },
     /// A group's title changed.
-    SetGroupTitle { index: usize, old: String, new: String },
+    SetGroupTitle {
+        index: usize,
+        old: String,
+        new: String,
+    },
     /// A node's display title changed (the Details panel's Name row,
     /// per-document layouts ticket 02). `None` is "no custom title" — an
     /// animation state then reads as `State <id>`.
-    SetNodeTitle { node: u64, old: Option<String>, new: Option<String> },
+    SetNodeTitle {
+        node: u64,
+        old: Option<String>,
+        new: Option<String>,
+    },
     /// An annotation's tint slot changed (a ramp index, never a hex).
     SetAnnotationTint {
         target: Annotation,
@@ -174,7 +193,10 @@ pub enum GraphEdit {
     /// Several edits that must undo as one gesture — inserting a reroute
     /// (one edge out, a node and two edges in) is the motivating case.
     /// Applied in order, reverted in reverse.
-    Composite { label: String, edits: Vec<GraphEdit> },
+    Composite {
+        label: String,
+        edits: Vec<GraphEdit>,
+    },
     /// An edit inside the embedded region keyed under `owner` (Task 41
     /// ticket 05: the rule canvas). The inner edit speaks region-local node
     /// ids and applies against the region's nodes/edges as if they were a
@@ -214,7 +236,12 @@ impl GraphEdit {
     pub fn apply(&self, doc: &mut GraphDoc) {
         match self {
             GraphEdit::AddNode(n) => doc.nodes.push(n.clone()),
-            GraphEdit::RemoveNodes { nodes, edges, comments, regions } => {
+            GraphEdit::RemoveNodes {
+                nodes,
+                edges,
+                comments,
+                regions,
+            } => {
                 let ids: BTreeSet<u64> = nodes.iter().map(|(_, n)| n.id).collect();
                 doc.nodes.retain(|n| !ids.contains(&n.id));
                 doc.edges.retain(|e| !edges.iter().any(|(_, re)| re == e));
@@ -246,7 +273,11 @@ impl GraphEdit {
                 }
             }
             GraphEdit::MoveNodes { ids, delta } => move_nodes(doc, ids, *delta),
-            GraphEdit::Paste { nodes, edges, regions } => {
+            GraphEdit::Paste {
+                nodes,
+                edges,
+                regions,
+            } => {
                 doc.nodes.extend(nodes.iter().cloned());
                 doc.edges.extend(edges.iter().cloned());
                 for (id, r) in regions {
@@ -261,9 +292,12 @@ impl GraphEdit {
                 }
             }
             GraphEdit::RenameVariable { slug, new, .. } => set_var_label(doc, slug, new),
-            GraphEdit::RetypeVariable { slug, new_ty, new_default, .. } => {
-                set_var_type(doc, slug, new_ty, new_default)
-            }
+            GraphEdit::RetypeVariable {
+                slug,
+                new_ty,
+                new_default,
+                ..
+            } => set_var_type(doc, slug, new_ty, new_default),
             GraphEdit::SetVariableDefault { slug, new, .. } => set_var_default(doc, slug, new),
             GraphEdit::SetVariableGroup { slug, new, .. } => set_var_group(doc, slug, new),
             GraphEdit::ReorderVariable { from, to } => move_variable(doc, *from, *to),
@@ -271,30 +305,30 @@ impl GraphEdit {
             GraphEdit::RemoveComment { index, .. } => {
                 doc.comments.remove(*index);
             }
-            GraphEdit::MoveComment { index, delta } => shift_rect(&mut doc.comments[*index].rect, *delta),
-            GraphEdit::SetCommentText { index, new, .. } => {
-                doc.comments[*index].text = new.clone()
+            GraphEdit::MoveComment { index, delta } => {
+                shift_rect(&mut doc.comments[*index].rect, *delta)
             }
+            GraphEdit::SetCommentText { index, new, .. } => doc.comments[*index].text = new.clone(),
             GraphEdit::AddGroup(g) => doc.groups.push(g.clone()),
             GraphEdit::RemoveGroup { index, .. } => {
                 doc.groups.remove(*index);
             }
-            GraphEdit::MoveGroup { index, node_ids, delta } => {
+            GraphEdit::MoveGroup {
+                index,
+                node_ids,
+                delta,
+            } => {
                 shift_rect(&mut doc.groups[*index].rect, *delta);
                 move_nodes(doc, node_ids, *delta);
             }
-            GraphEdit::SetGroupTitle { index, new, .. } => {
-                doc.groups[*index].title = new.clone()
-            }
+            GraphEdit::SetGroupTitle { index, new, .. } => doc.groups[*index].title = new.clone(),
             GraphEdit::SetNodeTitle { node, new, .. } => {
                 if let Some(n) = doc.node_mut(*node) {
                     n.title = new.clone();
                 }
             }
             GraphEdit::SetAnnotationTint { target, new, .. } => set_tint(doc, *target, *new),
-            GraphEdit::SetAnnotationCollapsed { target, new } => {
-                set_collapsed(doc, *target, *new)
-            }
+            GraphEdit::SetAnnotationCollapsed { target, new } => set_collapsed(doc, *target, *new),
             GraphEdit::ResizeAnnotation { target, new, .. } => set_rect(doc, *target, *new),
             GraphEdit::SetCommentAnchor { index, new, .. } => {
                 if let Some(c) = doc.comments.get_mut(*index) {
@@ -316,7 +350,12 @@ impl GraphEdit {
     fn revert(&self, doc: &mut GraphDoc) {
         match self {
             GraphEdit::AddNode(n) => doc.nodes.retain(|x| x.id != n.id),
-            GraphEdit::RemoveNodes { nodes, edges, comments, regions } => {
+            GraphEdit::RemoveNodes {
+                nodes,
+                edges,
+                comments,
+                regions,
+            } => {
                 // Reinsert at original indices, ascending so each index still
                 // refers to the correct slot once earlier ones are back.
                 reinsert_indexed(&mut doc.nodes, nodes);
@@ -328,10 +367,12 @@ impl GraphEdit {
             }
             GraphEdit::Connect(e) => doc.edges.retain(|x| x != e),
             GraphEdit::Disconnect { edges } => reinsert_indexed(&mut doc.edges, edges),
-            GraphEdit::MoveNodes { ids, delta } => {
-                move_nodes(doc, ids, [-delta[0], -delta[1]])
-            }
-            GraphEdit::Paste { nodes, edges, regions } => {
+            GraphEdit::MoveNodes { ids, delta } => move_nodes(doc, ids, [-delta[0], -delta[1]]),
+            GraphEdit::Paste {
+                nodes,
+                edges,
+                regions,
+            } => {
                 let ids: BTreeSet<u64> = nodes.iter().map(|n| n.id).collect();
                 doc.nodes.retain(|n| !ids.contains(&n.id));
                 doc.edges.retain(|e| !edges.contains(e));
@@ -350,9 +391,12 @@ impl GraphEdit {
                 doc.variables.insert(at, decl.clone());
             }
             GraphEdit::RenameVariable { slug, old, .. } => set_var_label(doc, slug, old),
-            GraphEdit::RetypeVariable { slug, old_ty, old_default, .. } => {
-                set_var_type(doc, slug, old_ty, old_default)
-            }
+            GraphEdit::RetypeVariable {
+                slug,
+                old_ty,
+                old_default,
+                ..
+            } => set_var_type(doc, slug, old_ty, old_default),
             GraphEdit::SetVariableDefault { slug, old, .. } => set_var_default(doc, slug, old),
             GraphEdit::SetVariableGroup { slug, old, .. } => set_var_group(doc, slug, old),
             GraphEdit::ReorderVariable { from, to } => move_variable(doc, *to, *from),
@@ -365,31 +409,27 @@ impl GraphEdit {
             GraphEdit::MoveComment { index, delta } => {
                 shift_rect(&mut doc.comments[*index].rect, [-delta[0], -delta[1]])
             }
-            GraphEdit::SetCommentText { index, old, .. } => {
-                doc.comments[*index].text = old.clone()
-            }
+            GraphEdit::SetCommentText { index, old, .. } => doc.comments[*index].text = old.clone(),
             GraphEdit::AddGroup(_) => {
                 doc.groups.pop();
             }
-            GraphEdit::RemoveGroup { index, group } => {
-                doc.groups.insert(*index, group.clone())
-            }
-            GraphEdit::MoveGroup { index, node_ids, delta } => {
+            GraphEdit::RemoveGroup { index, group } => doc.groups.insert(*index, group.clone()),
+            GraphEdit::MoveGroup {
+                index,
+                node_ids,
+                delta,
+            } => {
                 shift_rect(&mut doc.groups[*index].rect, [-delta[0], -delta[1]]);
                 move_nodes(doc, node_ids, [-delta[0], -delta[1]]);
             }
-            GraphEdit::SetGroupTitle { index, old, .. } => {
-                doc.groups[*index].title = old.clone()
-            }
+            GraphEdit::SetGroupTitle { index, old, .. } => doc.groups[*index].title = old.clone(),
             GraphEdit::SetNodeTitle { node, old, .. } => {
                 if let Some(n) = doc.node_mut(*node) {
                     n.title = old.clone();
                 }
             }
             GraphEdit::SetAnnotationTint { target, old, .. } => set_tint(doc, *target, *old),
-            GraphEdit::SetAnnotationCollapsed { target, new } => {
-                set_collapsed(doc, *target, !*new)
-            }
+            GraphEdit::SetAnnotationCollapsed { target, new } => set_collapsed(doc, *target, !*new),
             GraphEdit::ResizeAnnotation { target, old, .. } => set_rect(doc, *target, *old),
             GraphEdit::SetCommentAnchor { index, old, .. } => {
                 if let Some(c) = doc.comments.get_mut(*index) {
@@ -437,9 +477,12 @@ impl GraphEdit {
             GraphEdit::RenameVariable { .. } => "Rename Variable".to_string(),
             GraphEdit::RetypeVariable { .. } => "Retype Variable".to_string(),
             GraphEdit::SetVariableDefault { .. } => "Set Variable Default".to_string(),
-            GraphEdit::SetVariableGroup { new, .. } => {
-                if new.is_some() { "Group Variable" } else { "Ungroup Variable" }.to_string()
+            GraphEdit::SetVariableGroup { new, .. } => if new.is_some() {
+                "Group Variable"
+            } else {
+                "Ungroup Variable"
             }
+            .to_string(),
             GraphEdit::ReorderVariable { .. } => "Reorder Variable".to_string(),
             GraphEdit::AddComment(_) => "Add Comment".to_string(),
             GraphEdit::RemoveComment { .. } => "Delete Comment".to_string(),
@@ -452,21 +495,40 @@ impl GraphEdit {
             GraphEdit::SetNodeTitle { .. } => "Rename Node".to_string(),
             GraphEdit::SetAnnotationTint { target, new, .. } => format!(
                 "{} {}",
-                if new.is_some() { "Tint" } else { "Clear Tint on" },
-                if target.is_group() { "Group" } else { "Comment" }
+                if new.is_some() {
+                    "Tint"
+                } else {
+                    "Clear Tint on"
+                },
+                if target.is_group() {
+                    "Group"
+                } else {
+                    "Comment"
+                }
             ),
             GraphEdit::SetAnnotationCollapsed { target, new } => format!(
                 "{} {}",
                 if *new { "Collapse" } else { "Expand" },
-                if target.is_group() { "Group" } else { "Comment" }
+                if target.is_group() {
+                    "Group"
+                } else {
+                    "Comment"
+                }
             ),
             GraphEdit::ResizeAnnotation { target, .. } => format!(
                 "Resize {}",
-                if target.is_group() { "Group" } else { "Comment" }
+                if target.is_group() {
+                    "Group"
+                } else {
+                    "Comment"
+                }
             ),
-            GraphEdit::SetCommentAnchor { new, .. } => {
-                if new.is_some() { "Anchor Comment" } else { "Un-anchor Comment" }.to_string()
+            GraphEdit::SetCommentAnchor { new, .. } => if new.is_some() {
+                "Anchor Comment"
+            } else {
+                "Un-anchor Comment"
             }
+            .to_string(),
             GraphEdit::Composite { label, .. } => label.clone(),
             // "Add Node in Rule" — the verb stays the inner edit's, the
             // suffix says which canvas it happened on.
@@ -690,7 +752,11 @@ pub enum VarListRow {
     /// A group header. `name` is `None` for the implicit trailing section that
     /// collects ungrouped declarations — it only appears when some other row
     /// *is* grouped, so an ungrouped document looks exactly as it always did.
-    Group { name: Option<String>, count: usize, collapsed: bool },
+    Group {
+        name: Option<String>,
+        count: usize,
+        collapsed: bool,
+    },
     /// A declaration, by index into `doc.variables`.
     Var(usize),
 }
@@ -710,9 +776,7 @@ pub struct VarListView {
 /// label **and** the slug — the two names an author would think to type.
 pub fn variable_matches(decl: &VarDecl, filter: &str) -> bool {
     let q = filter.trim().to_lowercase();
-    q.is_empty()
-        || decl.label.to_lowercase().contains(&q)
-        || decl.slug.to_lowercase().contains(&q)
+    q.is_empty() || decl.label.to_lowercase().contains(&q) || decl.slug.to_lowercase().contains(&q)
 }
 
 /// Build the list: group headers over the *unchanged* declaration order, with
@@ -721,11 +785,7 @@ pub fn variable_matches(decl: &VarDecl, filter: &str) -> bool {
 /// Group order is first-declaration order, so grouping never reshuffles the
 /// list and the same file always draws the same way. Collapsed groups keep
 /// their header (and its count) and drop their rows.
-pub fn variables_view(
-    doc: &GraphDoc,
-    filter: &str,
-    collapsed: &BTreeSet<String>,
-) -> VarListView {
+pub fn variables_view(doc: &GraphDoc, filter: &str, collapsed: &BTreeSet<String>) -> VarListView {
     let total = doc.variables.len();
     let matching: Vec<bool> = doc
         .variables
@@ -759,9 +819,7 @@ pub fn variables_view(
         }
         // A document nobody grouped has no headers at all — the shipped look.
         if grouped {
-            let is_collapsed = group
-                .as_deref()
-                .is_some_and(|g| collapsed.contains(g));
+            let is_collapsed = group.as_deref().is_some_and(|g| collapsed.contains(g));
             rows.push(VarListRow::Group {
                 name: group.clone(),
                 count: members.len(),
@@ -773,7 +831,12 @@ pub fn variables_view(
         }
         rows.extend(members.into_iter().map(VarListRow::Var));
     }
-    VarListView { rows, matches, total, hidden: total - matches }
+    VarListView {
+        rows,
+        matches,
+        total,
+        hidden: total - matches,
+    }
 }
 
 /// The `var_get`/`var_set` nodes that name `slug`, in document order — what
@@ -808,7 +871,12 @@ pub fn variable_mismatch(doc: &GraphDoc, slug: &str, errors: &[GraphError]) -> O
     let mut count = 0usize;
     let mut expected: Option<PinType> = None;
     for e in errors {
-        let GraphError::TypeMismatch { edge, from_ty, to_ty } = e else {
+        let GraphError::TypeMismatch {
+            edge,
+            from_ty,
+            to_ty,
+        } = e
+        else {
             continue;
         };
         // A Get feeds the wire (its type is `from`); a Set is fed by it.
@@ -1058,7 +1126,11 @@ pub struct GraphEditStack {
 impl GraphEditStack {
     /// A stack for a freshly loaded (clean) document.
     pub fn new() -> Self {
-        Self { undo: Vec::new(), redo: Vec::new(), saved: Some(0) }
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+            saved: Some(0),
+        }
     }
 
     /// Record an edit that has *already* been applied to the doc. Clears the
@@ -1305,7 +1377,14 @@ impl GraphFragment {
             .iter()
             .filter_map(|(owner, r)| Some((*remap.get(owner)?, r.clone())))
             .collect();
-        Instantiated { nodes, edges, comments, groups, regions, dropped }
+        Instantiated {
+            nodes,
+            edges,
+            comments,
+            groups,
+            regions,
+            dropped,
+        }
     }
 }
 
@@ -1531,7 +1610,12 @@ pub enum PeekDragKind {
     /// Grabbed by the header: pointer offset from the panel's min corner.
     Move { grab: [f32; 2] },
     /// Grabbed on a border: which sides follow the pointer.
-    Resize { left: bool, right: bool, top: bool, bottom: bool },
+    Resize {
+        left: bool,
+        right: bool,
+        top: bool,
+        bottom: bool,
+    },
 }
 
 /// The graph editor is one product over several node libraries; the domain
@@ -1598,7 +1682,11 @@ impl GraphDomain {
                         // rule ("rule node 3") carries the region-local id
                         // too, so F8 can descend into the peek.
                         let region_node = anchor_rule_refusal(&message);
-                        vec![DomainError { node, region_node, message }]
+                        vec![DomainError {
+                            node,
+                            region_node,
+                            message,
+                        }]
                     }
                 }
             }
@@ -1622,7 +1710,11 @@ impl GraphDomain {
                     Ok(()) => Vec::new(),
                     Err(message) => {
                         let node = anchor_rule_refusal(&message);
-                        vec![DomainError { node, region_node: None, message }]
+                        vec![DomainError {
+                            node,
+                            region_node: None,
+                            message,
+                        }]
                     }
                 }
             }
@@ -1647,7 +1739,10 @@ pub struct GraphOpenRequest {
 impl GraphOpenRequest {
     /// A jump with no descent chain.
     pub fn jump(path: String) -> Self {
-        Self { path, back: Vec::new() }
+        Self {
+            path,
+            back: Vec::new(),
+        }
     }
 }
 
@@ -1746,7 +1841,8 @@ pub fn alias_name(n: &NodeInst) -> String {
 /// Does this alias stand for every state? Missing = the default, true.
 pub fn alias_is_global(n: &NodeInst) -> bool {
     !matches!(
-        n.properties.get(crate::engine::animation::graph::ALIAS_GLOBAL_PROP),
+        n.properties
+            .get(crate::engine::animation::graph::ALIAS_GLOBAL_PROP),
         Some(PropValue::Bool(false))
     )
 }
@@ -1754,7 +1850,10 @@ pub fn alias_is_global(n: &NodeInst) -> bool {
 /// The state ids an alias lists, as stored (`Array(Int)`), non-`Int` entries
 /// dropped. Order is the list's own; the editor appends on tick.
 pub fn alias_states(n: &NodeInst) -> Vec<i32> {
-    match n.properties.get(crate::engine::animation::graph::ALIAS_STATES_PROP) {
+    match n
+        .properties
+        .get(crate::engine::animation::graph::ALIAS_STATES_PROP)
+    {
         Some(PropValue::Array(items)) => items
             .iter()
             .filter_map(|v| match v {
@@ -1868,9 +1967,9 @@ fn edit_is_region_safe(edit: &GraphEdit) -> bool {
         | GraphEdit::Disconnect { .. }
         | GraphEdit::MoveNodes { .. }
         | GraphEdit::SetProperty { .. } => true,
-        GraphEdit::RemoveNodes { comments, regions, .. } => {
-            comments.is_empty() && regions.is_empty()
-        }
+        GraphEdit::RemoveNodes {
+            comments, regions, ..
+        } => comments.is_empty() && regions.is_empty(),
         GraphEdit::Paste { regions, .. } => regions.is_empty(),
         GraphEdit::Composite { edits, .. } => edits.iter().all(edit_is_region_safe),
         _ => false,
@@ -1884,8 +1983,14 @@ fn edit_is_region_safe(edit: &GraphEdit) -> bool {
 pub fn region_find_matches(doc: &GraphDoc, find: &FindState) -> Vec<(u64, u64)> {
     use crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
     let mut out = Vec::new();
-    for n in doc.nodes.iter().filter(|n| n.type_id == ANIM_TRANSITION_TYPE_ID) {
-        let Some(region) = doc.regions.get(&n.id) else { continue };
+    for n in doc
+        .nodes
+        .iter()
+        .filter(|n| n.type_id == ANIM_TRANSITION_TYPE_ID)
+    {
+        let Some(region) = doc.regions.get(&n.id) else {
+            continue;
+        };
         for rn in &region.nodes {
             // The display name a user would type: the title if set, else the
             // parameter a `var_get` reads, else nothing but the type id.
@@ -1911,7 +2016,9 @@ impl GraphEditorState {
         if !self.domain.is_animation() {
             return None;
         }
-        let id = self.primary.or_else(|| self.selection.iter().copied().next())?;
+        let id = self
+            .primary
+            .or_else(|| self.selection.iter().copied().next())?;
         (self.doc.node(id)?.type_id == ANIM_TRANSITION_TYPE_ID).then_some(id)
     }
 
@@ -1974,7 +2081,12 @@ impl GraphEditorState {
             rule_scope_registry(),
         );
         child.frame_all_on_open = true;
-        self.rule_scope = Some(RuleScope { owner, full: false, child: Box::new(child), seed });
+        self.rule_scope = Some(RuleScope {
+            owner,
+            full: false,
+            child: Box::new(child),
+            seed,
+        });
         true
     }
 
@@ -1995,7 +2107,9 @@ impl GraphEditorState {
     /// moment the region stops being look-only). Called once per frame by the
     /// panel and before any parent-history operation.
     pub fn drain_rule_scope(&mut self, registry: &NodeRegistry) {
-        let Some(mut scope) = self.rule_scope.take() else { return };
+        let Some(mut scope) = self.rule_scope.take() else {
+            return;
+        };
         let edits = scope.child.stack.take_edits();
         let mut recorded = false;
         for edit in edits {
@@ -2005,12 +2119,17 @@ impl GraphEditorState {
                 recorded = true;
             } else if edit_is_region_safe(&edit) {
                 if let Some(seed) = scope.seed.take() {
-                    let planted =
-                        GraphEdit::InRegion { owner: scope.owner, edit: Box::new(GraphEdit::AddNode(seed)) };
+                    let planted = GraphEdit::InRegion {
+                        owner: scope.owner,
+                        edit: Box::new(GraphEdit::AddNode(seed)),
+                    };
                     planted.apply(&mut self.doc);
                     self.stack.record(planted);
                 }
-                let wrapped = GraphEdit::InRegion { owner: scope.owner, edit: Box::new(edit) };
+                let wrapped = GraphEdit::InRegion {
+                    owner: scope.owner,
+                    edit: Box::new(edit),
+                };
                 wrapped.apply(&mut self.doc);
                 self.stack.record(wrapped);
                 recorded = true;
@@ -2033,7 +2152,9 @@ impl GraphEditorState {
     /// into nothing has nothing to show).
     pub fn rebuild_rule_scope(&mut self) {
         use crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
-        let Some(mut scope) = self.rule_scope.take() else { return };
+        let Some(mut scope) = self.rule_scope.take() else {
+            return;
+        };
         if !self
             .doc
             .node(scope.owner)
@@ -2041,7 +2162,12 @@ impl GraphEditorState {
         {
             return; // owner gone — scope stays closed
         }
-        let region = self.doc.regions.get(&scope.owner).cloned().unwrap_or_default();
+        let region = self
+            .doc
+            .regions
+            .get(&scope.owner)
+            .cloned()
+            .unwrap_or_default();
         scope.child.cancel_interactions();
         scope.child.doc.nodes = region.nodes;
         scope.child.doc.edges = region.edges;
@@ -2489,8 +2615,12 @@ impl PayloadConfirm {
     }
     pub fn counts(&self) -> (usize, usize) {
         match self {
-            PayloadConfirm::Remove { readers, graphs, .. }
-            | PayloadConfirm::Rename { readers, graphs, .. } => (*readers, *graphs),
+            PayloadConfirm::Remove {
+                readers, graphs, ..
+            }
+            | PayloadConfirm::Rename {
+                readers, graphs, ..
+            } => (*readers, *graphs),
         }
     }
 }
@@ -2515,7 +2645,13 @@ pub struct Watch {
 
 impl Watch {
     pub fn new(node: u64, pin: &str, output: bool) -> Self {
-        Self { node, pin: pin.to_string(), output, last: None, changed_at: None }
+        Self {
+            node,
+            pin: pin.to_string(),
+            output,
+            last: None,
+            changed_at: None,
+        }
     }
 
     /// Is this the watch on `(node, pin, output)`?
@@ -2566,7 +2702,11 @@ pub fn watch_chip_text(value: Option<&str>) -> String {
 #[derive(Debug, Clone)]
 pub enum VarConfirm {
     /// Retype `slug` to `ty`; `uses` nodes read or write it today.
-    Retype { slug: String, ty: PinType, uses: usize },
+    Retype {
+        slug: String,
+        ty: PinType,
+        uses: usize,
+    },
     /// Delete `slug`; `uses` nodes will become `UnknownVariable` errors.
     Delete { slug: String, uses: usize },
 }
@@ -2675,7 +2815,10 @@ impl GraphEditorState {
             // Open by default: 45-A's authoring story starts at the variable
             // list, and a strip nobody can see teaches nobody it exists. One
             // click (or Alt+V) collapses it back to the rail.
-            vars: VarPanel { open: true, ..Default::default() },
+            vars: VarPanel {
+                open: true,
+                ..Default::default()
+            },
             details_rename: None,
             flash: None,
             locate_request: None,
@@ -2823,7 +2966,11 @@ impl GraphEditorState {
         // A payload draft or confirmation names a node an undo may have taken
         // away; both would otherwise sit there addressing nothing.
         let doc = &self.doc;
-        self.payload.draft = self.payload.draft.take().filter(|d| doc.node(d.node).is_some());
+        self.payload.draft = self
+            .payload
+            .draft
+            .take()
+            .filter(|d| doc.node(d.node).is_some());
         self.payload.confirm = self.payload.confirm.take().filter(|c| {
             doc.node(match c {
                 PayloadConfirm::Remove { node, .. } | PayloadConfirm::Rename { node, .. } => *node,
@@ -2875,8 +3022,12 @@ impl GraphEditorState {
         let Some(first) = it.next() else {
             return;
         };
-        let (mut minx, mut miny, mut maxx, mut maxy) =
-            (first[0], first[1], first[0] + NODE_EXT[0], first[1] + NODE_EXT[1]);
+        let (mut minx, mut miny, mut maxx, mut maxy) = (
+            first[0],
+            first[1],
+            first[0] + NODE_EXT[0],
+            first[1] + NODE_EXT[1],
+        );
         for p in it {
             minx = minx.min(p[0]);
             miny = miny.min(p[1]);
@@ -2884,7 +3035,12 @@ impl GraphEditorState {
             maxy = maxy.max(p[1] + NODE_EXT[1]);
         }
         let group = GroupBox {
-            rect: [minx - PAD, miny - PAD, (maxx - minx) + PAD * 2.0, (maxy - miny) + PAD * 2.0],
+            rect: [
+                minx - PAD,
+                miny - PAD,
+                (maxx - minx) + PAD * 2.0,
+                (maxy - miny) + PAD * 2.0,
+            ],
             title: "Group".to_string(),
             ..GroupBox::default()
         };
@@ -2939,7 +3095,11 @@ impl GraphEditorState {
             .doc
             .node(node)
             .and_then(|n| n.properties.get(key).cloned());
-        self.prop_edit = Some(PropEdit { node, key: key.to_string(), old });
+        self.prop_edit = Some(PropEdit {
+            node,
+            key: key.to_string(),
+            old,
+        });
     }
 
     /// Commit the in-flight inline edit as one `SetProperty`. No-op when
@@ -2966,7 +3126,12 @@ impl GraphEditorState {
             return;
         }
         self.commit(
-            GraphEdit::SetProperty { node: p.node, key: p.key, old: p.old, new },
+            GraphEdit::SetProperty {
+                node: p.node,
+                key: p.key,
+                old: p.old,
+                new,
+            },
             registry,
         );
     }
@@ -2983,12 +3148,7 @@ impl GraphEditorState {
     /// interface pins and generated subgraph paths already disambiguate.
     /// Renaming later changes only the label, so this is the single moment
     /// the identity is decided.
-    pub fn add_variable(
-        &mut self,
-        name: &str,
-        ty: PinType,
-        registry: &NodeRegistry,
-    ) -> String {
+    pub fn add_variable(&mut self, name: &str, ty: PinType, registry: &NodeRegistry) -> String {
         let base = variable_slug(name);
         let mut slug = base.clone();
         let mut n = 2u32;
@@ -3030,7 +3190,11 @@ impl GraphEditorState {
         if old == title {
             return false;
         }
-        let edit = GraphEdit::SetNodeTitle { node, old, new: title };
+        let edit = GraphEdit::SetNodeTitle {
+            node,
+            old,
+            new: title,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
         true
@@ -3138,7 +3302,10 @@ impl GraphEditorState {
         self.flush_var_default_edit(registry);
         self.flush_prop_edit(registry);
         let old = self.doc.variable(slug).and_then(|v| v.default.clone());
-        self.var_edit = Some(VarDefaultEdit { slug: slug.to_string(), old });
+        self.var_edit = Some(VarDefaultEdit {
+            slug: slug.to_string(),
+            old,
+        });
     }
 
     /// Commit the in-flight default edit as one `SetVariableDefault`. No-op
@@ -3152,7 +3319,11 @@ impl GraphEditorState {
             return;
         }
         self.commit(
-            GraphEdit::SetVariableDefault { slug: p.slug, old: p.old, new },
+            GraphEdit::SetVariableDefault {
+                slug: p.slug,
+                old: p.old,
+                new,
+            },
             registry,
         );
     }
@@ -3186,7 +3357,11 @@ impl GraphEditorState {
         if old == group {
             return false;
         }
-        let edit = GraphEdit::SetVariableGroup { slug: slug.to_string(), old, new: group };
+        let edit = GraphEdit::SetVariableGroup {
+            slug: slug.to_string(),
+            old,
+            new: group,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
         true
@@ -3223,7 +3398,13 @@ impl GraphEditorState {
     }
 
     /// Commit a whole new entry list as one undo entry with its own label.
-    fn commit_array(&mut self, slug: &str, items: Vec<PropValue>, registry: &NodeRegistry, label: &str) {
+    fn commit_array(
+        &mut self,
+        slug: &str,
+        items: Vec<PropValue>,
+        registry: &NodeRegistry,
+        label: &str,
+    ) {
         let old = self.doc.variable(slug).and_then(|v| v.default.clone());
         let new = Some(PropValue::Array(items));
         if old == new {
@@ -3261,7 +3442,12 @@ impl GraphEditorState {
         true
     }
 
-    pub fn remove_array_entry(&mut self, slug: &str, index: usize, registry: &NodeRegistry) -> bool {
+    pub fn remove_array_entry(
+        &mut self,
+        slug: &str,
+        index: usize,
+        registry: &NodeRegistry,
+    ) -> bool {
         let Some(mut items) = self.array_default(slug) else {
             return false;
         };
@@ -3371,12 +3557,7 @@ impl GraphEditorState {
     /// edge becomes an `UnknownPin` error, and the panel draws it as a dashed
     /// ghost row — the wire keeps a landing spot and the author sees what
     /// broke. Silently deleting their wires would be the worse degradation.
-    pub fn remove_payload_field(
-        &mut self,
-        node: u64,
-        slug: &str,
-        registry: &NodeRegistry,
-    ) -> bool {
+    pub fn remove_payload_field(&mut self, node: u64, slug: &str, registry: &NodeRegistry) -> bool {
         let key = format!("{EVENT_PAYLOAD_PREFIX}{slug}");
         let Some(old) = self
             .doc
@@ -3387,7 +3568,12 @@ impl GraphEditorState {
         };
         let edit = GraphEdit::Composite {
             label: "Remove Payload Field".to_string(),
-            edits: vec![GraphEdit::SetProperty { node, key, old: Some(old), new: None }],
+            edits: vec![GraphEdit::SetProperty {
+                node,
+                key,
+                old: Some(old),
+                new: None,
+            }],
         };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
@@ -3455,7 +3641,10 @@ impl GraphEditorState {
         if !doomed.is_empty() {
             let rewired: Vec<Edge> = doomed
                 .iter()
-                .map(|(_, e)| Edge { from_pin: new_slug.clone(), ..e.clone() })
+                .map(|(_, e)| Edge {
+                    from_pin: new_slug.clone(),
+                    ..e.clone()
+                })
                 .collect();
             edits.push(GraphEdit::Disconnect { edges: doomed });
             edits.extend(rewired.into_iter().map(GraphEdit::Connect));
@@ -3501,8 +3690,10 @@ impl GraphEditorState {
             position: pos,
             properties,
             subgraph: None,
-        
-        tint: None, title: None,};
+
+            tint: None,
+            title: None,
+        };
         let id = node.id;
         self.doc.nodes.push(node.clone());
         self.select_only(id);
@@ -3578,8 +3769,10 @@ impl GraphEditorState {
             position: pos,
             properties: std::collections::BTreeMap::new(),
             subgraph: Some(subgraph_path.to_string()),
-        
-        tint: None, title: None,};
+
+            tint: None,
+            title: None,
+        };
         let id = node.id;
         self.doc.nodes.push(node.clone());
         self.select_only(id);
@@ -3766,7 +3959,11 @@ impl GraphEditorState {
         if old == tint {
             return;
         }
-        let edit = GraphEdit::SetAnnotationTint { target, old, new: tint };
+        let edit = GraphEdit::SetAnnotationTint {
+            target,
+            old,
+            new: tint,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
     }
@@ -3784,12 +3981,7 @@ impl GraphEditorState {
     }
 
     /// Anchor (or un-anchor) a comment to a node, undoably.
-    pub fn set_comment_anchor(
-        &mut self,
-        index: usize,
-        node: Option<u64>,
-        registry: &NodeRegistry,
-    ) {
+    pub fn set_comment_anchor(&mut self, index: usize, node: Option<u64>, registry: &NodeRegistry) {
         let Some(c) = self.doc.comments.get(index) else {
             return;
         };
@@ -3797,7 +3989,11 @@ impl GraphEditorState {
         if old == node {
             return;
         }
-        let edit = GraphEdit::SetCommentAnchor { index, old, new: node };
+        let edit = GraphEdit::SetCommentAnchor {
+            index,
+            old,
+            new: node,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
     }
@@ -3814,7 +4010,11 @@ impl GraphEditorState {
             return;
         }
         self.commit(
-            GraphEdit::ResizeAnnotation { target: r.target, old: r.rect0, new: now },
+            GraphEdit::ResizeAnnotation {
+                target: r.target,
+                old: r.rect0,
+                new: now,
+            },
             registry,
         );
     }
@@ -3844,12 +4044,15 @@ impl GraphEditorState {
             position: pos,
             properties: Default::default(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         };
         Some(GraphEdit::Composite {
             label: "Add Reroute".to_string(),
             edits: vec![
-                GraphEdit::Disconnect { edges: vec![(index, edge.clone())] },
+                GraphEdit::Disconnect {
+                    edges: vec![(index, edge.clone())],
+                },
                 GraphEdit::AddNode(node),
                 GraphEdit::Connect(Edge {
                     from_node: edge.from_node,
@@ -3893,8 +4096,7 @@ impl GraphEditorState {
         // on the pin: a data input takes one wire so a second drop replaces
         // it, while an exec input may fan in (45-A P3) and breaking a wire
         // that converges there would silently delete work.
-        let in_is_exec = DocDescriptors::new(&self.doc, registry)
-            .pin_type(node, in_pin, false)
+        let in_is_exec = DocDescriptors::new(&self.doc, registry).pin_type(node, in_pin, false)
             == Some(PinType::Exec);
         let mut doomed: Vec<(usize, Edge)> = vec![(index, edge.clone())];
         if !in_is_exec {
@@ -3903,9 +4105,7 @@ impl GraphEditorState {
                     .edges
                     .iter()
                     .enumerate()
-                    .filter(|(i, e)| {
-                        *i != index && e.to_node == node && e.to_pin == in_pin
-                    })
+                    .filter(|(i, e)| *i != index && e.to_node == node && e.to_pin == in_pin)
                     .map(|(i, e)| (i, e.clone())),
             );
         }
@@ -4024,9 +4224,9 @@ impl GraphEditorState {
         // (an unregistered node type, a subgraph interface) is not the same
         // claim as "they disagree", and refusing to reconnect on a shrug
         // would silently sever a wire the user only meant to simplify.
-        let up_ty = upstream.as_ref().and_then(|e| {
-            endpoint_type(&self.doc, registry, e.from_node, &e.from_pin, true)
-        });
+        let up_ty = upstream
+            .as_ref()
+            .and_then(|e| endpoint_type(&self.doc, registry, e.from_node, &e.from_pin, true));
 
         let mut removed: Vec<(usize, Edge)> = self
             .doc
@@ -4055,8 +4255,7 @@ impl GraphEditorState {
         }];
         if let Some(up) = upstream.as_ref() {
             for (_, e) in removed.iter().filter(|(_, e)| e.from_node == id) {
-                let down_ty =
-                    endpoint_type(&self.doc, registry, e.to_node, &e.to_pin, false);
+                let down_ty = endpoint_type(&self.doc, registry, e.to_node, &e.to_pin, false);
                 if let (Some(a), Some(b)) = (up_ty.as_ref(), down_ty.as_ref()) {
                     if a != b {
                         continue; // known mismatch: drop this branch instead
@@ -4070,7 +4269,10 @@ impl GraphEditorState {
                 }));
             }
         }
-        let edit = GraphEdit::Composite { label: "Delete Reroute".to_string(), edits };
+        let edit = GraphEdit::Composite {
+            label: "Delete Reroute".to_string(),
+            edits,
+        };
         edit.apply(&mut self.doc);
         self.selection.remove(&id);
         self.commit(edit, registry);
@@ -4081,7 +4283,10 @@ impl GraphEditorState {
     pub fn toast(&mut self, text: impl Into<String>) {
         self.toasts
             .retain(|t| t.at.elapsed().as_millis() < TOAST_MS);
-        self.toasts.push(CanvasToast { text: text.into(), at: Instant::now() });
+        self.toasts.push(CanvasToast {
+            text: text.into(),
+            at: Instant::now(),
+        });
     }
 
     // -- Breaking connections --------------------------------------------
@@ -4136,13 +4341,7 @@ impl GraphEditorState {
     }
 
     /// Alt-click a pin: break its links, or say why nothing happened.
-    pub fn break_pin_links(
-        &mut self,
-        node: u64,
-        pin: &str,
-        output: bool,
-        registry: &NodeRegistry,
-    ) {
+    pub fn break_pin_links(&mut self, node: u64, pin: &str, output: bool, registry: &NodeRegistry) {
         let doomed = self.edges_on_pin(node, pin, output);
         if doomed.is_empty() {
             self.toast("Pin has no links");
@@ -4202,7 +4401,10 @@ impl GraphEditorState {
                 deltas.extend(rects.iter().map(|(id, r)| (*id, [x - r[0], 0.0])));
             }
             AlignMode::Right => {
-                let x = rects.iter().map(|(_, r)| r[0] + r[2]).fold(f32::MIN, f32::max);
+                let x = rects
+                    .iter()
+                    .map(|(_, r)| r[0] + r[2])
+                    .fold(f32::MIN, f32::max);
                 deltas.extend(rects.iter().map(|(id, r)| (*id, [x - (r[0] + r[2]), 0.0])));
             }
             AlignMode::Top => {
@@ -4213,8 +4415,8 @@ impl GraphEditorState {
             // extreme, so the group stays where it is instead of sliding to
             // whichever node happened to be furthest out.
             AlignMode::CenterHorizontally => {
-                let cx: f32 = rects.iter().map(|(_, r)| r[0] + r[2] * 0.5).sum::<f32>()
-                    / rects.len() as f32;
+                let cx: f32 =
+                    rects.iter().map(|(_, r)| r[0] + r[2] * 0.5).sum::<f32>() / rects.len() as f32;
                 deltas.extend(
                     rects
                         .iter()
@@ -4222,8 +4424,8 @@ impl GraphEditorState {
                 );
             }
             AlignMode::CenterVertically => {
-                let cy: f32 = rects.iter().map(|(_, r)| r[1] + r[3] * 0.5).sum::<f32>()
-                    / rects.len() as f32;
+                let cy: f32 =
+                    rects.iter().map(|(_, r)| r[1] + r[3] * 0.5).sum::<f32>() / rects.len() as f32;
                 deltas.extend(
                     rects
                         .iter()
@@ -4231,7 +4433,10 @@ impl GraphEditorState {
                 );
             }
             AlignMode::Bottom => {
-                let y = rects.iter().map(|(_, r)| r[1] + r[3]).fold(f32::MIN, f32::max);
+                let y = rects
+                    .iter()
+                    .map(|(_, r)| r[1] + r[3])
+                    .fold(f32::MIN, f32::max);
                 deltas.extend(rects.iter().map(|(id, r)| (*id, [0.0, y - (r[1] + r[3])])));
             }
             AlignMode::DistributeHorizontally | AlignMode::DistributeVertically => {
@@ -4240,7 +4445,11 @@ impl GraphEditorState {
                 // reads as distributed when the nodes are different sizes.
                 let mut order: Vec<&(u64, [f32; 4])> = rects.iter().collect();
                 order.sort_by(|a, b| {
-                    let (x, y) = if h { (a.1[0], b.1[0]) } else { (a.1[1], b.1[1]) };
+                    let (x, y) = if h {
+                        (a.1[0], b.1[0])
+                    } else {
+                        (a.1[1], b.1[1])
+                    };
                     x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
                 });
                 let first = order[0].1;
@@ -4250,16 +4459,20 @@ impl GraphEditorState {
                 } else {
                     (first[1], last[1] + last[3])
                 };
-                let extent: f32 = order
-                    .iter()
-                    .map(|(_, r)| if h { r[2] } else { r[3] })
-                    .sum();
+                let extent: f32 = order.iter().map(|(_, r)| if h { r[2] } else { r[3] }).sum();
                 let gap = ((end - start) - extent) / (order.len() - 1) as f32;
                 let mut cursor = start;
                 for (id, r) in &order {
                     let want = cursor;
                     let now = if h { r[0] } else { r[1] };
-                    deltas.push((*id, if h { [want - now, 0.0] } else { [0.0, want - now] }));
+                    deltas.push((
+                        *id,
+                        if h {
+                            [want - now, 0.0]
+                        } else {
+                            [0.0, want - now]
+                        },
+                    ));
                     cursor += (if h { r[2] } else { r[3] }) + gap;
                 }
             }
@@ -4267,12 +4480,18 @@ impl GraphEditorState {
         let edits: Vec<GraphEdit> = deltas
             .into_iter()
             .filter(|(_, d)| d[0].abs() > f32::EPSILON || d[1].abs() > f32::EPSILON)
-            .map(|(id, delta)| GraphEdit::MoveNodes { ids: vec![id], delta })
+            .map(|(id, delta)| GraphEdit::MoveNodes {
+                ids: vec![id],
+                delta,
+            })
             .collect();
         if edits.is_empty() {
             return;
         }
-        let edit = GraphEdit::Composite { label: mode.label().to_string(), edits };
+        let edit = GraphEdit::Composite {
+            label: mode.label().to_string(),
+            edits,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
     }
@@ -4328,7 +4547,11 @@ impl GraphEditorState {
             let slug = uniquify(&e.from_pin, if f_in { &outputs } else { &inputs });
             let ty = endpoint_type(&self.doc, registry, e.from_node, &e.from_pin, true)
                 .unwrap_or(crate::engine::node_graph::PinType::Float);
-            let pin = IfacePin { slug: slug.clone(), label: slug.clone(), ty };
+            let pin = IfacePin {
+                slug: slug.clone(),
+                label: slug.clone(),
+                ty,
+            };
             if f_in {
                 outputs.push(pin);
                 outbound.push((e.clone(), slug));
@@ -4352,17 +4575,16 @@ impl GraphEditorState {
             .filter(|e| inside.contains(&e.from_node) && inside.contains(&e.to_node))
             .cloned()
             .collect();
-        let bbox = nodes.iter().fold(
-            [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
-            |a, n| {
+        let bbox = nodes
+            .iter()
+            .fold([f32::MAX, f32::MAX, f32::MIN, f32::MIN], |a, n| {
                 [
                     a[0].min(n.position[0]),
                     a[1].min(n.position[1]),
                     a[2].max(n.position[0]),
                     a[3].max(n.position[1]),
                 ]
-            },
-        );
+            });
         let mut next_id = sub_nodes.iter().map(|n| n.id).max().map_or(0, |m| m + 1);
         if !inputs.is_empty() {
             let id = next_id;
@@ -4426,11 +4648,9 @@ impl GraphEditorState {
 
         // Host side, one transaction: the selection and its edges go, a
         // subgraph node arrives, and the boundary edges reattach to it.
-        let anchor = nodes
-            .iter()
-            .fold([f32::MAX, f32::MAX], |a, n| {
-                [a[0].min(n.position[0]), a[1].min(n.position[1])]
-            });
+        let anchor = nodes.iter().fold([f32::MAX, f32::MAX], |a, n| {
+            [a[0].min(n.position[0]), a[1].min(n.position[1])]
+        });
         let id = self.doc.next_node_id();
         let removed_nodes: Vec<(usize, NodeInst)> = self
             .doc
@@ -4465,7 +4685,8 @@ impl GraphEditorState {
                 position: anchor,
                 properties: Default::default(),
                 subgraph: Some(rel.clone()),
-                tint: None, title: None,
+                tint: None,
+                title: None,
             }),
         ];
         for (e, slug) in inbound {
@@ -4544,7 +4765,11 @@ impl GraphEditorState {
         let nodes: Vec<LayoutNode> = rects
             .iter()
             .filter(|(id, _)| scope.contains(id))
-            .map(|(id, r)| LayoutNode { id: *id, width: r[2], height: r[3] })
+            .map(|(id, r)| LayoutNode {
+                id: *id,
+                width: r[2],
+                height: r[3],
+            })
             .collect();
         if nodes.len() < 2 {
             return;
@@ -4554,7 +4779,10 @@ impl GraphEditorState {
             .edges
             .iter()
             .filter(|e| scope.contains(&e.from_node) && scope.contains(&e.to_node))
-            .map(|e| LayoutEdge { from: e.from_node, to: e.to_node })
+            .map(|e| LayoutEdge {
+                from: e.from_node,
+                to: e.to_node,
+            })
             .collect();
 
         // Anchor on the selection's existing top-left, so a layout does not
@@ -4562,7 +4790,9 @@ impl GraphEditorState {
         let origin = rects
             .iter()
             .filter(|(id, _)| scope.contains(id))
-            .fold([f32::MAX, f32::MAX], |a, (_, r)| [a[0].min(r[0]), a[1].min(r[1])]);
+            .fold([f32::MAX, f32::MAX], |a, (_, r)| {
+                [a[0].min(r[0]), a[1].min(r[1])]
+            });
 
         let placed = layout(&nodes, &edges, origin, spacing);
         let edits: Vec<GraphEdit> = placed
@@ -4570,19 +4800,29 @@ impl GraphEditorState {
             .filter_map(|(id, p)| {
                 let now = self.doc.node(id)?.position;
                 let delta = [p[0] - now[0], p[1] - now[1]];
-                (delta[0].abs() > f32::EPSILON || delta[1].abs() > f32::EPSILON)
-                    .then_some(GraphEdit::MoveNodes { ids: vec![id], delta })
+                (delta[0].abs() > f32::EPSILON || delta[1].abs() > f32::EPSILON).then_some(
+                    GraphEdit::MoveNodes {
+                        ids: vec![id],
+                        delta,
+                    },
+                )
             })
             .collect();
         if edits.is_empty() {
             return;
         }
         let n = edits.len();
-        let edit = GraphEdit::Composite { label: "Auto Layout".to_string(), edits };
+        let edit = GraphEdit::Composite {
+            label: "Auto Layout".to_string(),
+            edits,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
         self.refit_groups(registry);
-        self.toast(format!("Laid out {n} node{}", if n == 1 { "" } else { "s" }));
+        self.toast(format!(
+            "Laid out {n} node{}",
+            if n == 1 { "" } else { "s" }
+        ));
     }
 
     /// Re-fit every group frame around whatever now sits inside it. Groups
@@ -4612,8 +4852,7 @@ impl GraphEditorState {
             if members.is_empty() {
                 continue;
             }
-            let (mut x0, mut y0, mut x1, mut y1) =
-                (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+            let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
             for id in &members {
                 if let Some(n) = self.doc.node(*id) {
                     x0 = x0.min(n.position[0]);
@@ -4622,7 +4861,12 @@ impl GraphEditorState {
                     y1 = y1.max(n.position[1] + NODE_EXT[1]);
                 }
             }
-            let want = [x0 - PAD, y0 - PAD, (x1 - x0) + PAD * 2.0, (y1 - y0) + PAD * 2.0];
+            let want = [
+                x0 - PAD,
+                y0 - PAD,
+                (x1 - x0) + PAD * 2.0,
+                (y1 - y0) + PAD * 2.0,
+            ];
             if want != g.rect {
                 edits.push(GraphEdit::ResizeAnnotation {
                     target: Annotation::Group(i),
@@ -4634,7 +4878,10 @@ impl GraphEditorState {
         if edits.is_empty() {
             return;
         }
-        let edit = GraphEdit::Composite { label: "Fit Groups".to_string(), edits };
+        let edit = GraphEdit::Composite {
+            label: "Fit Groups".to_string(),
+            edits,
+        };
         edit.apply(&mut self.doc);
         self.commit(edit, registry);
     }
@@ -4804,7 +5051,13 @@ impl GraphEditorState {
             return;
         }
         let ids: Vec<u64> = n.originals.iter().map(|(id, _)| *id).collect();
-        self.commit(GraphEdit::MoveNodes { ids, delta: n.delta }, registry);
+        self.commit(
+            GraphEdit::MoveNodes {
+                ids,
+                delta: n.delta,
+            },
+            registry,
+        );
     }
 
     /// Is a nudge open? (Escape reverts it through `cancel_interactions`.)
@@ -4836,7 +5089,10 @@ impl GraphEditorState {
     /// it goes away. Arming and disarming an existing one is the gutter click,
     /// which is where the mark you are looking at already is.
     pub fn toggle_breakpoint(&mut self) {
-        let Some(id) = self.primary.or_else(|| self.selection.iter().copied().next()) else {
+        let Some(id) = self
+            .primary
+            .or_else(|| self.selection.iter().copied().next())
+        else {
             return;
         };
         if self.breakpoints.remove(&id).is_none() {
@@ -4929,7 +5185,9 @@ impl GraphEditorState {
     /// `PageDown` — the file the last-clicked node descends into, if any.
     /// The caller opens it as a tab; we only record where we came from.
     pub fn descend_target(&self) -> Option<String> {
-        let id = self.primary.or_else(|| self.selection.iter().copied().next())?;
+        let id = self
+            .primary
+            .or_else(|| self.selection.iter().copied().next())?;
         self.file_descend_target(id)
     }
 
@@ -4947,15 +5205,22 @@ impl GraphEditorState {
         if !self.domain.is_animation() || n.type_id != ANIM_STATE_TYPE_ID {
             return None;
         }
-        if self.doc.regions.get(&id).is_some_and(|r| !r.nodes.is_empty()) {
+        if self
+            .doc
+            .regions
+            .get(&id)
+            .is_some_and(|r| !r.nodes.is_empty())
+        {
             return None;
         }
-        [GRAPH_PROP, SPACE_PROP].iter().find_map(|key| match n.properties.get(*key) {
-            Some(PropValue::Asset(s)) | Some(PropValue::Str(s)) if !s.trim().is_empty() => {
-                Some(crate::engine::scripting::normalize_graph_path(s))
-            }
-            _ => None,
-        })
+        [GRAPH_PROP, SPACE_PROP]
+            .iter()
+            .find_map(|key| match n.properties.get(*key) {
+                Some(PropValue::Asset(s)) | Some(PropValue::Str(s)) if !s.trim().is_empty() => {
+                    Some(crate::engine::scripting::normalize_graph_path(s))
+                }
+                _ => None,
+            })
     }
 
     /// The request descending from this tab raises: the target file plus the
@@ -5156,7 +5421,13 @@ impl GraphEditorState {
             .filter_map(|id| Some((*id, self.doc.regions.get(id)?.clone())))
             .collect();
 
-        let frag = GraphFragment { nodes, edges, comments, groups, regions };
+        let frag = GraphFragment {
+            nodes,
+            edges,
+            comments,
+            groups,
+            regions,
+        };
         (!frag.is_empty()).then_some(frag)
     }
 
@@ -5177,7 +5448,9 @@ impl GraphEditorState {
         // go straight to the child and keep their cursor position.)
         if self.rule_scope.is_some() {
             if let Some(mut scope) = self.rule_scope.take() {
-                scope.child.paste_clipboard(clipboard, None, rule_scope_registry());
+                scope
+                    .child
+                    .paste_clipboard(clipboard, None, rule_scope_registry());
                 self.rule_scope = Some(scope);
             }
             self.drain_rule_scope(registry);
@@ -5211,7 +5484,10 @@ impl GraphEditorState {
         }
         if let Some(frag) = self.selection_fragment() {
             let min = frag.bbox_min();
-            let at = [min[0] + Self::DUPLICATE_OFFSET, min[1] + Self::DUPLICATE_OFFSET];
+            let at = [
+                min[0] + Self::DUPLICATE_OFFSET,
+                min[1] + Self::DUPLICATE_OFFSET,
+            ];
             self.paste_fragment(&frag, Some(at), registry);
         }
     }
@@ -5265,17 +5541,19 @@ impl GraphEditorState {
         // Anchor the fragment's top-left at the target and keep every
         // internal offset, so a pasted cluster arrives shaped as it was.
         let min = frag.bbox_min();
-        let target = at.unwrap_or([min[0] + Self::DUPLICATE_OFFSET, min[1] + Self::DUPLICATE_OFFSET]);
+        let target = at.unwrap_or([
+            min[0] + Self::DUPLICATE_OFFSET,
+            min[1] + Self::DUPLICATE_OFFSET,
+        ]);
         let mut offset = [target[0] - min[0], target[1] - min[1]];
 
         // Nudge until the landing spot is clear — the palette's drop rule.
         for _ in 0..Self::MAX_NUDGES {
             let clash = frag.nodes.iter().any(|n| {
                 let p = [n.position[0] + offset[0], n.position[1] + offset[1]];
-                self.doc
-                    .nodes
-                    .iter()
-                    .any(|e| (e.position[0] - p[0]).abs() < 1.0 && (e.position[1] - p[1]).abs() < 1.0)
+                self.doc.nodes.iter().any(|e| {
+                    (e.position[0] - p[0]).abs() < 1.0 && (e.position[1] - p[1]).abs() < 1.0
+                })
             });
             if !clash {
                 break;
@@ -5464,8 +5742,10 @@ mod tests {
             position: pos,
             properties: std::collections::BTreeMap::new(),
             subgraph: None,
-        
-        tint: None, title: None,}
+
+            tint: None,
+            title: None,
+        }
     }
 
     fn edge(a: u64, b: u64) -> Edge {
@@ -5478,11 +5758,19 @@ mod tests {
     }
 
     fn comment(x: f32) -> CommentBox {
-        CommentBox { rect: [x, 0.0, 100.0, 60.0], text: "c".to_string(), ..Default::default() }
+        CommentBox {
+            rect: [x, 0.0, 100.0, 60.0],
+            text: "c".to_string(),
+            ..Default::default()
+        }
     }
 
     fn group(x: f32) -> GroupBox {
-        GroupBox { rect: [x, 0.0, 200.0, 200.0], title: "g".to_string(), ..Default::default() }
+        GroupBox {
+            rect: [x, 0.0, 200.0, 200.0],
+            title: "g".to_string(),
+            ..Default::default()
+        }
     }
 
     /// apply → revert round-trips every annotation edit variant (P7).
@@ -5506,8 +5794,14 @@ mod tests {
                 old: None,
                 new: Some(4),
             },
-            GraphEdit::SetAnnotationCollapsed { target: Annotation::Comment(1), new: true },
-            GraphEdit::SetAnnotationCollapsed { target: Annotation::Group(0), new: true },
+            GraphEdit::SetAnnotationCollapsed {
+                target: Annotation::Comment(1),
+                new: true,
+            },
+            GraphEdit::SetAnnotationCollapsed {
+                target: Annotation::Group(0),
+                new: true,
+            },
             GraphEdit::ResizeAnnotation {
                 target: Annotation::Comment(0),
                 old: [0.0, 0.0, 100.0, 60.0],
@@ -5518,19 +5812,39 @@ mod tests {
                 old: [0.0, 0.0, 200.0, 200.0],
                 new: [-20.0, -20.0, 240.0, 240.0],
             },
-            GraphEdit::SetCommentAnchor { index: 0, old: None, new: Some(1) },
+            GraphEdit::SetCommentAnchor {
+                index: 0,
+                old: None,
+                new: Some(1),
+            },
             GraphEdit::AddComment(comment(999.0)),
-            GraphEdit::RemoveComment { index: 1, comment: comment(300.0) },
-            GraphEdit::MoveNodes { ids: vec![0], delta: [9.0, -3.0] },
-            GraphEdit::MoveComment { index: 0, delta: [12.0, -7.0] },
+            GraphEdit::RemoveComment {
+                index: 1,
+                comment: comment(300.0),
+            },
+            GraphEdit::MoveNodes {
+                ids: vec![0],
+                delta: [9.0, -3.0],
+            },
+            GraphEdit::MoveComment {
+                index: 0,
+                delta: [12.0, -7.0],
+            },
             GraphEdit::SetCommentText {
                 index: 0,
                 old: "c".to_string(),
                 new: "hello".to_string(),
             },
             GraphEdit::AddGroup(group(500.0)),
-            GraphEdit::RemoveGroup { index: 0, group: group(0.0) },
-            GraphEdit::MoveGroup { index: 0, node_ids: vec![0, 1], delta: [5.0, 6.0] },
+            GraphEdit::RemoveGroup {
+                index: 0,
+                group: group(0.0),
+            },
+            GraphEdit::MoveGroup {
+                index: 0,
+                node_ids: vec![0, 1],
+                delta: [5.0, 6.0],
+            },
             GraphEdit::SetGroupTitle {
                 index: 0,
                 old: "g".to_string(),
@@ -5540,7 +5854,12 @@ mod tests {
         for e in edits {
             let mut doc = base.clone();
             e.apply(&mut doc);
-            assert_ne!(doc, base, "{}: apply should change the doc", e.description());
+            assert_ne!(
+                doc,
+                base,
+                "{}: apply should change the doc",
+                e.description()
+            );
             e.revert(&mut doc);
             assert_eq!(doc, base, "{}: apply→revert must restore", e.description());
         }
@@ -5558,16 +5877,25 @@ mod tests {
 
         // Moving the anchored node carries its note; the free-floating one
         // stays put.
-        let edit = GraphEdit::MoveNodes { ids: vec![0], delta: [30.0, -12.0] };
+        let edit = GraphEdit::MoveNodes {
+            ids: vec![0],
+            delta: [30.0, -12.0],
+        };
         edit.apply(&mut st.doc);
         assert_eq!(st.doc.comments[0].rect[0], 40.0);
         assert_eq!(st.doc.comments[0].rect[1], -12.0);
-        assert_eq!(st.doc.comments[1].rect[0], 400.0, "a free note must not move");
+        assert_eq!(
+            st.doc.comments[1].rect[0], 400.0,
+            "a free note must not move"
+        );
         edit.revert(&mut st.doc);
         assert_eq!(st.doc, before, "the note must come back with its node");
 
         // Moving the *other* node touches nothing.
-        let other = GraphEdit::MoveNodes { ids: vec![1], delta: [50.0, 50.0] };
+        let other = GraphEdit::MoveNodes {
+            ids: vec![1],
+            delta: [50.0, 50.0],
+        };
         other.apply(&mut st.doc);
         assert_eq!(st.doc.comments[0].rect[0], 10.0);
         other.revert(&mut st.doc);
@@ -5594,10 +5922,17 @@ mod tests {
             2,
             "only the note anchored to the deleted node goes"
         );
-        assert_eq!(st.doc.comments[1].anchor, Some(1), "the survivor kept its anchor");
+        assert_eq!(
+            st.doc.comments[1].anchor,
+            Some(1),
+            "the survivor kept its anchor"
+        );
 
         st.undo(&reg);
-        assert_eq!(st.doc, before, "undo restores the note at its original index");
+        assert_eq!(
+            st.doc, before,
+            "undo restores the note at its original index"
+        );
         let a = crate::engine::node_graph::serialize_graph(&before).unwrap();
         let b = crate::engine::node_graph::serialize_graph(&st.doc).unwrap();
         assert_eq!(a, b, "restored doc must serialize byte-identically");
@@ -5767,16 +6102,36 @@ mod tests {
             position: [200.0, 0.0],
             properties: Default::default(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         });
         st.doc.edges = vec![
-            Edge { from_node: 0, from_pin: "sum".into(), to_node: 9, to_pin: REROUTE_IN.into() },
-            Edge { from_node: 9, from_pin: REROUTE_OUT.into(), to_node: 1, to_pin: "a".into() },
-            Edge { from_node: 9, from_pin: REROUTE_OUT.into(), to_node: 2, to_pin: "a".into() },
+            Edge {
+                from_node: 0,
+                from_pin: "sum".into(),
+                to_node: 9,
+                to_pin: REROUTE_IN.into(),
+            },
+            Edge {
+                from_node: 9,
+                from_pin: REROUTE_OUT.into(),
+                to_node: 1,
+                to_pin: "a".into(),
+            },
+            Edge {
+                from_node: 9,
+                from_pin: REROUTE_OUT.into(),
+                to_node: 2,
+                to_pin: "a".into(),
+            },
         ];
         st.delete_reroute(9, &reg);
         assert_eq!(st.doc.edges.len(), 2, "both branches survived");
-        assert!(st.doc.edges.iter().all(|e| e.from_node == 0 && e.from_pin == "sum"));
+        assert!(st
+            .doc
+            .edges
+            .iter()
+            .all(|e| e.from_node == 0 && e.from_pin == "sum"));
         assert!(st.doc.nodes.iter().all(|n| n.type_id != REROUTE_TYPE_ID));
 
         // Deleting a non-reroute through this path is refused, so the caller
@@ -5838,7 +6193,11 @@ mod tests {
 
         st.align_nodes(&rects, AlignMode::Bottom, &reg);
         // Bottom edge = max(y + h) = 130; each node's y becomes 130 - h.
-        assert!(st.doc.nodes.iter().all(|n| (n.position[1] - 90.0).abs() < 1e-3));
+        assert!(st
+            .doc
+            .nodes
+            .iter()
+            .all(|n| (n.position[1] - 90.0).abs() < 1e-3));
         st.undo(&reg);
 
         st.align_nodes(&rects, AlignMode::DistributeHorizontally, &reg);
@@ -5868,14 +6227,23 @@ mod tests {
     fn bookmarks_cycle_and_recall() {
         let mut st = bare_state();
         assert!(!st.recall_bookmark(1), "an empty slot recalls nothing");
-        assert!(!st.recall_bookmark(99), "an out-of-range slot is not a panic");
+        assert!(
+            !st.recall_bookmark(99),
+            "an out-of-range slot is not a panic"
+        );
 
         for expect in 1..=BOOKMARK_SLOTS {
-            st.view = CanvasView { pan: Vec2::new(expect as f32 * 10.0, 0.0), zoom: 1.0 };
+            st.view = CanvasView {
+                pan: Vec2::new(expect as f32 * 10.0, 0.0),
+                zoom: 1.0,
+            };
             assert_eq!(st.store_bookmark(), expect);
         }
         // The sixth store wraps back onto slot 1.
-        st.view = CanvasView { pan: Vec2::new(999.0, 0.0), zoom: 1.0 };
+        st.view = CanvasView {
+            pan: Vec2::new(999.0, 0.0),
+            zoom: 1.0,
+        };
         assert_eq!(st.store_bookmark(), 1);
 
         st.view = CanvasView::default();
@@ -5946,7 +6314,8 @@ mod tests {
             position: [0.0, 0.0],
             properties: Default::default(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         };
         // 0 -> 1 -> 2(sink); 3 is an orphan; 4 feeds only the orphan.
         st.doc.nodes = vec![
@@ -5957,9 +6326,24 @@ mod tests {
             mk(4, "pure_add"),
         ];
         st.doc.edges = vec![
-            Edge { from_node: 0, from_pin: "sum".into(), to_node: 1, to_pin: "a".into() },
-            Edge { from_node: 1, from_pin: "sum".into(), to_node: 2, to_pin: "a".into() },
-            Edge { from_node: 4, from_pin: "sum".into(), to_node: 3, to_pin: "a".into() },
+            Edge {
+                from_node: 0,
+                from_pin: "sum".into(),
+                to_node: 1,
+                to_pin: "a".into(),
+            },
+            Edge {
+                from_node: 1,
+                from_pin: "sum".into(),
+                to_node: 2,
+                to_pin: "a".into(),
+            },
+            Edge {
+                from_node: 4,
+                from_pin: "sum".into(),
+                to_node: 3,
+                to_pin: "a".into(),
+            },
         ];
         let unused = st.unused_nodes(&reg);
         assert_eq!(unused, vec![3, 4], "only the orphan branch is unused");
@@ -5968,7 +6352,10 @@ mod tests {
         st.purge_nodes(&unused, &reg);
         assert_eq!(st.doc.nodes.len(), 3);
         assert_eq!(st.doc.edges.len(), 2);
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Purge 2 Nodes"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Purge 2 Nodes")
+        );
         st.undo(&reg);
         assert_eq!(st.doc, before, "purge undoes as one transaction");
 
@@ -5988,7 +6375,11 @@ mod tests {
             label: "Result".into(),
             ty: PinType::Float,
         }];
-        sub.doc.nodes = vec![mk(0, "pure_add"), mk(1, GRAPH_OUTPUT_TYPE_ID), mk(2, "pure_add")];
+        sub.doc.nodes = vec![
+            mk(0, "pure_add"),
+            mk(1, GRAPH_OUTPUT_TYPE_ID),
+            mk(2, "pure_add"),
+        ];
         sub.doc.edges = vec![Edge {
             from_node: 0,
             from_pin: "sum".into(),
@@ -6036,17 +6427,27 @@ mod tests {
         let sub = st.doc.nodes.iter().find(|n| n.subgraph.is_some()).unwrap();
         assert_eq!(sub.subgraph.as_deref(), Some(rel.as_str()));
         assert_eq!(st.doc.edges.len(), 2, "one edge in, one out");
-        assert!(st.doc.edges.iter().any(|e| e.from_node == 0 && e.to_node == sub.id));
-        assert!(st.doc.edges.iter().any(|e| e.from_node == sub.id && e.to_node == 3));
+        assert!(st
+            .doc
+            .edges
+            .iter()
+            .any(|e| e.from_node == 0 && e.to_node == sub.id));
+        assert!(st
+            .doc
+            .edges
+            .iter()
+            .any(|e| e.from_node == sub.id && e.to_node == 3));
 
         // Asset: internal edge kept, interface derived from the cut edges,
         // and the interface *binding* pair auto-inserted and wired (45-A) so
         // the declaration is attached to something.
-        let written =
-            crate::engine::node_graph::load_graph(&dir.join(&rel)).expect("reload");
+        let written = crate::engine::node_graph::load_graph(&dir.join(&rel)).expect("reload");
         assert_eq!(written.inputs.len(), 1);
         assert_eq!(written.outputs.len(), 1);
-        assert_eq!(written.inputs[0].slug, "sum", "input slug comes from its source pin");
+        assert_eq!(
+            written.inputs[0].slug, "sum",
+            "input slug comes from its source pin"
+        );
         assert_eq!(written.outputs[0].slug, "sum");
 
         let gi = written
@@ -6100,7 +6501,9 @@ mod tests {
 
         // A second collapse picks the next free name.
         st.selection = [1u64, 2].into_iter().collect();
-        let rel2 = st.collapse_to_subgraph(&dir, &reg).expect("second collapse");
+        let rel2 = st
+            .collapse_to_subgraph(&dir, &reg)
+            .expect("second collapse");
         assert_eq!(rel2, "graphs/subgraphs/host_2.subgraph");
 
         // Fewer than two nodes is not a subgraph.
@@ -6156,7 +6559,10 @@ mod tests {
         assert_eq!(back.nodes[2].title.as_deref(), Some("Renamed"));
         assert_eq!(
             back.nodes[2].properties.get("xs"),
-            Some(&PropValue::Array(vec![PropValue::Int(1), PropValue::Int(2)]))
+            Some(&PropValue::Array(vec![
+                PropValue::Int(1),
+                PropValue::Int(2)
+            ]))
         );
         // Forward-compat data is preserved untouched (the Raw philosophy).
         assert_eq!(
@@ -6167,7 +6573,10 @@ mod tests {
         // Anything that is not one of our fragments is a no-op, never a panic.
         assert!(GraphFragment::from_ron("").is_none());
         assert!(GraphFragment::from_ron("hello, clipboard").is_none());
-        assert!(GraphFragment::from_ron("(kind: \"something.else\", version: 1, fragment: ())").is_none());
+        assert!(
+            GraphFragment::from_ron("(kind: \"something.else\", version: 1, fragment: ())")
+                .is_none()
+        );
         let bumped = text.replace("version: 1", "version: 99");
         assert!(
             GraphFragment::from_ron(&bumped).is_none(),
@@ -6190,7 +6599,11 @@ mod tests {
 
         let frag = st.selection_fragment().expect("fragment");
         assert_eq!(frag.nodes.len(), 1);
-        assert_eq!(frag.comments.len(), 2, "the anchored one and the selected one");
+        assert_eq!(
+            frag.comments.len(),
+            2,
+            "the anchored one and the selected one"
+        );
         assert!(frag.groups.is_empty(), "no group was selected");
 
         // Nothing selected at all is nothing to copy.
@@ -6256,7 +6669,10 @@ mod tests {
         st.duplicate_selection(&reg);
         assert_eq!(st.doc.nodes.len(), 2);
         assert_eq!(st.doc.nodes[1].position, [216.0, 116.0]);
-        assert!(clipboard.is_none(), "duplicate must not touch the clipboard");
+        assert!(
+            clipboard.is_none(),
+            "duplicate must not touch the clipboard"
+        );
     }
 
     /// An unregistered type pastes and stays: it renders missing-red and its
@@ -6270,7 +6686,10 @@ mod tests {
         unknown
             .properties
             .insert("k".into(), PropValue::Raw("(x:1)".into()));
-        let frag = GraphFragment { nodes: vec![unknown], ..Default::default() };
+        let frag = GraphFragment {
+            nodes: vec![unknown],
+            ..Default::default()
+        };
 
         st.paste_fragment(&frag, Some([0.0, 0.0]), &reg);
         assert_eq!(st.doc.nodes.len(), 1, "the node was kept, not dropped");
@@ -6292,7 +6711,11 @@ mod tests {
     fn break_paths_share_one_transaction_and_report() {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
-        st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [10.0, 0.0]), node(2, [20.0, 0.0])];
+        st.doc.nodes = vec![
+            node(0, [0.0, 0.0]),
+            node(1, [10.0, 0.0]),
+            node(2, [20.0, 0.0]),
+        ];
         st.doc.edges = vec![edge(0, 1), edge(0, 2), edge(1, 2)];
         let before = st.doc.clone();
 
@@ -6368,7 +6791,11 @@ mod tests {
         .unwrap();
 
         let mut st = bare_state();
-        st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [400.0, 0.0]), node(2, [200.0, 80.0])];
+        st.doc.nodes = vec![
+            node(0, [0.0, 0.0]),
+            node(1, [400.0, 0.0]),
+            node(2, [200.0, 80.0]),
+        ];
         st.doc.edges = vec![edge(0, 1)];
         let before = st.doc.clone();
 
@@ -6378,8 +6805,16 @@ mod tests {
 
         assert!(st.splice_node_into(&edge(0, 1), 2, &in_pin, &out_pin, &reg));
         assert_eq!(st.doc.edges.len(), 2, "the wire became two");
-        assert!(st.doc.edges.iter().any(|e| e.from_node == 0 && e.to_node == 2));
-        assert!(st.doc.edges.iter().any(|e| e.from_node == 2 && e.to_node == 1));
+        assert!(st
+            .doc
+            .edges
+            .iter()
+            .any(|e| e.from_node == 0 && e.to_node == 2));
+        assert!(st
+            .doc
+            .edges
+            .iter()
+            .any(|e| e.from_node == 2 && e.to_node == 1));
         assert_eq!(st.stack.undo_description().as_deref(), Some("Splice Node"));
         assert_eq!(st.toasts.last().unwrap().text, "Spliced into wire");
 
@@ -6406,12 +6841,17 @@ mod tests {
         st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [400.0, 0.0])];
         st.doc.edges = vec![edge(0, 1)];
 
-        let id = st.grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg).expect("grab");
+        let id = st
+            .grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg)
+            .expect("grab");
         assert_eq!(st.doc.nodes.len(), 3);
         assert_eq!(st.doc.edges.len(), 2);
         let drag = st.node_drag.as_ref().expect("a drag is live");
         assert_eq!(drag.originals.len(), 1);
-        assert_eq!(drag.originals[0].0, id, "the new reroute is what is dragging");
+        assert_eq!(
+            drag.originals[0].0, id,
+            "the new reroute is what is dragging"
+        );
         assert!(
             drag.pending.is_some(),
             "the insert is applied but held back until the gesture ends"
@@ -6459,12 +6899,20 @@ mod tests {
         st.selection = [0u64, 1].into_iter().collect();
         let pinned = st.doc.node(2).unwrap().position;
         st.auto_layout(&rects, LayoutSpacing::default(), &reg);
-        assert_eq!(st.doc.node(2).unwrap().position, pinned, "outside the selection");
+        assert_eq!(
+            st.doc.node(2).unwrap().position,
+            pinned,
+            "outside the selection"
+        );
 
         // Fewer than two nodes is not a layout.
         let mut lone = bare_state();
         lone.doc.nodes = vec![node(0, [0.0, 0.0])];
-        lone.auto_layout(&[(0, [0.0, 0.0, 100.0, 40.0])], LayoutSpacing::default(), &reg);
+        lone.auto_layout(
+            &[(0, [0.0, 0.0, 100.0, 40.0])],
+            LayoutSpacing::default(),
+            &reg,
+        );
         assert!(!lone.stack.can_undo());
     }
 
@@ -6481,7 +6929,9 @@ mod tests {
         st.doc.edges = vec![edge(0, 1), edge(0, 1), edge(1, 0)];
         let before = st.doc.clone();
 
-        let edit = GraphEdit::Disconnect { edges: vec![(0, edge(0, 1))] };
+        let edit = GraphEdit::Disconnect {
+            edges: vec![(0, edge(0, 1))],
+        };
         edit.apply(&mut st.doc);
         assert_eq!(st.doc.edges.len(), 2, "exactly one edge was removed");
         assert_eq!(st.doc.edges[0], edge(0, 1), "the duplicate survived");
@@ -6490,7 +6940,9 @@ mod tests {
 
         // A stale index whose tuple no longer matches is skipped rather than
         // removing whatever now sits there.
-        let stale = GraphEdit::Disconnect { edges: vec![(2, edge(0, 1))] };
+        let stale = GraphEdit::Disconnect {
+            edges: vec![(2, edge(0, 1))],
+        };
         stale.apply(&mut st.doc);
         assert_eq!(st.doc.edges.len(), 3, "a mismatched index removes nothing");
         let _ = reg;
@@ -6523,7 +6975,10 @@ mod tests {
         );
         assert!(!st.dirty);
         // Order is untouched — the undo stack indexes into these vecs.
-        assert_eq!(st.doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![0, 1]);
+        assert_eq!(
+            st.doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -6580,7 +7035,12 @@ mod tests {
         // Pin "a" of the splice target is already fed by node 3.
         st.doc.edges = vec![
             edge(0, 1),
-            Edge { from_node: 3, from_pin: "sum".into(), to_node: 2, to_pin: "a".into() },
+            Edge {
+                from_node: 3,
+                from_pin: "sum".into(),
+                to_node: 2,
+                to_pin: "a".into(),
+            },
         ];
 
         // The free pin is chosen, so nothing has to be replaced.
@@ -6609,7 +7069,8 @@ mod tests {
         assert!(st.splice_node_into(&edge(0, 1), 2, &i, &o, &reg));
         let errs = validate_doc(&st.doc, &reg);
         assert!(
-            errs.iter().all(|e| !matches!(e, GraphError::InputMultiplyConnected { .. })),
+            errs.iter()
+                .all(|e| !matches!(e, GraphError::InputMultiplyConnected { .. })),
             "splice fanned in: {errs:?}"
         );
         st.undo(&reg);
@@ -6629,7 +7090,9 @@ mod tests {
         st.doc.edges = vec![edge(0, 1)];
         let before = st.doc.clone();
 
-        let id = st.grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg).unwrap();
+        let id = st
+            .grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg)
+            .unwrap();
         // The insert is applied but not yet recorded.
         assert!(!st.stack.can_undo(), "nothing is recorded mid-gesture");
         assert_eq!(st.doc.nodes.len(), 3);
@@ -6643,13 +7106,13 @@ mod tests {
         assert!(!st.stack.can_undo(), "and there is no second entry");
 
         // Abandoning the gesture reverts the applied-but-unrecorded insert.
-        st.grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg).unwrap();
+        st.grab_wire_midpoint(&edge(0, 1), [200.0, 0.0], &reg)
+            .unwrap();
         assert_eq!(st.doc.nodes.len(), 3);
         st.cancel_interactions();
         assert_eq!(st.doc, before, "a cancelled grab leaves nothing behind");
         assert!(!st.stack.can_undo());
     }
-
 
     /// The ruled split: aligning two nodes is an ordinary gesture, while
     /// distributing needs a middle node to move. One shared `< 3` guard made
@@ -6667,7 +7130,10 @@ mod tests {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
         st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [200.0, 80.0])];
-        let rects = vec![(0u64, [0.0, 0.0, 160.0, 60.0]), (1u64, [200.0, 80.0, 160.0, 60.0])];
+        let rects = vec![
+            (0u64, [0.0, 0.0, 160.0, 60.0]),
+            (1u64, [200.0, 80.0, 160.0, 60.0]),
+        ];
 
         st.align_nodes(&rects, AlignMode::Top, &reg);
         assert_eq!(
@@ -6716,19 +7182,22 @@ mod tests {
         assert!(!st.stack.can_undo(), "and nothing reaches the undo stack");
     }
 
-
     /// Acceptance 7 — Alt+click a wire removes exactly that wire, reports it,
     /// and costs one undo step. (Bug 2: this gesture did nothing at all.)
     #[test]
     fn acceptance_7_alt_click_a_wire_deletes_one_wire_in_one_undo_step() {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
-        st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [400.0, 0.0]), node(2, [800.0, 0.0])];
+        st.doc.nodes = vec![
+            node(0, [0.0, 0.0]),
+            node(1, [400.0, 0.0]),
+            node(2, [800.0, 0.0]),
+        ];
         st.doc.edges = vec![edge(0, 1), edge(1, 2)];
         let before = st.doc.clone();
 
         let doomed = st.doc.edges[0].clone();
-        let n = st.break_links(&[doomed.clone()], "Delete", &reg);
+        let n = st.break_links(std::slice::from_ref(&doomed), "Delete", &reg);
 
         assert_eq!(n, 1, "it reports the one wire it took");
         assert_eq!(st.doc.edges.len(), 1, "and takes only that one");
@@ -6749,10 +7218,14 @@ mod tests {
             category: "Math".into(),
             version: 1,
             inputs: vec![crate::engine::node_graph::PinDescriptor::new(
-                "a", "", PinType::Float,
+                "a",
+                "",
+                PinType::Float,
             )],
             outputs: vec![crate::engine::node_graph::PinDescriptor::new(
-                "sum", "", PinType::Float,
+                "sum",
+                "",
+                PinType::Float,
             )],
             pure: true,
             realm: crate::engine::node_graph::NodeRealm::Shared,
@@ -6779,7 +7252,6 @@ mod tests {
         assert!(!st.stack.can_undo(), "one gesture, one entry");
     }
 
-
     /// Acceptance 17 — holding an arrow key moves continuously but costs
     /// exactly one undo step, however long the hold.
     #[test]
@@ -6794,7 +7266,10 @@ mod tests {
         for _ in 0..41 {
             st.nudge_selection([16.0, 0.0]);
         }
-        assert!(st.nudging(), "the transaction stays open while the key is held");
+        assert!(
+            st.nudging(),
+            "the transaction stays open while the key is held"
+        );
         assert!(!st.stack.can_undo(), "and nothing is recorded mid-hold");
         assert_eq!(st.doc.node(0).unwrap().position, [41.0 * 16.0, 0.0]);
 
@@ -6855,7 +7330,10 @@ mod tests {
         let mut st = bare_state();
         st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [200.0, 0.0])];
         // Centres at 50 and 250; the average is 150.
-        let rects = vec![(0u64, [0.0, 0.0, 100.0, 60.0]), (1u64, [200.0, 0.0, 100.0, 60.0])];
+        let rects = vec![
+            (0u64, [0.0, 0.0, 100.0, 60.0]),
+            (1u64, [200.0, 0.0, 100.0, 60.0]),
+        ];
         st.align_nodes(&rects, AlignMode::CenterHorizontally, &reg);
         assert_eq!(st.doc.node(0).unwrap().position[0], 100.0);
         assert_eq!(st.doc.node(1).unwrap().position[0], 100.0);
@@ -6872,7 +7350,6 @@ mod tests {
         }
         assert_eq!(AlignMode::ALL.len(), 8);
     }
-
 
     // ── C3 behaviours
 
@@ -6906,7 +7383,10 @@ mod tests {
         st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [200.0, 0.0])];
         st.primary = Some(1);
         st.toggle_breakpoint();
-        assert!(st.breakpoint_armed(1), "a new mark is armed — F9 means stop here");
+        assert!(
+            st.breakpoint_armed(1),
+            "a new mark is armed — F9 means stop here"
+        );
         assert_eq!(st.armed_breakpoints(), vec![1]);
 
         st.cycle_breakpoint(1);
@@ -6922,7 +7402,10 @@ mod tests {
         assert!(!st.has_breakpoint(0));
 
         st.remove_breakpoint(1);
-        assert!(!st.has_breakpoint(1), "Alt+click destroys, per the input contract");
+        assert!(
+            !st.has_breakpoint(1),
+            "Alt+click destroys, per the input contract"
+        );
         assert!(st.armed_breakpoints().is_empty());
     }
 
@@ -6934,7 +7417,10 @@ mod tests {
         st.primary = Some(1);
 
         st.toggle_breakpoint();
-        assert!(st.has_breakpoint(1), "the mark lands on the last-clicked node");
+        assert!(
+            st.has_breakpoint(1),
+            "the mark lands on the last-clicked node"
+        );
         assert!(!st.has_breakpoint(0), "not on the whole selection");
         st.toggle_breakpoint();
         assert!(!st.has_breakpoint(1), "and toggles off");
@@ -7096,13 +7582,20 @@ mod tests {
         st.doc.nodes = vec![node(0, [0.0, 0.0])];
         let before = st.doc.clone();
 
-        st.prop_edit = Some(PropEdit { node: 0, key: "gain".into(), old: None });
+        st.prop_edit = Some(PropEdit {
+            node: 0,
+            key: "gain".into(),
+            old: None,
+        });
         st.doc.nodes[0]
             .properties
             .insert("gain".into(), PropValue::Float(7.5));
 
         st.cancel_interactions();
-        assert_eq!(st.doc, before, "no old value means the key should not exist");
+        assert_eq!(
+            st.doc, before,
+            "no old value means the key should not exist"
+        );
     }
 
     #[test]
@@ -7155,7 +7648,10 @@ mod tests {
             (2, [150.0, 20.0]),   // outside (x)
             (3, [-1.0, 50.0]),    // outside (x)
         ];
-        assert_eq!(nodes_captured_by_rect(&centers, [0.0, 0.0, 100.0, 100.0]), vec![0, 1]);
+        assert_eq!(
+            nodes_captured_by_rect(&centers, [0.0, 0.0, 100.0, 100.0]),
+            vec![0, 1]
+        );
     }
 
     /// apply → undo round-trips the doc for every edit variant.
@@ -7181,8 +7677,13 @@ mod tests {
                 to_node: 1,
                 to_pin: "b".to_string(),
             }),
-            GraphEdit::Disconnect { edges: vec![(0, edge(0, 1))] },
-            GraphEdit::MoveNodes { ids: vec![0, 1], delta: [3.0, -4.0] },
+            GraphEdit::Disconnect {
+                edges: vec![(0, edge(0, 1))],
+            },
+            GraphEdit::MoveNodes {
+                ids: vec![0, 1],
+                delta: [3.0, -4.0],
+            },
             GraphEdit::Paste {
                 nodes: vec![node(7, [1.0, 1.0]), node(8, [2.0, 2.0])],
                 edges: vec![edge(7, 8)],
@@ -7199,7 +7700,12 @@ mod tests {
         for e in edits {
             let mut doc = base.clone();
             e.apply(&mut doc);
-            assert_ne!(doc, base, "{}: apply should change the doc", e.description());
+            assert_ne!(
+                doc,
+                base,
+                "{}: apply should change the doc",
+                e.description()
+            );
             e.revert(&mut doc);
             assert_eq!(doc, base, "{}: apply→revert must restore", e.description());
         }
@@ -7245,7 +7751,12 @@ mod tests {
         for e in edits {
             let mut doc = base.clone();
             e.apply(&mut doc);
-            assert_ne!(doc, base, "{}: apply should change the doc", e.description());
+            assert_ne!(
+                doc,
+                base,
+                "{}: apply should change the doc",
+                e.description()
+            );
             e.revert(&mut doc);
             assert_eq!(doc, base, "{}: apply→revert must restore", e.description());
         }
@@ -7256,18 +7767,28 @@ mod tests {
         st.doc = base.clone();
         for v in [2.0, 3.0, 4.0_f32] {
             st.begin_prop_edit(0, "a", &reg);
-            st.doc.node_mut(0).unwrap().properties.insert("a".into(), PropValue::Float(v));
+            st.doc
+                .node_mut(0)
+                .unwrap()
+                .properties
+                .insert("a".into(), PropValue::Float(v));
         }
         st.flush_prop_edit(&reg);
         assert!(st.stack.can_undo());
         st.undo(&reg);
-        assert_eq!(st.doc, base, "one gesture = one undo entry back to the start");
+        assert_eq!(
+            st.doc, base,
+            "one gesture = one undo entry back to the start"
+        );
         assert!(!st.stack.can_undo(), "no second entry was recorded");
 
         // A gesture that ends where it started records nothing.
         st.begin_prop_edit(0, "a", &reg);
         st.flush_prop_edit(&reg);
-        assert!(!st.stack.can_undo(), "a no-op gesture must not dirty the stack");
+        assert!(
+            !st.stack.can_undo(),
+            "a no-op gesture must not dirty the stack"
+        );
     }
 
     /// Breaking a wire selection is one undo transaction, and undo restores
@@ -7277,7 +7798,11 @@ mod tests {
     fn breaking_selected_links_is_one_reversible_transaction() {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
-        st.doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [10.0, 0.0]), node(2, [20.0, 0.0])];
+        st.doc.nodes = vec![
+            node(0, [0.0, 0.0]),
+            node(1, [10.0, 0.0]),
+            node(2, [20.0, 0.0]),
+        ];
         st.doc.edges = vec![edge(0, 1), edge(1, 2), edge(0, 2)];
         let before = st.doc.clone();
 
@@ -7290,8 +7815,14 @@ mod tests {
         assert_eq!(st.selected_edges.len(), 2);
         assert!(st.break_selected_links(&reg));
         assert_eq!(st.doc.edges, vec![edge(1, 2)]);
-        assert!(st.selected_edges.is_empty(), "selection is consumed by the break");
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Break 2 Links"));
+        assert!(
+            st.selected_edges.is_empty(),
+            "selection is consumed by the break"
+        );
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Break 2 Links")
+        );
 
         st.undo(&reg);
         assert_eq!(st.doc, before, "undo must restore the exact edge order");
@@ -7333,7 +7864,11 @@ mod tests {
     #[test]
     fn remove_middle_node_undo_preserves_order() {
         let mut doc = GraphDoc::default();
-        doc.nodes = vec![node(0, [0.0, 0.0]), node(1, [1.0, 1.0]), node(2, [2.0, 2.0])];
+        doc.nodes = vec![
+            node(0, [0.0, 0.0]),
+            node(1, [1.0, 1.0]),
+            node(2, [2.0, 2.0]),
+        ];
         doc.edges = vec![edge(0, 1), edge(1, 2)];
         let before = doc.clone();
         // Remove the middle node (index 1) + its incident edges (indices 0, 1).
@@ -7344,11 +7879,17 @@ mod tests {
             regions: vec![],
         };
         edit.apply(&mut doc);
-        assert_eq!(doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![0, 2]);
+        assert_eq!(
+            doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            vec![0, 2]
+        );
         edit.revert(&mut doc);
         // Exact structural equality *including order* (byte-stable save).
         assert_eq!(doc, before);
-        assert_eq!(doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![0, 1, 2]);
+        assert_eq!(
+            doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
         let a = crate::engine::node_graph::serialize_graph(&before).unwrap();
         let b = crate::engine::node_graph::serialize_graph(&doc).unwrap();
         assert_eq!(a, b, "restored doc must serialize byte-identically");
@@ -7357,7 +7898,6 @@ mod tests {
     fn bare_state() -> GraphEditorState {
         super::test_state("t.graph")
     }
-
 
     /// Regression (finding 3): undo/redo cancels a live drag so the next frame
     /// can't overwrite the undone state or commit a bogus delta.
@@ -7368,7 +7908,10 @@ mod tests {
         st.doc.nodes = vec![node(0, [0.0, 0.0])];
         // A committed move...
         st.doc.nodes[0].position = [50.0, 0.0];
-        st.stack.record(GraphEdit::MoveNodes { ids: vec![0], delta: [50.0, 0.0] });
+        st.stack.record(GraphEdit::MoveNodes {
+            ids: vec![0],
+            delta: [50.0, 0.0],
+        });
         // ...then a *live* drag on top of it, which has recorded nothing.
         st.node_drag = Some(NodeDrag {
             origin_world: [50.0, 0.0],
@@ -7379,7 +7922,10 @@ mod tests {
         st.doc.nodes[0].position = [90.0, 0.0];
 
         st.undo(&reg);
-        assert!(st.node_drag.is_none(), "undo must cancel the live node drag");
+        assert!(
+            st.node_drag.is_none(),
+            "undo must cancel the live node drag"
+        );
         assert_eq!(
             st.doc.nodes[0].position,
             [0.0, 0.0],
@@ -7422,8 +7968,14 @@ mod tests {
             ..Default::default()
         };
         st.paste_fragment(&frag, Some([0.0, 0.0]), &reg);
-        assert!(st.sel_comment.is_none(), "paste must clear annotation selection");
-        assert!(!st.selection.is_empty(), "pasted nodes become the selection");
+        assert!(
+            st.sel_comment.is_none(),
+            "paste must clear annotation selection"
+        );
+        assert!(
+            !st.selection.is_empty(),
+            "pasted nodes become the selection"
+        );
     }
 
     // -- 45-A P8b: the `.curve` resolver the graph canvas reads -------------
@@ -7475,11 +8027,7 @@ mod tests {
         // The same path open in a curve tab, with a second track.
         let mut open = on_disk.clone();
         open.tracks.push(Track::new("lean", "Lean"));
-        let merged = build_curve_docs(
-            std::iter::once(("curves/x.curve", &open)),
-            &docs,
-            &dir,
-        );
+        let merged = build_curve_docs(std::iter::once(("curves/x.curve", &open)), &docs, &dir);
         assert_eq!(
             merged["curves/x.curve"].slugs(),
             vec!["height", "lean"],
@@ -7521,7 +8069,11 @@ mod tests {
 
         let d = DocDescriptors::new(&doc, &reg).with_curves(&curves);
         let desc = d.descriptor(1).expect("descriptor");
-        assert_eq!(desc.outputs.len(), base_outs + 2, "one Float output per track");
+        assert_eq!(
+            desc.outputs.len(),
+            base_outs + 2,
+            "one Float output per track"
+        );
         for slug in ["height", "lean"] {
             let pin = desc.output(slug).unwrap_or_else(|| panic!("pin {slug}"));
             assert_eq!(pin.ty, PinType::Float);
@@ -7531,7 +8083,10 @@ mod tests {
         // Same resolver, a path it does not hold.
         let dangling = timeline_doc("curves/gone.curve");
         let d = DocDescriptors::new(&dangling, &reg).with_curves(&curves);
-        assert_eq!(d.descriptor(1).expect("descriptor").outputs.len(), base_outs);
+        assert_eq!(
+            d.descriptor(1).expect("descriptor").outputs.len(),
+            base_outs
+        );
         assert!(matches!(
             validate_curves(&d).as_slice(),
             [GraphError::MissingCurve { node: 1, path }] if path == "curves/gone.curve"
@@ -7574,7 +8129,10 @@ mod tests {
         for slug in curves["curves/duck_hop.curve"].slugs() {
             assert!(desc.output(slug).is_some(), "track '{slug}' is a pin");
         }
-        assert!(validate_curves(&d).is_empty(), "nothing dangling in the demo");
+        assert!(
+            validate_curves(&d).is_empty(),
+            "nothing dangling in the demo"
+        );
     }
 
     /// `frame_view` fits + centers the bbox and never magnifies past 1.0×.
@@ -7588,7 +8146,11 @@ mod tests {
             0.25,
             2.5,
         );
-        assert!((v.zoom - 1.0).abs() < 1e-4, "capped at 1.0x, got {}", v.zoom);
+        assert!(
+            (v.zoom - 1.0).abs() < 1e-4,
+            "capped at 1.0x, got {}",
+            v.zoom
+        );
         // bbox center (200,150) must land at the viewport center (400,300):
         // screen = rect.min + (world - pan) * zoom.
         let sx = (200.0 - v.pan.x) * v.zoom;
@@ -7601,9 +8163,16 @@ mod tests {
     fn frame_view_clamps_zoom() {
         let vp = Vec2::new(800.0, 600.0);
         let big = frame_view(Vec2::new(0.0, 0.0), Vec2::new(1.0e5, 1.0e5), vp, 0.25, 2.5);
-        assert!((big.zoom - 0.25).abs() < 1e-4, "huge bbox clamps to zoom_min");
+        assert!(
+            (big.zoom - 0.25).abs() < 1e-4,
+            "huge bbox clamps to zoom_min"
+        );
         let one = frame_view(Vec2::new(0.0, 0.0), Vec2::new(168.0, 60.0), vp, 0.25, 2.5);
-        assert!((one.zoom - 1.0).abs() < 1e-4, "single node frames at 1.0x, got {}", one.zoom);
+        assert!(
+            (one.zoom - 1.0).abs() < 1e-4,
+            "single node frames at 1.0x, got {}",
+            one.zoom
+        );
     }
 
     #[test]
@@ -7651,7 +8220,10 @@ mod tests {
         assert!(s.is_dirty(), "save point lost to truncation → dirty");
         // Undoing the new edit does NOT reach the (now-gone) save point.
         s.undo(&mut doc);
-        assert!(s.is_dirty(), "truncated save point never re-cleans without save");
+        assert!(
+            s.is_dirty(),
+            "truncated save point never re-cleans without save"
+        );
     }
 
     #[test]
@@ -7664,7 +8236,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("lib")).unwrap();
         let leaf = GraphDoc {
-            inputs: vec![IfacePin { slug: "x".into(), label: "X".into(), ty: PinType::Float }],
+            inputs: vec![IfacePin {
+                slug: "x".into(),
+                label: "X".into(),
+                ty: PinType::Float,
+            }],
             ..GraphDoc::default()
         };
         let mut mid = GraphDoc::default();
@@ -7675,8 +8251,10 @@ mod tests {
             position: [0.0, 0.0],
             properties: std::collections::BTreeMap::new(),
             subgraph: Some("lib/leaf.subgraph".to_string()),
-        
-        tint: None, title: None,});
+
+            tint: None,
+            title: None,
+        });
         save_graph(&dir.join("lib/leaf.subgraph"), &leaf).unwrap();
         save_graph(&dir.join("lib/mid.subgraph"), &mid).unwrap();
 
@@ -7690,11 +8268,13 @@ mod tests {
             position: [0.0, 0.0],
             properties: std::collections::BTreeMap::new(),
             subgraph: Some("lib/mid.subgraph".to_string()),
-        
-        tint: None, title: None,});
+
+            tint: None,
+            title: None,
+        });
 
         let open = [("main.graph", &host)];
-        let docs = build_resolver_docs(open.into_iter().map(|(k, d)| (k, d)), &dir);
+        let docs = build_resolver_docs(open.into_iter(), &dir);
 
         // Open doc present verbatim (wins over disk), disk closure loaded.
         assert_eq!(docs.resolve("main.graph").unwrap().nodes[0].id, 9);
@@ -7719,7 +8299,10 @@ mod tests {
             n.position[0] += 12.0;
             n.position[1] += 7.0;
         }
-        s.record(GraphEdit::MoveNodes { ids: vec![0, 1], delta: [12.0, 7.0] });
+        s.record(GraphEdit::MoveNodes {
+            ids: vec![0, 1],
+            delta: [12.0, 7.0],
+        });
         assert_eq!(s.undo.len(), 1, "one drag = one undo entry");
         s.undo(&mut doc);
         assert_eq!(doc.nodes[0].position, [0.0, 0.0]);
@@ -7754,7 +8337,10 @@ mod tests {
         assert!(w.stale_for(0.0).is_some());
 
         assert!(w.is(7, "value", true));
-        assert!(!w.is(7, "value", false), "an input and an output are different pins");
+        assert!(
+            !w.is(7, "value", false),
+            "an input and an output are different pins"
+        );
         assert!(!w.is(8, "value", true));
 
         let long = "Entity(duck_2) at [1.0, 2.0, 3.0] holding a very long spelling";
@@ -7814,25 +8400,39 @@ mod tests {
         let on_disk = Path::new("../content/graphs/runner_demo.graph");
         if let Ok(text) = std::fs::read_to_string(on_disk) {
             let doc = load_graph(on_disk).expect("the committed demo graph parses");
-            assert_eq!(bytes(&doc), text, "adding `group` must not rewrite old files");
+            assert_eq!(
+                bytes(&doc),
+                text,
+                "adding `group` must not rewrite old files"
+            );
         }
 
         assert!(st.set_variable_group("score", Some("State".into()), &reg));
         assert_eq!(st.doc.variables[1].group.as_deref(), Some("State"));
         assert_eq!(
-            st.doc.variables.iter().map(|v| v.slug.as_str()).collect::<Vec<_>>(),
+            st.doc
+                .variables
+                .iter()
+                .map(|v| v.slug.as_str())
+                .collect::<Vec<_>>(),
             vec!["health", "score"],
             "grouping never reorders"
         );
         assert!(bytes(&st.doc).contains("group: Some(\"State\")"));
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Group Variable"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Group Variable")
+        );
         st.undo(&reg);
         assert_eq!(bytes(&st.doc), bytes(&before));
 
         // Clearing is the same edit the other way, with its own label.
         st.redo(&reg);
         assert!(st.set_variable_group("score", None, &reg));
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Ungroup Variable"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Ungroup Variable")
+        );
         assert_eq!(bytes(&st.doc), bytes(&before));
         // A no-op assignment records nothing.
         assert!(!st.set_variable_group("score", None, &reg));
@@ -7854,10 +8454,17 @@ mod tests {
 
         assert!(st.reorder_variable(2, 0, &reg));
         assert_eq!(
-            st.doc.variables.iter().map(|v| v.slug.as_str()).collect::<Vec<_>>(),
+            st.doc
+                .variables
+                .iter()
+                .map(|v| v.slug.as_str())
+                .collect::<Vec<_>>(),
             vec!["c", "a", "b"]
         );
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Reorder Variable"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Reorder Variable")
+        );
         assert_eq!(st.stack.undo_len(), 1, "one drag, one entry");
         st.undo(&reg);
         assert_eq!(bytes(&st.doc), bytes(&before));
@@ -7879,7 +8486,10 @@ mod tests {
 
         assert!(st.add_array_entry("path", &reg));
         assert!(st.add_array_entry("path", &reg));
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Add Array Entry"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Add Array Entry")
+        );
         assert_eq!(st.stack.undo_len(), 2, "one entry per gesture");
         // The new entries take the element type's zero, not a guess.
         assert_eq!(
@@ -7893,10 +8503,16 @@ mod tests {
         // A component edit coalesces like any other default drag.
         assert!(st.set_array_entry("path", 1, PropValue::Vec3([1.0, 2.0, 3.0]), &reg));
         st.flush_var_default_edit(&reg);
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Set Variable Default"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Set Variable Default")
+        );
 
         assert!(st.move_array_entry("path", 1, 0, &reg));
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Reorder Array Entry"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Reorder Array Entry")
+        );
         assert_eq!(
             st.doc.variables[0].default,
             Some(PropValue::Array(vec![
@@ -7905,7 +8521,10 @@ mod tests {
             ]))
         );
         assert!(st.remove_array_entry("path", 0, &reg));
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Remove Array Entry"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Remove Array Entry")
+        );
 
         // Every gesture undoes back to the byte-identical start.
         while st.stack.can_undo() {
@@ -7946,12 +8565,24 @@ mod tests {
         assert_eq!(
             v.rows,
             vec![
-                VarListRow::Group { name: Some("Config".into()), count: 2, collapsed: false },
+                VarListRow::Group {
+                    name: Some("Config".into()),
+                    count: 2,
+                    collapsed: false
+                },
                 VarListRow::Var(0),
                 VarListRow::Var(3),
-                VarListRow::Group { name: Some("State".into()), count: 1, collapsed: false },
+                VarListRow::Group {
+                    name: Some("State".into()),
+                    count: 1,
+                    collapsed: false
+                },
                 VarListRow::Var(1),
-                VarListRow::Group { name: None, count: 1, collapsed: false },
+                VarListRow::Group {
+                    name: None,
+                    count: 1,
+                    collapsed: false
+                },
                 VarListRow::Var(2),
             ]
         );
@@ -7962,7 +8593,11 @@ mod tests {
         assert_eq!(
             v.rows,
             vec![
-                VarListRow::Group { name: Some("State".into()), count: 1, collapsed: false },
+                VarListRow::Group {
+                    name: Some("State".into()),
+                    count: 1,
+                    collapsed: false
+                },
                 VarListRow::Var(1),
             ]
         );
@@ -7975,9 +8610,20 @@ mod tests {
         let v = variables_view(&doc, "", &collapsed);
         assert_eq!(
             v.rows[0],
-            VarListRow::Group { name: Some("Config".into()), count: 2, collapsed: true }
+            VarListRow::Group {
+                name: Some("Config".into()),
+                count: 2,
+                collapsed: true
+            }
         );
-        assert_eq!(v.rows[1], VarListRow::Group { name: Some("State".into()), count: 1, collapsed: false });
+        assert_eq!(
+            v.rows[1],
+            VarListRow::Group {
+                name: Some("State".into()),
+                count: 1,
+                collapsed: false
+            }
+        );
 
         // A document nobody grouped draws no headers at all — the shipped look.
         doc.variables.iter_mut().for_each(|v| v.group = None);
@@ -8103,26 +8749,36 @@ mod tests {
     fn payload_field_edits_round_trip_as_one_entry() {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
-        st.doc.nodes = vec![event_node(0, "Hit", &[("damage", "float")]), node(1, [0.0, 0.0])];
+        st.doc.nodes = vec![
+            event_node(0, "Hit", &[("damage", "float")]),
+            node(1, [0.0, 0.0]),
+        ];
         st.doc.edges = vec![payload_edge(0, "damage", 1)];
         let before = st.doc.clone();
         let bytes = |d: &GraphDoc| crate::engine::node_graph::serialize_graph(d).unwrap();
 
         // --- add
-        assert_eq!(st.add_payload_field(0, "Instigator", &reg).as_deref(), Some("instigator"));
+        assert_eq!(
+            st.add_payload_field(0, "Instigator", &reg).as_deref(),
+            Some("instigator")
+        );
         assert_eq!(
             st.doc.nodes[0].properties.get("payload.instigator"),
             Some(&PropValue::Enum(DEFAULT_PAYLOAD_TYPE.into())),
             "a new field defaults to Float"
         );
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Add Payload Field"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Add Payload Field")
+        );
         assert_eq!(st.stack.undo_len(), 1, "one gesture, one entry");
         st.undo(&reg);
         assert_eq!(bytes(&st.doc), bytes(&before));
 
         // --- rename, carrying this document's wires with it
         assert_eq!(
-            st.rename_payload_field(0, "damage", "Hit Damage", &reg).as_deref(),
+            st.rename_payload_field(0, "damage", "Hit Damage", &reg)
+                .as_deref(),
             Some("hit_damage")
         );
         assert!(!st.doc.nodes[0].properties.contains_key("payload.damage"));
@@ -8135,7 +8791,10 @@ mod tests {
             vec![payload_edge(0, "hit_damage", 1)],
             "incident edges follow the rename"
         );
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Rename Payload Field"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Rename Payload Field")
+        );
         assert_eq!(st.stack.undo_len(), 1);
         st.undo(&reg);
         assert_eq!(bytes(&st.doc), bytes(&before), "including the edge order");
@@ -8146,7 +8805,10 @@ mod tests {
         assert!(st.remove_payload_field(0, "damage", &reg));
         assert!(!st.doc.nodes[0].properties.contains_key("payload.damage"));
         assert_eq!(st.doc.edges.len(), 1, "the wire keeps its landing spot");
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Remove Payload Field"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Remove Payload Field")
+        );
         assert_eq!(st.stack.undo_len(), 1);
         st.undo(&reg);
         assert_eq!(bytes(&st.doc), bytes(&before));
@@ -8160,13 +8822,23 @@ mod tests {
         let reg = NodeRegistry::new();
         let mut st = bare_state();
         st.doc.nodes = vec![event_node(0, "Hit", &[])];
-        assert_eq!(st.add_payload_field(0, "Damage", &reg).as_deref(), Some("damage"));
-        assert_eq!(st.add_payload_field(0, "damage", &reg).as_deref(), Some("damage_2"));
-        assert_eq!(st.add_payload_field(0, "Damage!", &reg).as_deref(), Some("damage_3"));
+        assert_eq!(
+            st.add_payload_field(0, "Damage", &reg).as_deref(),
+            Some("damage")
+        );
+        assert_eq!(
+            st.add_payload_field(0, "damage", &reg).as_deref(),
+            Some("damage_2")
+        );
+        assert_eq!(
+            st.add_payload_field(0, "Damage!", &reg).as_deref(),
+            Some("damage_3")
+        );
         assert_eq!(st.add_payload_field(0, "", &reg).as_deref(), Some("var"));
         // A rename onto a taken slug disambiguates rather than clobbering.
         assert_eq!(
-            st.rename_payload_field(0, "damage_3", "damage", &reg).as_deref(),
+            st.rename_payload_field(0, "damage_3", "damage", &reg)
+                .as_deref(),
             Some("damage_4")
         );
         // A no-op rename records nothing.
@@ -8191,12 +8863,18 @@ mod tests {
 
         // Another open graph listening to the same event, reading the field.
         let mut there = GraphDoc::default();
-        there.nodes = vec![event_node(7, "Hit", &[("damage", "float")]), node(8, [0.0, 0.0])];
+        there.nodes = vec![
+            event_node(7, "Hit", &[("damage", "float")]),
+            node(8, [0.0, 0.0]),
+        ];
         there.edges = vec![payload_edge(7, "damage", 8)];
 
         // A third that listens to a *different* event — same slug, no relation.
         let mut other = GraphDoc::default();
-        other.nodes = vec![event_node(3, "Land", &[("damage", "float")]), node(4, [0.0, 0.0])];
+        other.nodes = vec![
+            event_node(3, "Land", &[("damage", "float")]),
+            node(4, [0.0, 0.0]),
+        ];
         other.edges = vec![payload_edge(3, "damage", 4)];
 
         let mut docs: BTreeMap<String, GraphDoc> = BTreeMap::new();
@@ -8305,7 +8983,11 @@ mod tests {
         assert_eq!(st.doc.regions.len(), 2);
 
         st.undo(&reg);
-        assert_eq!(st.doc.regions.len(), 1, "undo removes only the clone's region");
+        assert_eq!(
+            st.doc.regions.len(),
+            1,
+            "undo removes only the clone's region"
+        );
         assert!(st.doc.regions.contains_key(&3));
     }
 
@@ -8344,7 +9026,7 @@ mod tests {
         };
         let reg = NodeRegistry::new();
         let mut st = test_state("graphs/duck.animgraph");
-        let mut n = |id: u64, ty: &str, pos: [f32; 2]| NodeInst {
+        let n = |id: u64, ty: &str, pos: [f32; 2]| NodeInst {
             id,
             type_id: ty.to_string(),
             type_version: 1,
@@ -8369,7 +9051,11 @@ mod tests {
         assert_eq!(transition_shortcut(&st.doc, &flow(0, 1)), Some((0, 1)));
         assert_eq!(transition_shortcut(&st.doc, &flow(2, 1)), Some((2, 1)));
         // …and nothing else.
-        assert_eq!(transition_shortcut(&st.doc, &flow(0, 2)), None, "an alias has no `in`");
+        assert_eq!(
+            transition_shortcut(&st.doc, &flow(0, 2)),
+            None,
+            "an alias has no `in`"
+        );
 
         let before = st.doc.clone();
         let t = st.insert_transition_between(0, 1, &reg);
@@ -8410,7 +9096,7 @@ mod tests {
         n(5, ANIM_STATE_ALIAS_TYPE_ID, Some("Grounded"));
         n(6, ANIM_STATE_ALIAS_TYPE_ID, None); // compiler name "Alias"
         n(7, ANIM_STATE_ALIAS_TYPE_ID, None); // …and so is this one
-        // 6 is a valid Global alias; 7 is the empty / dangling one.
+                                              // 6 is a valid Global alias; 7 is the empty / dangling one.
         doc.node_mut(7).unwrap().properties.insert(
             crate::engine::animation::graph::ALIAS_GLOBAL_PROP.to_string(),
             PropValue::Bool(false),
@@ -8418,32 +9104,51 @@ mod tests {
 
         let a = |msg: &str| anchor_anim_refusal(&doc, msg);
         assert_eq!(a("alias 'Grounded' has no states"), Some(5));
-        assert_eq!(a("alias 'Alias' has no states"), Some(7), "the empty namesake, not the first");
+        assert_eq!(
+            a("alias 'Alias' has no states"),
+            Some(7),
+            "the empty namesake, not the first"
+        );
         doc.node_mut(7)
             .unwrap()
             .properties
             .insert("states".to_string(), alias_states_value(&[42]));
         let a = |msg: &str| anchor_anim_refusal(&doc, msg);
-        assert_eq!(a("alias 'Alias' references a missing state (node 42)"), Some(7));
-        assert_eq!(a("alias 'Alias' references a missing state (node 43)"), Some(6), "no match: first by name");
+        assert_eq!(
+            a("alias 'Alias' references a missing state (node 42)"),
+            Some(7)
+        );
+        assert_eq!(
+            a("alias 'Alias' references a missing state (node 43)"),
+            Some(6),
+            "no match: first by name"
+        );
         assert_eq!(a("alias 'Nobody' has no states"), None);
-        assert_eq!(a("state 'Idle' names no clip (property `clip`) and has no blend tree"), Some(1));
+        assert_eq!(
+            a("state 'Idle' names no clip (property `clip`) and has no blend tree"),
+            Some(1)
+        );
         assert_eq!(a("state 'State 2': blend tree has no RESULT node"), Some(2));
         assert_eq!(a("transition 3 has no source state"), Some(3));
         assert_eq!(a("transition 3: rule has no RESULT node"), Some(3));
-        assert_eq!(a("play-once slot 'Attack' names no clip (property `clip`)"), Some(4));
+        assert_eq!(
+            a("play-once slot 'Attack' names no clip (property `clip`)"),
+            Some(4)
+        );
         assert_eq!(a("the ENTRY node is not wired to a state"), Some(0));
         assert_eq!(a("parameter 'speed' is declared twice"), None);
-        assert_eq!(a("transition 99 has no source state"), None, "unknown ids stay unanchored");
+        assert_eq!(
+            a("transition 99 has no source state"),
+            None,
+            "unknown ids stay unanchored"
+        );
     }
 
     /// Both alias refusals arrive anchored through the real error path — an
     /// alias with no states and one listing a node that is not a state.
     #[test]
     fn alias_refusals_anchor_through_the_error_index() {
-        use crate::engine::animation::graph::plan::{
-            ANIM_STATE_ALIAS_TYPE_ID, CLIP_PROP,
-        };
+        use crate::engine::animation::graph::plan::{ANIM_STATE_ALIAS_TYPE_ID, CLIP_PROP};
         use crate::engine::animation::graph::{new_animgraph_doc, ALIAS_GLOBAL_PROP};
         let reg = NodeRegistry::new();
         let mut st = test_state("graphs/duck.animgraph");
@@ -8486,9 +9191,7 @@ mod tests {
     /// step as the delete — one Ctrl+Z brings the state and its listing back.
     #[test]
     fn deleting_a_state_strips_it_from_aliases_in_one_step() {
-        use crate::engine::animation::graph::plan::{
-            ANIM_STATE_ALIAS_TYPE_ID, ANIM_STATE_TYPE_ID,
-        };
+        use crate::engine::animation::graph::plan::{ANIM_STATE_ALIAS_TYPE_ID, ANIM_STATE_TYPE_ID};
         use crate::engine::animation::graph::{ALIAS_GLOBAL_PROP, ALIAS_STATES_PROP};
         let reg = NodeRegistry::new();
         let mut st = test_state("graphs/duck.animgraph");
@@ -8510,7 +9213,12 @@ mod tests {
             .properties
             .insert(ALIAS_STATES_PROP.to_string(), alias_states_value(&[1, 2]));
         let global = n(4, ANIM_STATE_ALIAS_TYPE_ID);
-        st.doc.nodes = vec![n(1, ANIM_STATE_TYPE_ID), n(2, ANIM_STATE_TYPE_ID), listed, global];
+        st.doc.nodes = vec![
+            n(1, ANIM_STATE_TYPE_ID),
+            n(2, ANIM_STATE_TYPE_ID),
+            listed,
+            global,
+        ];
         let before = st.doc.clone();
 
         st.select_only(2);
@@ -8518,7 +9226,11 @@ mod tests {
         assert!(st.doc.node(2).is_none());
         assert_eq!(alias_states(st.doc.node(3).unwrap()), vec![1]);
         assert!(
-            !st.doc.node(4).unwrap().properties.contains_key(ALIAS_STATES_PROP),
+            !st.doc
+                .node(4)
+                .unwrap()
+                .properties
+                .contains_key(ALIAS_STATES_PROP),
             "an alias that never listed the state is untouched"
         );
         assert_eq!(st.stack.undo_len(), 1, "one entry for the whole gesture");
@@ -8556,7 +9268,11 @@ mod tests {
         st.doc = new_animgraph_doc();
         st.after_edit(&reg);
         assert_eq!(st.domain_errors.len(), 1);
-        assert_eq!(st.domain_errors[0].node, Some(1), "anchored to the clipless state");
+        assert_eq!(
+            st.domain_errors[0].node,
+            Some(1),
+            "anchored to the clipless state"
+        );
 
         // Naming a clip clears the refusal.
         st.doc.node_mut(1).unwrap().properties.insert(
@@ -8577,12 +9293,12 @@ mod tests {
 #[cfg(test)]
 mod rule_scope_tests {
     use super::*;
-    use crate::engine::animation::graph::plan::{
-        ANIM_ENTRY_TYPE_ID, ANIM_RULE_RESULT_TYPE_ID, ANIM_STATE_TYPE_ID,
-        ANIM_TRANSITION_TYPE_ID, CLIP_PROP, RULE_RESULT_PIN, STATE_IN_PIN, STATE_OUT_PIN,
-        TRANSITION_FROM_PIN, TRANSITION_TO_PIN,
-    };
     use crate::engine::animation::graph::anim_node_registry;
+    use crate::engine::animation::graph::plan::{
+        ANIM_ENTRY_TYPE_ID, ANIM_RULE_RESULT_TYPE_ID, ANIM_STATE_TYPE_ID, ANIM_TRANSITION_TYPE_ID,
+        CLIP_PROP, RULE_RESULT_PIN, STATE_IN_PIN, STATE_OUT_PIN, TRANSITION_FROM_PIN,
+        TRANSITION_TO_PIN,
+    };
     use crate::engine::editor::graph_anim_chip::transition_chip;
     use crate::engine::node_graph::{
         GraphRealm, GraphRegion, VarDecl, VAR_GET_TYPE_ID, VAR_PROP, VAR_VALUE_PIN,
@@ -8617,11 +9333,15 @@ mod rule_scope_tests {
         let mut st = super::test_state("graphs/t.animgraph");
         st.doc.realm = GraphRealm::Client;
         let mut idle = node(1, ANIM_STATE_TYPE_ID, Some("Idle"));
-        idle.properties
-            .insert(CLIP_PROP.to_string(), PropValue::Asset("anims/idle.anim".into()));
+        idle.properties.insert(
+            CLIP_PROP.to_string(),
+            PropValue::Asset("anims/idle.anim".into()),
+        );
         let mut run = node(2, ANIM_STATE_TYPE_ID, Some("Run"));
-        run.properties
-            .insert(CLIP_PROP.to_string(), PropValue::Asset("anims/run.anim".into()));
+        run.properties.insert(
+            CLIP_PROP.to_string(),
+            PropValue::Asset("anims/run.anim".into()),
+        );
         st.doc.nodes = vec![
             node(0, ANIM_ENTRY_TYPE_ID, None),
             idle,
@@ -8655,7 +9375,8 @@ mod rule_scope_tests {
         let mut cmp = node(2, COMPARE_FLOAT, None);
         cmp.properties
             .insert("op".to_string(), PropValue::Enum("greater".into()));
-        cmp.properties.insert("b".to_string(), PropValue::Float(3.0));
+        cmp.properties
+            .insert("b".to_string(), PropValue::Float(3.0));
         GraphRegion {
             nodes: vec![node(0, ANIM_RULE_RESULT_TYPE_ID, None), get, cmp],
             edges: vec![
@@ -8712,7 +9433,10 @@ mod rule_scope_tests {
             assert_eq!(scope.child.doc.nodes.len(), 3);
             assert_eq!(scope.child.doc.variables.len(), 1, "parameters project");
             assert!(scope.seed.is_none(), "a real rule needs no seed");
-            assert!(matches!(scope.child.domain, GraphDomain::AnimationRule { owner: 3 }));
+            assert!(matches!(
+                scope.child.domain,
+                GraphDomain::AnimationRule { owner: 3 }
+            ));
         }
         // Only transitions descend.
         assert!(!st.open_rule_scope(1, &reg), "a state is not a rule scope");
@@ -8823,10 +9547,14 @@ mod rule_scope_tests {
             scope.child.stack.record(GraphEdit::AddVariable(decl));
         }
         st.drain_rule_scope(&reg);
-        assert_eq!(st.doc.variables.len(), 2, "the declaration is the machine's");
+        assert_eq!(
+            st.doc.variables.len(),
+            2,
+            "the declaration is the machine's"
+        );
         assert_eq!(st.stack.undo_len(), 1);
         assert!(
-            st.doc.regions.get(&3).is_none(),
+            !st.doc.regions.contains_key(&3),
             "a variable edit is not region content — no seed, no region"
         );
         st.undo(&reg);
@@ -8857,10 +9585,18 @@ mod rule_scope_tests {
         {
             let scope = st.rule_scope.as_mut().unwrap();
             let n = scope.child.doc.nodes.len();
-            scope.child.paste_fragment(&machine_frag, None, rule_scope_registry());
-            assert_eq!(scope.child.doc.nodes.len(), n, "a State cannot enter a rule");
+            scope
+                .child
+                .paste_fragment(&machine_frag, None, rule_scope_registry());
+            assert_eq!(
+                scope.child.doc.nodes.len(),
+                n,
+                "a State cannot enter a rule"
+            );
             // A rule fragment is welcome.
-            scope.child.paste_fragment(&rule_frag, None, rule_scope_registry());
+            scope
+                .child
+                .paste_fragment(&rule_frag, None, rule_scope_registry());
             assert_eq!(scope.child.doc.nodes.len(), n + 1);
         }
     }
@@ -8871,7 +9607,10 @@ mod rule_scope_tests {
     #[test]
     fn find_indexes_nodes_inside_rules() {
         let st = machine(Some(speed_rule()));
-        let find = |q: &str| FindState { query: q.into(), ..Default::default() };
+        let find = |q: &str| FindState {
+            query: q.into(),
+            ..Default::default()
+        };
         assert_eq!(region_find_matches(&st.doc, &find("speed")), vec![(3, 1)]);
         assert_eq!(region_find_matches(&st.doc, &find("compare")), vec![(3, 2)]);
         assert!(region_find_matches(&st.doc, &find("zzz")).is_empty());
@@ -8911,8 +9650,8 @@ mod rule_scope_tests {
 mod nested_graph_tests {
     use super::*;
     use crate::engine::animation::graph::plan::{
-        ANIM_ENTRY_TYPE_ID, ANIM_STATE_TYPE_ID, CLIP_PROP, GRAPH_PROP, SPACE_PROP,
-        STATE_IN_PIN, STATE_OUT_PIN,
+        ANIM_ENTRY_TYPE_ID, ANIM_STATE_TYPE_ID, CLIP_PROP, GRAPH_PROP, SPACE_PROP, STATE_IN_PIN,
+        STATE_OUT_PIN,
     };
     use crate::engine::node_graph::{GraphRealm, GraphRegion};
 
@@ -8940,18 +9679,34 @@ mod nested_graph_tests {
     fn animation_states_descend_into_their_nested_graph_file() {
         let mut st = test_state("graphs/host.animgraph");
         st.doc.nodes = vec![
-            state_node(1, &[(GRAPH_PROP, PropValue::Asset("graphs\\loco.animgraph".into()))]),
-            state_node(2, &[(CLIP_PROP, PropValue::Asset("anims/idle.anim".into()))]),
+            state_node(
+                1,
+                &[(
+                    GRAPH_PROP,
+                    PropValue::Asset("graphs\\loco.animgraph".into()),
+                )],
+            ),
+            state_node(
+                2,
+                &[(CLIP_PROP, PropValue::Asset("anims/idle.anim".into()))],
+            ),
         ];
         assert_eq!(
             st.file_descend_target(1),
             Some("graphs/loco.animgraph".to_string()),
             "the reference descends, normalized"
         );
-        assert_eq!(st.file_descend_target(2), None, "a clip leaf has no file to enter");
+        assert_eq!(
+            st.file_descend_target(2),
+            None,
+            "a clip leaf has no file to enter"
+        );
 
         st.select_only(1);
-        assert_eq!(st.descend_target(), Some("graphs/loco.animgraph".to_string()));
+        assert_eq!(
+            st.descend_target(),
+            Some("graphs/loco.animgraph".to_string())
+        );
 
         // A non-empty tree region takes the state over; the ignored graph
         // reference stops being a descend target too.
@@ -8968,23 +9723,36 @@ mod nested_graph_tests {
         // nested graph beside it wins, as it does in the compiler.
         st.doc.nodes.push(state_node(
             3,
-            &[(SPACE_PROP, PropValue::Asset("blendspaces\\loco.blendspace".into()))],
+            &[(
+                SPACE_PROP,
+                PropValue::Asset("blendspaces\\loco.blendspace".into()),
+            )],
         ));
         assert_eq!(
             st.file_descend_target(3),
             Some("blendspaces/loco.blendspace".to_string())
         );
-        st.doc.nodes[2]
-            .properties
-            .insert(GRAPH_PROP.into(), PropValue::Asset("graphs/loco.animgraph".into()));
-        assert_eq!(st.file_descend_target(3), Some("graphs/loco.animgraph".to_string()));
+        st.doc.nodes[2].properties.insert(
+            GRAPH_PROP.into(),
+            PropValue::Asset("graphs/loco.animgraph".into()),
+        );
+        assert_eq!(
+            st.file_descend_target(3),
+            Some("graphs/loco.animgraph".to_string())
+        );
 
         // Script documents: only the subgraph field answers.
         let mut sc = test_state("graphs/t.graph");
-        let mut n = state_node(1, &[(GRAPH_PROP, PropValue::Asset("graphs/x.animgraph".into()))]);
+        let mut n = state_node(
+            1,
+            &[(GRAPH_PROP, PropValue::Asset("graphs/x.animgraph".into()))],
+        );
         n.subgraph = Some("lib/util.subgraph".into());
         sc.doc.nodes = vec![n];
-        assert_eq!(sc.file_descend_target(1), Some("lib/util.subgraph".to_string()));
+        assert_eq!(
+            sc.file_descend_target(1),
+            Some("lib/util.subgraph".to_string())
+        );
     }
 
     /// The request a descent raises carries the chain for the opened tab:
@@ -8997,7 +9765,10 @@ mod nested_graph_tests {
         assert_eq!(req.path, "graphs/legs.animgraph");
         assert_eq!(
             req.back,
-            vec!["graphs/character.animgraph".to_string(), "graphs/loco.animgraph".to_string()]
+            vec![
+                "graphs/character.animgraph".to_string(),
+                "graphs/loco.animgraph".to_string()
+            ]
         );
         assert!(GraphOpenRequest::jump("a.graph".into()).back.is_empty());
     }
@@ -9023,7 +9794,10 @@ mod nested_graph_tests {
             entry,
             state_node(
                 1,
-                &[(GRAPH_PROP, PropValue::Asset("graphs/does-not-exist.animgraph".into()))],
+                &[(
+                    GRAPH_PROP,
+                    PropValue::Asset("graphs/does-not-exist.animgraph".into()),
+                )],
             ),
         ];
         st.doc.edges = vec![Edge {
@@ -9050,13 +9824,15 @@ mod nested_graph_tests {
         let e = &st.domain_errors[0];
         assert_eq!(e.node, Some(1), "anchored on the referencing state");
         assert!(
-            e.message.contains("blend space 'blendspaces/does-not-exist.blendspace' not found"),
+            e.message
+                .contains("blend space 'blendspaces/does-not-exist.blendspace' not found"),
             "{}",
             e.message
         );
     }
 }
 
+#[cfg(test)]
 pub(crate) fn test_state(path: &str) -> GraphEditorState {
     GraphEditorState::from_doc(
         path.to_string(),

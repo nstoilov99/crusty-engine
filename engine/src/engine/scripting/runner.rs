@@ -31,6 +31,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use nalgebra_glm as glm;
+#[cfg(not(feature = "editor"))]
+use node_graph_exec::tick;
 use node_graph_exec::{
     compile_with_curves, nodes as std_impls, Effect, EntityRef, ExecError, GraphInstance,
     NodeImpls, Plan, TickInput, TransformSnapshot, WorldRead,
@@ -39,8 +41,6 @@ use node_graph_exec::{
 /// which instantiates the interpreter against `NoTrace` (see [`super::trace`]).
 #[cfg(feature = "editor")]
 use node_graph_exec::{tick_debug, DEFAULT_BUDGET};
-#[cfg(not(feature = "editor"))]
-use node_graph_exec::tick;
 use node_graph_types::{EventPhase, GraphDoc, GraphRealm, NodeRegistry};
 
 use crate::engine::ecs::components::{EntityGuid, Name, Transform, TransformDirty};
@@ -250,7 +250,8 @@ impl CurveCache {
     /// Drop one curve (hot-reload). The plan cache is invalidated alongside,
     /// because a track added or removed changes every Timeline's pins.
     pub fn invalidate(&mut self, content_rel: &str) {
-        self.curves.remove(&super::normalize_graph_path(content_rel));
+        self.curves
+            .remove(&super::normalize_graph_path(content_rel));
     }
 
     /// Load what `paths` names and is not already held. Failures are silent
@@ -320,7 +321,9 @@ fn compile_asset(
         if docs.contains_key(&next) {
             continue;
         }
-        let Some(doc) = loader.load(&next) else { continue };
+        let Some(doc) = loader.load(&next) else {
+            continue;
+        };
         frontier.extend(doc.subgraph_refs().iter().map(|s| s.to_string()));
         docs.insert(next, doc);
     }
@@ -586,7 +589,10 @@ impl System for GraphScriptRunnerSystem {
             Vec::new()
         } else {
             match resources.get::<InputSubsystem>() {
-                Some(input) => wanted.into_iter().filter(|a| input.just_pressed(a)).collect(),
+                Some(input) => wanted
+                    .into_iter()
+                    .filter(|a| input.just_pressed(a))
+                    .collect(),
                 // No input subsystem (a headless or server world): no presses,
                 // rather than a panic or a silent per-frame lookup failure.
                 None => Vec::new(),
@@ -795,9 +801,8 @@ impl GraphScriptRunnerSystem {
             }
             Ok(plan) => {
                 let realm = plan.realm;
-                let disabled = (!client_admits(realm)).then(|| {
-                    format!("{graph}: a {realm:?}-realm graph will not run on a client")
-                });
+                let disabled = (!client_admits(realm))
+                    .then(|| format!("{graph}: a {realm:?}-realm graph will not run on a client"));
                 // Seeded from the asset path, so two entities running the same
                 // graph do not share a random stream but a replay does.
                 let seed = fnv(graph);
@@ -886,7 +891,11 @@ impl GraphScriptRunnerSystem {
                     let _ = world.insert_one(e, TransformDirty);
                 }
             }
-            Effect::SpawnPrefab { path, alias, transform } => spawns.push(PendingSpawn {
+            Effect::SpawnPrefab {
+                path,
+                alias,
+                transform,
+            } => spawns.push(PendingSpawn {
                 owner,
                 alias: *alias,
                 path: path.clone(),

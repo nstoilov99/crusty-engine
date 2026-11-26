@@ -20,6 +20,6 @@ mod area;
 mod tree;
 
 pub use area::{
-    DECORATOR_SIZE, DockArea, DockResponse, DockState, DetachedTab, ExternalDrag, TabBarSlot,
+    DECORATOR_SIZE, DetachedTab, DockArea, DockResponse, DockState, ExternalDrag, TabBarSlot,
 };
 pub use tree::{DockNode, Leaf, Split, SplitDirection, TabId};

@@ -7,14 +7,10 @@
 //! (seed, kind, coord) so regeneration preserves identity (M4/M5 rely on
 //! stable GUIDs for spawn/despawn and replication).
 
-use game_shared::world_manifest::{
-    CellEntry, ControllerRef, SpawnPoint, WorldManifest, ZoneEntry,
-};
+use game_shared::world_manifest::{CellEntry, ControllerRef, SpawnPoint, WorldManifest, ZoneEntry};
 use rust_engine::engine::scene::scene_format::{ComponentData, EntityData, SceneFile};
 
-use crate::params::{
-    CELL_SIZE, JUMP_GAP, MAX_CELL, MIN_CELL, SEED, SLOPE_LIMIT_DEG, STEP_HEIGHT,
-};
+use crate::params::{CELL_SIZE, JUMP_GAP, MAX_CELL, MIN_CELL, SEED, SLOPE_LIMIT_DEG, STEP_HEIGHT};
 use crate::terrain::cell_mesh_path;
 
 pub const SCENE_PATH: &str = "scenes/greybox.scene";
@@ -50,7 +46,10 @@ pub fn det_guid(kind: &str, a: i32, b: i32) -> String {
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
     let h = |r: std::ops::Range<usize>| {
-        bytes[r].iter().map(|b| format!("{b:02x}")).collect::<String>()
+        bytes[r]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
     };
     format!(
         "{}-{}-{}-{}-{}",
@@ -130,7 +129,12 @@ pub fn build_scene() -> SceneFile {
 
 pub fn build_manifest() -> WorldManifest {
     let mut cells = Vec::new();
-    let mut zones: Vec<ZoneEntry> = (0..4).map(|id| ZoneEntry { id, cells: Vec::new() }).collect();
+    let mut zones: Vec<ZoneEntry> = (0..4)
+        .map(|id| ZoneEntry {
+            id,
+            cells: Vec::new(),
+        })
+        .collect();
 
     for cy in MIN_CELL..MAX_CELL {
         for cx in MIN_CELL..MAX_CELL {

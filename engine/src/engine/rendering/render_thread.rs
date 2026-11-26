@@ -580,10 +580,7 @@ impl RenderThread {
                     None
                 };
 
-                #[cfg_attr(
-                    not(any(feature = "editor", feature = "hud")),
-                    allow(unused_mut)
-                )]
+                #[cfg_attr(not(any(feature = "editor", feature = "hud")), allow(unused_mut))]
                 let mut cbs = vec![deferred_cb];
                 #[cfg(any(feature = "editor", feature = "hud"))]
                 cbs.extend(crusty_cb);

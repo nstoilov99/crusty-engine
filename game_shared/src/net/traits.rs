@@ -45,7 +45,10 @@ pub enum NetEvent {
     Snapshot(WorldSnapshot),
     /// Tombstone evidence observed (contract §3.2). Fed from row callbacks,
     /// so destruction + GC arriving in one pump cannot erase the evidence.
-    TombstoneSeen { entity_id: u64, generation: u32 },
+    TombstoneSeen {
+        entity_id: u64,
+        generation: u32,
+    },
     /// A fresh state sample for a live entity (feeds interpolation buffers).
     StateUpdate(EntityState),
     /// Authoritative own-player state (M6 D4; contract §5: replication of the
@@ -69,7 +72,10 @@ pub enum NetEvent {
     /// Server/client build stamps differ (M9 D4). Advisory only — protocol
     /// version stays the hard gate; this catches stale deploys of the same
     /// protocol version.
-    BuildMismatch { server: String, client: String },
+    BuildMismatch {
+        server: String,
+        client: String,
+    },
     /// The scene the server simulates (M9.6, `Config.world_scene`). Emitted
     /// once per connection, after the version/collision gates pass.
     WorldScene(String),

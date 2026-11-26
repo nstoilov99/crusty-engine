@@ -219,8 +219,17 @@ impl GraphInstance {
 
     /// Queue an event for the *next* tick. Emitting during a tick never
     /// re-enters the graph (D3: no reentrancy).
-    pub fn queue_event(&mut self, phase: EventPhase, name: Option<String>, payload: BTreeMap<String, Value>) {
-        self.queue.push_back(QueuedEvent { phase, name, payload });
+    pub fn queue_event(
+        &mut self,
+        phase: EventPhase,
+        name: Option<String>,
+        payload: BTreeMap<String, Value>,
+    ) {
+        self.queue.push_back(QueuedEvent {
+            phase,
+            name,
+            payload,
+        });
     }
 
     /// Take the aliases the runner still has to bind. Draining is the

@@ -74,8 +74,7 @@ impl<'a, T: PartialEq + Copy> SelectableValue<'a, T> {
         if fill.a > 0.0 || focused {
             let mut shape = RectShape::fill(rect, style.rounding.small, fill);
             if focused {
-                shape = shape
-                    .with_stroke(style.metrics.border, style.palette.focus_ring);
+                shape = shape.with_stroke(style.metrics.border, style.palette.focus_ring);
             }
             ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
         }

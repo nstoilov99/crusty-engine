@@ -67,7 +67,15 @@ pub fn graph_variables_panel(ui: &mut Ui, rect: Rect, ctx: GraphVariablesPanelCt
         state.flush_var_default_edit(registry);
     }
     let mut locate = None;
-    variables_panel(ui, rect, state, registry, Id::new("graph_vars_dock"), true, &mut locate);
+    variables_panel(
+        ui,
+        rect,
+        state,
+        registry,
+        Id::new("graph_vars_dock"),
+        true,
+        &mut locate,
+    );
     if locate.is_some() {
         state.locate_request = locate;
     }
@@ -75,7 +83,14 @@ pub fn graph_variables_panel(ui: &mut Ui, rect: Rect, ctx: GraphVariablesPanelCt
 
 /// The Details panel: the selection's properties, or the document's summary.
 pub fn graph_details_panel(ui: &mut Ui, rect: Rect, ctx: GraphDetailsPanelCtx) {
-    let GraphDetailsPanelCtx { state, registry, resolver, curves, mesh_assets, auto_mesh } = ctx;
+    let GraphDetailsPanelCtx {
+        state,
+        registry,
+        resolver,
+        curves,
+        mesh_assets,
+        auto_mesh,
+    } = ctx;
     if !ui.ctx().input.pointer_down {
         state.flush_prop_edit(registry);
     }
@@ -88,7 +103,10 @@ pub fn graph_details_panel(ui: &mut Ui, rect: Rect, ctx: GraphDetailsPanelCtx) {
         rect,
         Direction::TopDown,
         root,
-        UiOptions { padding: Vec2::splat(pad), spacing: pad * 0.5 },
+        UiOptions {
+            padding: Vec2::splat(pad),
+            spacing: pad * 0.5,
+        },
         |ui| {
             let h = ui.available().height();
             ScrollArea::new(h).inset(0.0).show(ui, |ui| {
@@ -138,8 +156,20 @@ fn summary_body(ui: &mut Ui, state: &GraphEditorState, st: &Style) {
         .to_string();
     header(ui, &name, Some(domain_label(state.domain)), st);
     read_row(ui, "File", &state.path, st, st.palette.text_mono);
-    read_row(ui, "Nodes", &state.doc.nodes.len().to_string(), st, st.palette.text);
-    read_row(ui, "Variables", &state.doc.variables.len().to_string(), st, st.palette.text);
+    read_row(
+        ui,
+        "Nodes",
+        &state.doc.nodes.len().to_string(),
+        st,
+        st.palette.text,
+    );
+    read_row(
+        ui,
+        "Variables",
+        &state.doc.variables.len().to_string(),
+        st,
+        st.palette.text,
+    );
     let errors = state.errors.len() + state.domain_errors.len();
     let err_col = if errors > 0 {
         Palette::invariant_status().error
@@ -159,7 +189,13 @@ fn variable_body(ui: &mut Ui, state: &GraphEditorState, slug: &str, st: &Style) 
     };
     header(ui, &decl.label, Some("Variable"), st);
     read_row(ui, "Slug", &decl.slug, st, st.palette.text_mono);
-    read_row(ui, "Type", &pin_type_label(&decl.ty), st, st.palette.text_mono);
+    read_row(
+        ui,
+        "Type",
+        &pin_type_label(&decl.ty),
+        st,
+        st.palette.text_mono,
+    );
     let default = decl
         .default
         .as_ref()
@@ -193,7 +229,13 @@ fn node_body(
     root: Id,
     st: &Style,
 ) {
-    let NodeBodyCtx { registry, resolver, curves, mesh_assets, auto_mesh } = *ctx;
+    let NodeBodyCtx {
+        registry,
+        resolver,
+        curves,
+        mesh_assets,
+        auto_mesh,
+    } = *ctx;
     let (title, tag) = node_identity(state, registry, n);
     header(ui, &title, Some(&tag), st);
     let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
@@ -205,8 +247,22 @@ fn node_body(
         let row = ui.allocate(Vec2::new(ui.available().width(), st.metrics.control_height));
         row_label(ui, row, "Preview Mesh", st);
         let cell = Rect::from_min_max(Pos2::new(row.min.x + label_w, row.min.y), row.max);
-        preview_mesh_row(ui, state, registry, cell, root, s, mesh_assets, auto_mesh, st);
-        caption(ui, "Empty picks a mesh whose bones cover the graph's clips.", st);
+        preview_mesh_row(
+            ui,
+            state,
+            registry,
+            cell,
+            root,
+            s,
+            mesh_assets,
+            auto_mesh,
+            st,
+        );
+        caption(
+            ui,
+            "Empty picks a mesh whose bones cover the graph's clips.",
+            st,
+        );
         return;
     }
     // A state's or alias's Name: the only title the animation library
@@ -237,7 +293,11 @@ fn node_body(
     // Rows are owned copies: the descriptor binding borrows the document,
     // and the widgets below need it mutably.
     let rows: Vec<(String, String, InlineKind)> = {
-        let docd = DocResolvers { graphs: resolver, curves }.bind(&state.doc, registry);
+        let docd = DocResolvers {
+            graphs: resolver,
+            curves,
+        }
+        .bind(&state.doc, registry);
         config_rows(n, &docd)
     };
     if rows.is_empty() && n.type_id != ANIM_TRANSITION_TYPE_ID {
@@ -299,7 +359,10 @@ fn preview_mesh_row(
         cell,
         Direction::LeftToRight,
         root.with("graph_details_preview_mesh"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             ComboBox::new(format!("graph_preview_mesh_{}", state.path))
                 .selected_text(shown)
@@ -307,12 +370,18 @@ fn preview_mesh_row(
                 .popup_width(cell.width().max(260.0 * s))
                 .show_ui(ui, |ui| {
                     let mut auto = current.is_empty();
-                    if SelectableValue::new(&mut auto, true, "(auto)").show(ui).clicked {
+                    if SelectableValue::new(&mut auto, true, "(auto)")
+                        .show(ui)
+                        .clicked
+                    {
                         pick = Some(String::new());
                     }
                     for path in mesh_assets {
                         let mut sel = *path == current;
-                        if SelectableValue::new(&mut sel, true, path.as_str()).show(ui).clicked {
+                        if SelectableValue::new(&mut sel, true, path.as_str())
+                            .show(ui)
+                            .clicked
+                        {
                             pick = Some(path.clone());
                         }
                     }
@@ -324,7 +393,7 @@ fn preview_mesh_row(
             state.set_preview_mesh(mesh, registry);
         }
     }
-    if !current.is_empty() && !mesh_assets.iter().any(|p| *p == current) {
+    if !current.is_empty() && !mesh_assets.contains(&current) {
         let row = ui.allocate(Vec2::new(ui.available().width(), st.metrics.row_height));
         ui.painter().text(
             Pos2::new(row.min.x, row.center().y - st.fonts.small * 0.62),
@@ -367,7 +436,10 @@ fn name_row(
         cell,
         Direction::TopDown,
         root.with(("graph_details_name", n.id)),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(&mut buf)
                 .width(cell.width())
@@ -416,7 +488,11 @@ fn shown_name(n: &NodeInst) -> String {
 }
 
 /// Title + type tag for the header, by the canvas's own naming rules.
-fn node_identity(state: &GraphEditorState, registry: &NodeRegistry, n: &NodeInst) -> (String, String) {
+fn node_identity(
+    state: &GraphEditorState,
+    registry: &NodeRegistry,
+    n: &NodeInst,
+) -> (String, String) {
     let type_name = registry
         .get(&n.type_id)
         .map(|d| d.name.clone())
@@ -429,8 +505,18 @@ fn node_identity(state: &GraphEditorState, registry: &NodeRegistry, n: &NodeInst
             return (shown_name(n), "State Alias".to_string());
         }
         if n.type_id == ANIM_TRANSITION_TYPE_ID {
-            let from = state.doc.edges.iter().find(|e| e.to_node == n.id).map(|e| e.from_node);
-            let to = state.doc.edges.iter().find(|e| e.from_node == n.id).map(|e| e.to_node);
+            let from = state
+                .doc
+                .edges
+                .iter()
+                .find(|e| e.to_node == n.id)
+                .map(|e| e.from_node);
+            let to = state
+                .doc
+                .edges
+                .iter()
+                .find(|e| e.from_node == n.id)
+                .map(|e| e.to_node);
             let end = |id: Option<u64>| {
                 id.and_then(|id| state.doc.node(id))
                     .map(|s| {
@@ -442,7 +528,10 @@ fn node_identity(state: &GraphEditorState, registry: &NodeRegistry, n: &NodeInst
                     })
                     .unwrap_or_else(|| "?".to_string())
             };
-            return (format!("{} \u{2192} {}", end(from), end(to)), "Transition".to_string());
+            return (
+                format!("{} \u{2192} {}", end(from), end(to)),
+                "Transition".to_string(),
+            );
         }
     }
     let title = n
@@ -515,7 +604,10 @@ fn read_row(ui: &mut Ui, label: &str, value: &str, st: &Style, color: crusty_gui
     let row = ui.allocate(Vec2::new(ui.available().width(), st.metrics.control_height));
     row_label(ui, row, label, st);
     let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
-    let cell = Rect::from_min_max(Pos2::new(row.min.x + DETAILS_LABEL_W * s, row.min.y), row.max);
+    let cell = Rect::from_min_max(
+        Pos2::new(row.min.x + DETAILS_LABEL_W * s, row.min.y),
+        row.max,
+    );
     mono_value(ui, cell, value, st, color);
 }
 

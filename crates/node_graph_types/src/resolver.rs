@@ -91,7 +91,9 @@ pub fn validate_refs(
     // Resolve every subgraph node's interface.
     let mut resolved: BTreeSet<u64> = BTreeSet::new();
     for n in &doc.nodes {
-        let Some(path) = n.subgraph.as_deref() else { continue };
+        let Some(path) = n.subgraph.as_deref() else {
+            continue;
+        };
         if resolver.resolve(path).is_some() {
             resolved.insert(n.id);
         } else {
@@ -107,7 +109,9 @@ pub fn validate_refs(
     for e in &doc.edges {
         let from_node = doc.node(e.from_node);
         let to_node = doc.node(e.to_node);
-        let (Some(from), Some(to)) = (from_node, to_node) else { continue };
+        let (Some(from), Some(to)) = (from_node, to_node) else {
+            continue;
+        };
         let from_is_sub = from.type_id == SUBGRAPH_TYPE_ID;
         let to_is_sub = to.type_id == SUBGRAPH_TYPE_ID;
         if !from_is_sub && !to_is_sub {
@@ -136,7 +140,11 @@ pub fn validate_refs(
         let to_ty: Option<PinType> = side_ty(to.id, &e.to_pin, false, to_is_sub);
         if let (Some(from_ty), Some(to_ty)) = (from_ty, to_ty) {
             if from_ty != to_ty {
-                errors.push(GraphError::TypeMismatch { edge: e.clone(), from_ty, to_ty });
+                errors.push(GraphError::TypeMismatch {
+                    edge: e.clone(),
+                    from_ty,
+                    to_ty,
+                });
             }
         }
     }
@@ -201,8 +209,10 @@ mod tests {
             position: [0.0, 0.0],
             properties: Default::default(),
             subgraph: Some(path.to_string()),
-        
-        tint: None, title: None,}
+
+            tint: None,
+            title: None,
+        }
     }
 
     fn plain_node(id: u64, type_id: &str) -> NodeInst {
@@ -213,8 +223,10 @@ mod tests {
             position: [0.0, 0.0],
             properties: Default::default(),
             subgraph: None,
-        
-        tint: None, title: None,}
+
+            tint: None,
+            title: None,
+        }
     }
 
     fn calc_subgraph() -> GraphDoc {
@@ -258,7 +270,10 @@ mod tests {
         let empty: BTreeMap<String, GraphDoc> = BTreeMap::new();
         let errs = validate_refs(&host, "main.graph", &registry(), &empty);
         assert!(
-            matches!(errs.as_slice(), [GraphError::MissingSubgraph { node: 1, .. }]),
+            matches!(
+                errs.as_slice(),
+                [GraphError::MissingSubgraph { node: 1, .. }]
+            ),
             "{errs:?}"
         );
     }
@@ -276,13 +291,20 @@ mod tests {
         assert!(
             matches!(
                 errs.as_slice(),
-                [GraphError::SubgraphPinUnknown { node: 1, output: false, .. }]
+                [GraphError::SubgraphPinUnknown {
+                    node: 1,
+                    output: false,
+                    ..
+                }]
             ),
             "{errs:?}"
         );
 
         let mut host2 = GraphDoc::default();
-        host2.nodes = vec![plain_node(0, "test_event"), sub_node(1, "lib/calc.subgraph")];
+        host2.nodes = vec![
+            plain_node(0, "test_event"),
+            sub_node(1, "lib/calc.subgraph"),
+        ];
         host2.edges = vec![edge(0, "exec_out", 1, "amount")];
         let errs = validate_refs(&host2, "main.graph", &registry(), &docs);
         assert!(
@@ -308,12 +330,14 @@ mod tests {
 
         let errs = validate_refs(&a, "a.subgraph", &registry(), &docs);
         assert!(
-            errs.iter().any(|e| matches!(e, GraphError::SubgraphCycle { .. })),
+            errs.iter()
+                .any(|e| matches!(e, GraphError::SubgraphCycle { .. })),
             "{errs:?}"
         );
         let errs = validate_refs(&c, "c.subgraph", &registry(), &docs);
         assert!(
-            errs.iter().any(|e| matches!(e, GraphError::SubgraphCycle { chain } if chain.len() == 2)),
+            errs.iter()
+                .any(|e| matches!(e, GraphError::SubgraphCycle { chain } if chain.len() == 2)),
             "{errs:?}"
         );
     }
@@ -323,10 +347,7 @@ mod tests {
         let mut host = GraphDoc::default();
         host.nodes = vec![sub_node(0, "lib/calc.subgraph")];
         let other = GraphDoc::default();
-        let docs = vec![
-            ("main.graph", &host),
-            ("other.graph", &other),
-        ];
+        let docs = vec![("main.graph", &host), ("other.graph", &other)];
         assert_eq!(
             referencing_hosts(docs.into_iter(), "lib/calc.subgraph"),
             vec!["main.graph".to_string()]

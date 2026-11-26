@@ -173,16 +173,16 @@ impl ScrollArea {
             if pointer_pressed && thumb_hovered {
                 ui.ctx_mut().memory.active_widget = Some(thumb_id);
             }
-            let is_active =
-                active_id == Some(thumb_id) || (pointer_pressed && thumb_hovered);
-            if is_active && pointer_down
-                && let Some(p) = ui.ctx().input.pointer_pos {
-                    let track_top = outer_rect.min.y + thumb_h * 0.5;
-                    let track_bot = outer_rect.max.y - thumb_h * 0.5;
-                    let t = ((p.y - track_top) / (track_bot - track_top).max(1e-3))
-                        .clamp(0.0, 1.0);
-                    new_offset = t * max_offset;
-                }
+            let is_active = active_id == Some(thumb_id) || (pointer_pressed && thumb_hovered);
+            if is_active
+                && pointer_down
+                && let Some(p) = ui.ctx().input.pointer_pos
+            {
+                let track_top = outer_rect.min.y + thumb_h * 0.5;
+                let track_bot = outer_rect.max.y - thumb_h * 0.5;
+                let t = ((p.y - track_top) / (track_bot - track_top).max(1e-3)).clamp(0.0, 1.0);
+                new_offset = t * max_offset;
+            }
 
             let dt = ui.ctx().dt();
             let thumb_mem = ui.ctx_mut().memory.get_or_default(thumb_id);

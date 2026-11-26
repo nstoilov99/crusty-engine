@@ -74,10 +74,7 @@ fn main() {
             }
         }
         if Instant::now() > deadline {
-            eprintln!(
-                "FAIL: timed out in state {:?}",
-                client.connection_state()
-            );
+            eprintln!("FAIL: timed out in state {:?}", client.connection_state());
             std::process::exit(1);
         }
         assert!(

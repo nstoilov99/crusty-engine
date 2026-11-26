@@ -78,7 +78,11 @@ pub fn type_tag(ty: &PinType) -> String {
 
 /// The pin a pick would wire, if the node can take the dragged type.
 pub fn compatible_pin<'a>(desc: &'a NodeDescriptor, filter: &PinFilter) -> Option<&'a PinDescRef> {
-    let side = if filter.need_input { &desc.inputs } else { &desc.outputs };
+    let side = if filter.need_input {
+        &desc.inputs
+    } else {
+        &desc.outputs
+    };
     side.iter().find(|p| p.ty == filter.ty)
 }
 
@@ -96,7 +100,11 @@ pub fn auto_connect_pin<'a>(
     filter: &PinFilter,
     from_pin_name: &str,
 ) -> Option<&'a PinDescRef> {
-    let side = if filter.need_input { &desc.inputs } else { &desc.outputs };
+    let side = if filter.need_input {
+        &desc.inputs
+    } else {
+        &desc.outputs
+    };
     let want = from_pin_name.to_lowercase();
     side.iter()
         .filter(|p| p.ty == filter.ty)
@@ -112,11 +120,7 @@ fn name_similarity(a: &str, b: &str) -> u32 {
     if a.contains(b) || b.contains(a) {
         score += 100;
     }
-    score += a
-        .chars()
-        .zip(b.chars())
-        .take_while(|(x, y)| x == y)
-        .count() as u32;
+    score += a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count() as u32;
     score
 }
 
@@ -129,10 +133,7 @@ fn tier_of(name: &str, id: &str, q: &str) -> Option<MatchTier> {
     if id.starts_with(q) {
         return Some(MatchTier::IdPrefix);
     }
-    let word = |s: &str| {
-        s.split(|c: char| !c.is_alphanumeric())
-            .any(|w| w == q)
-    };
+    let word = |s: &str| s.split(|c: char| !c.is_alphanumeric()).any(|w| w == q);
     if word(&name) || word(&id) {
         return Some(MatchTier::WholeWord);
     }
@@ -216,7 +217,12 @@ mod tests {
     use super::*;
     use crate::engine::node_graph::{NodeRealm, PinDescriptor};
 
-    fn desc(id: &str, name: &str, ins: &[(&str, PinType)], outs: &[(&str, PinType)]) -> NodeDescriptor {
+    fn desc(
+        id: &str,
+        name: &str,
+        ins: &[(&str, PinType)],
+        outs: &[(&str, PinType)],
+    ) -> NodeDescriptor {
         NodeDescriptor {
             id: id.into(),
             name: name.into(),
@@ -241,9 +247,24 @@ mod tests {
     fn registry() -> NodeRegistry {
         let mut r = NodeRegistry::new();
         for d in [
-            desc("math_add", "Add", &[("a", PinType::Float)], &[("sum", PinType::Float)]),
-            desc("math_add_vec", "Add Vector", &[("a", PinType::Vec3)], &[("sum", PinType::Vec3)]),
-            desc("gameplay_ladder", "Ladder", &[("x", PinType::Bool)], &[("y", PinType::Bool)]),
+            desc(
+                "math_add",
+                "Add",
+                &[("a", PinType::Float)],
+                &[("sum", PinType::Float)],
+            ),
+            desc(
+                "math_add_vec",
+                "Add Vector",
+                &[("a", PinType::Vec3)],
+                &[("sum", PinType::Vec3)],
+            ),
+            desc(
+                "gameplay_ladder",
+                "Ladder",
+                &[("x", PinType::Bool)],
+                &[("y", PinType::Bool)],
+            ),
             desc("addendum", "Note Addendum", &[("t", PinType::Float)], &[]),
             desc("padded", "Padded Value", &[("v", PinType::Float)], &[]),
         ] {
@@ -307,7 +328,10 @@ mod tests {
     #[test]
     fn incompatible_nodes_are_listed_not_hidden() {
         let r = registry();
-        let filter = PinFilter { ty: PinType::Float, need_input: true };
+        let filter = PinFilter {
+            ty: PinType::Float,
+            need_input: true,
+        };
         let all = build_entries(&r, "", Some(&filter));
         assert_eq!(all.len(), 5, "nothing is filtered out of the list");
 
@@ -321,17 +345,28 @@ mod tests {
         }
         // Compatible entries sort above incompatible ones.
         let first_incompatible = all.iter().position(|e| !e.fit.is_compatible()).unwrap();
-        assert!(all[..first_incompatible].iter().all(|e| e.fit.is_compatible()));
+        assert!(all[..first_incompatible]
+            .iter()
+            .all(|e| e.fit.is_compatible()));
 
         // Dragging off an input looks at the other side.
-        let out_filter = PinFilter { ty: PinType::Vec3, need_input: false };
+        let out_filter = PinFilter {
+            ty: PinType::Vec3,
+            need_input: false,
+        };
         let outs = build_entries(&r, "", Some(&out_filter));
         assert_eq!(
             outs.iter().find(|e| e.name == "Add Vector").unwrap().fit,
             PinFit::Compatible("sum".into())
         );
         // A node with no outputs at all is incompatible with no tag to show.
-        match outs.iter().find(|e| e.name == "Padded Value").unwrap().fit.clone() {
+        match outs
+            .iter()
+            .find(|e| e.name == "Padded Value")
+            .unwrap()
+            .fit
+            .clone()
+        {
             PinFit::Incompatible { type_tag } => assert_eq!(type_tag, None),
             other => panic!("expected incompatible, got {other:?}"),
         }
@@ -349,7 +384,10 @@ mod tests {
             ],
             &[],
         );
-        let f = PinFilter { ty: PinType::Float, need_input: true };
+        let f = PinFilter {
+            ty: PinType::Float,
+            need_input: true,
+        };
         // Exact name wins outright.
         assert_eq!(auto_connect_pin(&d, &f, "radius").unwrap().slug, "radius");
         // Containment beats a bare shared prefix.
@@ -358,7 +396,10 @@ mod tests {
         let picked = auto_connect_pin(&d, &f, "zzz").unwrap();
         assert_eq!(picked.ty, PinType::Float);
         // No pin of that type at all = no auto-connect.
-        let g = PinFilter { ty: PinType::Vec3, need_input: true };
+        let g = PinFilter {
+            ty: PinType::Vec3,
+            need_input: true,
+        };
         assert!(auto_connect_pin(&d, &g, "anything").is_none());
     }
 
@@ -371,9 +412,14 @@ mod tests {
         assert_eq!(type_tag(&PinType::Domain(String::new())), "?");
         // Arrays read the way an author writes them, at any nesting.
         assert_eq!(type_tag(&PinType::Int), "Int");
-        assert_eq!(type_tag(&PinType::Array(Box::new(PinType::Float))), "Float[]");
         assert_eq!(
-            type_tag(&PinType::Array(Box::new(PinType::Array(Box::new(PinType::String))))),
+            type_tag(&PinType::Array(Box::new(PinType::Float))),
+            "Float[]"
+        );
+        assert_eq!(
+            type_tag(&PinType::Array(Box::new(PinType::Array(Box::new(
+                PinType::String
+            ))))),
             "String[][]"
         );
     }

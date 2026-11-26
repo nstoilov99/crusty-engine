@@ -55,7 +55,7 @@ pub use table::{Column, SortDir, Table, TableBody, TableOutput, TableRow};
 pub use text_edit::{TextEdit, TextEditOutput};
 pub use toast::ToastKind;
 pub use toggle::Toggle;
-pub use tooltip::{show_tooltip_for, Tooltip};
+pub use tooltip::{Tooltip, show_tooltip_for};
 pub use tree::{TreeDropPos, TreeNode, TreeNodeOutput};
 pub use window::{Window, WindowResponse};
 
@@ -147,8 +147,18 @@ pub(crate) fn paint_chevron(
             Pos2::new(cx - half * 0.5, cy + half),
         )
     };
-    paint.push(PaintCmd::Line { from: a, to: mid, width, color });
-    paint.push(PaintCmd::Line { from: mid, to: b, width, color });
+    paint.push(PaintCmd::Line {
+        from: a,
+        to: mid,
+        width,
+        color,
+    });
+    paint.push(PaintCmd::Line {
+        from: mid,
+        to: b,
+        width,
+        color,
+    });
 }
 
 impl Ui<'_> {
@@ -212,11 +222,7 @@ impl Ui<'_> {
         CollapsingHeader::new(label).show(self, body)
     }
 
-    pub fn scroll_area<R>(
-        &mut self,
-        max_height: f32,
-        body: impl FnOnce(&mut Ui) -> R,
-    ) -> R {
+    pub fn scroll_area<R>(&mut self, max_height: f32, body: impl FnOnce(&mut Ui) -> R) -> R {
         ScrollArea::new(max_height).show(self, body)
     }
 

@@ -119,9 +119,10 @@ impl<'open> Window<'open> {
         body: impl FnOnce(&mut Ui) -> R,
     ) -> Option<WindowResponse<R>> {
         if let Some(open) = &self.open
-            && !**open {
-                return None;
-            }
+            && !**open
+        {
+            return None;
+        }
 
         let style = ui.style();
         let id = Id::new(("window", &self.title));
@@ -136,10 +137,7 @@ impl<'open> Window<'open> {
 
         // ── Persistent state
         let (mut pos, mut size) = {
-            let area = ui
-                .ctx_mut()
-                .memory
-                .area_entry(id, self.default_pos, order);
+            let area = ui.ctx_mut().memory.area_entry(id, self.default_pos, order);
             if area.size == Vec2::ZERO {
                 area.size = self.default_size;
             }
@@ -196,10 +194,8 @@ impl<'open> Window<'open> {
             Vec2::splat(btn_size),
         );
         let grip = 14.0;
-        let grip_rect = Rect::from_min_max(
-            Pos2::new(rect.max.x - grip, rect.max.y - grip),
-            rect.max,
-        );
+        let grip_rect =
+            Rect::from_min_max(Pos2::new(rect.max.x - grip, rect.max.y - grip), rect.max);
 
         let drag_id = id.with("drag");
         let resize_id = id.with("resize");
@@ -207,24 +203,26 @@ impl<'open> Window<'open> {
 
         // Resize via bottom-right grip.
         let can_resize = self.resizable && !collapsed;
-        if can_resize && pointer_pressed && on_window
+        if can_resize
+            && pointer_pressed
+            && on_window
             && let Some(p) = pointer_pos
-                && grip_rect.contains(p) {
-                    ui.ctx_mut().memory.active_widget = Some(resize_id);
-                    let mem = ui.ctx_mut().memory.get_or_default(resize_id);
-                    mem.aux_vec2 = rect.max - p;
-                }
+            && grip_rect.contains(p)
+        {
+            ui.ctx_mut().memory.active_widget = Some(resize_id);
+            let mem = ui.ctx_mut().memory.get_or_default(resize_id);
+            mem.aux_vec2 = rect.max - p;
+        }
         let resizing = ui.ctx().memory.active_widget == Some(resize_id) && pointer_down;
-        if resizing
-            && let Some(p) = pointer_pos {
-                let grab = ui
-                    .ctx()
-                    .memory
-                    .get(resize_id)
-                    .map(|m| m.aux_vec2)
-                    .unwrap_or(Vec2::ZERO);
-                size = ((p + grab) - pos).max(min_size);
-            }
+        if resizing && let Some(p) = pointer_pos {
+            let grab = ui
+                .ctx()
+                .memory
+                .get(resize_id)
+                .map(|m| m.aux_vec2)
+                .unwrap_or(Vec2::ZERO);
+            size = ((p + grab) - pos).max(min_size);
+        }
 
         // Move via title bar (excluding the chevron / close buttons).
         if pointer_pressed
@@ -232,25 +230,28 @@ impl<'open> Window<'open> {
             && active != Some(resize_id)
             && !resizing
             && !self.anchor_center
-            && let Some(p) = pointer_pos {
-                let on_buttons = (self.collapsible && chev_rect.contains(p))
-                    || (self.open.is_some() && close_rect.contains(p));
-                if title_rect.contains(p) && !on_buttons {
-                    ui.ctx_mut().memory.active_widget = Some(drag_id);
-                    let mem = ui.ctx_mut().memory.get_or_default(drag_id);
-                    mem.aux_vec2 = p - pos;
-                }
+            && let Some(p) = pointer_pos
+        {
+            let on_buttons = (self.collapsible && chev_rect.contains(p))
+                || (self.open.is_some() && close_rect.contains(p));
+            if title_rect.contains(p) && !on_buttons {
+                ui.ctx_mut().memory.active_widget = Some(drag_id);
+                let mem = ui.ctx_mut().memory.get_or_default(drag_id);
+                mem.aux_vec2 = p - pos;
             }
-        if ui.ctx().memory.active_widget == Some(drag_id) && pointer_down
-            && let Some(p) = pointer_pos {
-                let grab = ui
-                    .ctx()
-                    .memory
-                    .get(drag_id)
-                    .map(|m| m.aux_vec2)
-                    .unwrap_or(Vec2::ZERO);
-                pos = p - grab;
-            }
+        }
+        if ui.ctx().memory.active_widget == Some(drag_id)
+            && pointer_down
+            && let Some(p) = pointer_pos
+        {
+            let grab = ui
+                .ctx()
+                .memory
+                .get(drag_id)
+                .map(|m| m.aux_vec2)
+                .unwrap_or(Vec2::ZERO);
+            pos = p - grab;
+        }
 
         if self.anchor_center {
             pos = Pos2::new(
@@ -260,15 +261,18 @@ impl<'open> Window<'open> {
         }
         // Keep the whole window inside the screen.
         if screen.width() > 0.0 {
-            pos.x = pos.x.clamp(screen.min.x, (screen.max.x - size.x).max(screen.min.x));
-            pos.y = pos.y.clamp(screen.min.y, (screen.max.y - size.y).max(screen.min.y));
+            pos.x = pos
+                .x
+                .clamp(screen.min.x, (screen.max.x - size.x).max(screen.min.x));
+            pos.y = pos
+                .y
+                .clamp(screen.min.y, (screen.max.y - size.y).max(screen.min.y));
         }
 
         // Collapse toggle.
         let mut chev_hovered = false;
         if self.collapsible {
-            chev_hovered =
-                on_window && pointer_pos.is_some_and(|p| chev_rect.contains(p));
+            chev_hovered = on_window && pointer_pos.is_some_and(|p| chev_rect.contains(p));
             if pointer_pressed && chev_hovered {
                 collapsed = !collapsed;
             }
@@ -278,8 +282,7 @@ impl<'open> Window<'open> {
         let mut close_hovered = false;
         let mut close_requested = false;
         if self.open.is_some() {
-            close_hovered =
-                on_window && pointer_pos.is_some_and(|p| close_rect.contains(p));
+            close_hovered = on_window && pointer_pos.is_some_and(|p| close_rect.contains(p));
             if pointer_pressed && close_hovered {
                 close_requested = true;
             }
@@ -306,10 +309,7 @@ impl<'open> Window<'open> {
         let outer_h = title_h + body_h;
         let rect = Rect::from_min_size(pos, Vec2::new(size.x, outer_h));
         let title_rect = Rect::from_min_size(pos, Vec2::new(size.x, title_h));
-        let body_rect = Rect::from_min_max(
-            Pos2::new(rect.min.x, title_rect.max.y),
-            rect.max,
-        );
+        let body_rect = Rect::from_min_max(Pos2::new(rect.min.x, title_rect.max.y), rect.max);
         // Re-derive title-bar element rects from the post-interaction
         // geometry so they track the frame instead of lagging a frame
         // behind it while dragging.
@@ -387,10 +387,7 @@ impl<'open> Window<'open> {
                 &mut ctx.paint,
                 &self.title,
                 style.fonts.body,
-                Pos2::new(
-                    title_text_x,
-                    title_rect.center().y - title_size.y * 0.5,
-                ),
+                Pos2::new(title_text_x, title_rect.center().y - title_size.y * 0.5),
                 style.palette.text,
                 None,
             );
@@ -443,8 +440,7 @@ impl<'open> Window<'open> {
 
         // Fit height to the measured content (applies next frame).
         if let (true, Some(bottom)) = (self.auto_size, content_bottom) {
-            let content_h =
-                (bottom - body_rect.min.y) - style.spacing.item + style.spacing.padding;
+            let content_h = (bottom - body_rect.min.y) - style.spacing.item + style.spacing.padding;
             size.y = (title_h + content_h.max(0.0))
                 .max(min_size.y)
                 .min(screen.height().max(min_size.y));
@@ -452,8 +448,7 @@ impl<'open> Window<'open> {
 
         // Resize grip.
         if can_resize {
-            let grip_hovered =
-                on_window && pointer_pos.is_some_and(|p| grip_rect.contains(p));
+            let grip_hovered = on_window && pointer_pos.is_some_and(|p| grip_rect.contains(p));
             let grip_color = if resizing || grip_hovered {
                 style.palette.accent_active
             } else {
@@ -495,10 +490,9 @@ impl<'open> Window<'open> {
             mem.seen_this_frame = true;
         }
 
-        if close_requested
-            && let Some(open) = self.open {
-                *open = false;
-            }
+        if close_requested && let Some(open) = self.open {
+            *open = false;
+        }
 
         Some(WindowResponse { rect, inner })
     }

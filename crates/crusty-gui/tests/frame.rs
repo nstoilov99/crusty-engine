@@ -44,7 +44,10 @@ fn paint_changed_tracks_content_across_frames() {
     assert!(ctx.end_frame().paint_changed, "color change is a change");
 
     ctx.begin_frame(input_at(0.3));
-    assert!(ctx.end_frame().paint_changed, "emptying the paint is a change");
+    assert!(
+        ctx.end_frame().paint_changed,
+        "emptying the paint is a change"
+    );
 
     ctx.begin_frame(input_at(0.4));
     assert!(!ctx.end_frame().paint_changed, "still empty — no change");

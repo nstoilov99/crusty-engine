@@ -252,8 +252,13 @@ mod tests {
             assert_eq!(reg.get(id).unwrap().category, ANIM_CATEGORY);
         }
         // The palette is registry-driven: the legacy Any State is not in it.
-        assert!(reg.get(super::super::plan::ANIM_ANY_STATE_TYPE_ID).is_none());
-        assert_eq!(reg.get(ANIM_STATE_ALIAS_TYPE_ID).unwrap().name, "State Alias");
+        assert!(reg
+            .get(super::super::plan::ANIM_ANY_STATE_TYPE_ID)
+            .is_none());
+        assert_eq!(
+            reg.get(ANIM_STATE_ALIAS_TYPE_ID).unwrap().name,
+            "State Alias"
+        );
         assert_eq!(reg.domain_registration(ANIM_FLOW_DOMAIN), Some(Some(2)));
         assert_eq!(reg.domain_registration(ANIM_POSE_DOMAIN), Some(Some(11)));
         assert_eq!(reg.domain_registration(TRIGGER_PARAM_DOMAIN), Some(Some(0)));
@@ -267,9 +272,15 @@ mod tests {
     fn the_rule_library_and_the_machine_library_never_overlap() {
         let rules = anim_rule_registry();
         let machine = anim_node_registry();
-        for id in RULE_STD_TYPES.iter().chain([ANIM_RULE_RESULT_TYPE_ID].iter()) {
+        for id in RULE_STD_TYPES
+            .iter()
+            .chain([ANIM_RULE_RESULT_TYPE_ID].iter())
+        {
             assert!(rules.get(id).is_some(), "rule registry misses {id}");
-            assert!(machine.get(id).is_none(), "machine registry must not offer {id}");
+            assert!(
+                machine.get(id).is_none(),
+                "machine registry must not offer {id}"
+            );
         }
         for id in [
             ANIM_ENTRY_TYPE_ID,
@@ -285,7 +296,10 @@ mod tests {
             rules.get(ANIM_RULE_RESULT_TYPE_ID).unwrap().category,
             ANIM_CATEGORY
         );
-        assert_eq!(rules.domain_registration(TRIGGER_PARAM_DOMAIN), Some(Some(0)));
+        assert_eq!(
+            rules.domain_registration(TRIGGER_PARAM_DOMAIN),
+            Some(Some(0))
+        );
     }
 
     /// A fresh document validates clean against the library — its one

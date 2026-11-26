@@ -477,23 +477,24 @@ impl ClipSet {
             .iter()
             .map(|clip| {
                 let mut c = clip.clone();
-                c.channels.retain_mut(|ch| match map.get(ch.bone_index).copied().flatten() {
-                    Some(i) => {
-                        ch.bone_index = i;
-                        true
-                    }
-                    None => {
-                        let name = self
-                            .bone_names
-                            .get(ch.bone_index)
-                            .cloned()
-                            .unwrap_or_else(|| format!("#{}", ch.bone_index));
-                        if !dropped.contains(&name) {
-                            dropped.push(name);
+                c.channels
+                    .retain_mut(|ch| match map.get(ch.bone_index).copied().flatten() {
+                        Some(i) => {
+                            ch.bone_index = i;
+                            true
                         }
-                        false
-                    }
-                });
+                        None => {
+                            let name = self
+                                .bone_names
+                                .get(ch.bone_index)
+                                .cloned()
+                                .unwrap_or_else(|| format!("#{}", ch.bone_index));
+                            if !dropped.contains(&name) {
+                                dropped.push(name);
+                            }
+                            false
+                        }
+                    });
                 c
             })
             .collect();
@@ -536,7 +537,11 @@ pub fn compile_blend_space(
     content_rel: &str,
 ) -> Option<Result<Arc<BlendSpace>, String>> {
     let text = loader.load_blend_space(content_rel)?;
-    Some(parse_blend_space(&text).and_then(|doc| BlendSpace::compile(&doc)).map(Arc::new))
+    Some(
+        parse_blend_space(&text)
+            .and_then(|doc| BlendSpace::compile(&doc))
+            .map(Arc::new),
+    )
 }
 
 /// Loads from the content root on disk.
@@ -554,9 +559,10 @@ impl AnimAssetLoader for DiskAnimAssets {
     }
 
     fn load_clips(&self, content_rel: &str) -> Option<ClipSet> {
-        let (bone_names, clips) =
-            crate::engine::assets::mesh_import::load_anim_binary(&self.content_root.join(content_rel))
-                .ok()?;
+        let (bone_names, clips) = crate::engine::assets::mesh_import::load_anim_binary(
+            &self.content_root.join(content_rel),
+        )
+        .ok()?;
         Some(ClipSet { bone_names, clips })
     }
 
@@ -746,11 +752,14 @@ impl AnimClipCache {
     }
 
     pub fn get(&self, content_rel: &str) -> Option<&ClipSet> {
-        self.sets.get(&normalize_graph_path(content_rel)).map(|s| s.as_ref())
+        self.sets
+            .get(&normalize_graph_path(content_rel))
+            .map(|s| s.as_ref())
     }
 
     pub fn insert(&mut self, content_rel: &str, set: ClipSet) {
-        self.sets.insert(normalize_graph_path(content_rel), Arc::new(set));
+        self.sets
+            .insert(normalize_graph_path(content_rel), Arc::new(set));
     }
 
     pub fn invalidate(&mut self, content_rel: &str) {
@@ -909,7 +918,6 @@ impl AnimGraphSystem {
                     .ok_or_else(|| format!("'{graph}' could not be loaded"))
                     .and_then(|doc| compile_anim_graph_with(&doc, graph, &load))
                     .map(Arc::new);
-                drop(load);
                 if let Some(cache) = resources.get_mut::<AnimGraphPlanCache>() {
                     cache.store(graph, compiled.clone());
                 }
@@ -1113,7 +1121,14 @@ fn tick_entity(
     rt.machine.tick(&plan, &mut rt.params, dt);
     rt.slot.tick(&plan, &mut rt.params, dt, &clip_for);
     let mut events = std::mem::take(&mut rt.events);
-    collect_anim_events(&rt.machine, &rt.slot, &plan, &rt.params, clip_for, &mut events);
+    collect_anim_events(
+        &rt.machine,
+        &rt.slot,
+        &plan,
+        &rt.params,
+        clip_for,
+        &mut events,
+    );
     rt.events = events;
     // Tick-local forced-eval sources (S-D4): an active or just-completed
     // crossfade, a transition fired this tick, an active play-once, or an
@@ -1136,7 +1151,8 @@ fn tick_entity(
         &mut skeleton.local_transforms,
         scratch,
     );
-    rt.slot.apply(&plan, &clip_for, &mut skeleton.local_transforms, scratch);
+    rt.slot
+        .apply(&plan, &clip_for, &mut skeleton.local_transforms, scratch);
     // FK phase 1, the IK stage (Task 41.5 P5) over the retained model space,
     // then phase 2 — one palette refresh however many chains ran. Sitting
     // inside the eval gate means IK follows the same rate as the pose it
@@ -1396,8 +1412,7 @@ impl System for AnimGraphSystem {
                     .flatten()
                     .unwrap_or_default();
                 if bones.is_empty() {
-                    runtime.disabled =
-                        Some(format!("{graph}: entity has no skeleton to animate"));
+                    runtime.disabled = Some(format!("{graph}: entity has no skeleton to animate"));
                 } else {
                     let _ = world.insert_one(entity, SkeletonInstance::from_bones(bones));
                 }
@@ -1452,8 +1467,7 @@ impl System for AnimGraphSystem {
         let frame = self.frame;
         let view = resources.get::<AnimViewInfo>();
         let cache = resources.get::<TransformCache>();
-        for (e, (rt, transform)) in world
-            .query_mut::<(&mut AnimGraphRuntime, Option<&Transform>)>()
+        for (e, (rt, transform)) in world.query_mut::<(&mut AnimGraphRuntime, Option<&Transform>)>()
         {
             if rt.disabled.is_some() {
                 continue;
@@ -1464,19 +1478,20 @@ impl System for AnimGraphSystem {
                 rt.throttle.eval_this_frame = true;
                 continue;
             };
-            let pos = match cache {
-                Some(c) => {
-                    let m = c.get_render(e);
-                    glam::Vec3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)])
-                }
-                None => transform
-                    .map(|t| {
-                        crate::engine::utils::coords::convert_position_zup_to_yup(
-                            glam::Vec3::new(t.position.x, t.position.y, t.position.z),
-                        )
-                    })
-                    .unwrap_or(glam::Vec3::ZERO),
-            };
+            let pos =
+                match cache {
+                    Some(c) => {
+                        let m = c.get_render(e);
+                        glam::Vec3::new(m[(0, 3)], m[(1, 3)], m[(2, 3)])
+                    }
+                    None => transform
+                        .map(|t| {
+                            crate::engine::utils::coords::convert_position_zup_to_yup(
+                                glam::Vec3::new(t.position.x, t.position.y, t.position.z),
+                            )
+                        })
+                        .unwrap_or(glam::Vec3::ZERO),
+                };
             let visible = view.frustum.contains_sphere(pos, VIS_RADIUS);
             let first_visible = visible && !rt.throttle.was_visible;
             rt.throttle.was_visible = visible;
@@ -1489,8 +1504,8 @@ impl System for AnimGraphSystem {
             };
             // Entity-id stagger: members of one bucket phase out across the
             // interval instead of all evaluating on the same frame.
-            let due = interval <= 1
-                || frame.wrapping_add(e.to_bits().get()) % u64::from(interval) == 0;
+            let due =
+                interval <= 1 || frame.wrapping_add(e.to_bits().get()) % u64::from(interval) == 0;
             rt.throttle.eval_this_frame = due || forced || first_visible;
         }
 
@@ -1522,18 +1537,19 @@ impl System for AnimGraphSystem {
                 inv.transform_point3(crate::engine::utils::coords::convert_position_zup_to_yup(p))
             };
             for chain in &mut rt.ik {
-                chain.resolved = targets
-                    .and_then(|t| t.targets.get(&chain.name))
-                    .map(|t| ResolvedIkTarget {
-                        goal: match t.goal {
-                            IkGoal::Point(p) => IkGoal::Point(to_model(p)),
-                            // A displacement: rotate/scale only, no translation.
-                            IkGoal::Offset(d) => IkGoal::Offset(inv.transform_vector3(
-                                crate::engine::utils::coords::convert_position_zup_to_yup(d),
-                            )),
-                        },
-                        pole: t.pole.map(to_model),
-                    });
+                chain.resolved =
+                    targets
+                        .and_then(|t| t.targets.get(&chain.name))
+                        .map(|t| ResolvedIkTarget {
+                            goal: match t.goal {
+                                IkGoal::Point(p) => IkGoal::Point(to_model(p)),
+                                // A displacement: rotate/scale only, no translation.
+                                IkGoal::Offset(d) => IkGoal::Offset(inv.transform_vector3(
+                                    crate::engine::utils::coords::convert_position_zup_to_yup(d),
+                                )),
+                            },
+                            pole: t.pole.map(to_model),
+                        });
                 // The foot lock's world point (held, or the one a release is
                 // blending off) lands in model space the same way.
                 if let Some(foot) = &mut chain.foot {
@@ -1642,11 +1658,17 @@ mod tests {
         assert_eq!(armed.bone_names, vec!["a".to_string(), "b".to_string()]);
         let mut pose = vec![LocalBoneTransform::default(); 2];
         sample_channels(&armed.clips[0].channels, 0.0, &mut pose);
-        assert_eq!(pose[1].translation.x, 7.0, "the clip's bone 0 ('b') moves skeleton bone 1");
+        assert_eq!(
+            pose[1].translation.x, 7.0,
+            "the clip's bone 0 ('b') moves skeleton bone 1"
+        );
         assert_eq!(pose[0].translation.x, 3.0);
 
         let same = vec![bone("b", None), bone("a", Some(0)), bone("ghost", Some(0))];
-        assert!(set.armed_for(&same).is_none(), "identical tables skip the work");
+        assert!(
+            set.armed_for(&same).is_none(),
+            "identical tables skip the work"
+        );
 
         let mut cache = AnimClipCache::new();
         cache.insert("anims/walk.anim", set);
@@ -1655,10 +1677,17 @@ mod tests {
         assert!(Arc::ptr_eq(&a1, &a2), "built once per (set, skeleton)");
         assert_eq!(a1.clips[0].channels.len(), 2);
         let shared = cache.armed("anims/walk.anim", &same).expect("loaded");
-        assert_eq!(shared.clips[0].channels.len(), 3, "identical table: the shared copy");
+        assert_eq!(
+            shared.clips[0].channels.len(),
+            3,
+            "identical table: the shared copy"
+        );
         cache.invalidate("anims/walk.anim");
         assert!(cache.armed("anims/walk.anim", &skeleton).is_none());
-        assert!(cache.remapped.is_empty(), "invalidation forgets the memo too");
+        assert!(
+            cache.remapped.is_empty(),
+            "invalidation forgets the memo too"
+        );
     }
 
     #[test]
@@ -1670,7 +1699,10 @@ mod tests {
         let mut r = AnimGraphRunner::new("graphs/defeated.animgraph");
         assert!(r.is_runnable());
         r.enabled = false;
-        assert!(!r.is_runnable(), "disabled keeps the reference, not the machine");
+        assert!(
+            !r.is_runnable(),
+            "disabled keeps the reference, not the machine"
+        );
         assert!(!AnimGraphRunner::default().is_runnable());
     }
 
@@ -1691,17 +1723,21 @@ mod tests {
                 None
             }
             fn load_blend_space(&self, rel: &str) -> Option<String> {
-                (rel == "blendspaces/loco.blendspace").then(|| {
-                    "(samples: [(x: 0.0, clip: \"a.anim\")])".to_string()
-                })
+                (rel == "blendspaces/loco.blendspace")
+                    .then(|| "(samples: [(x: 0.0, clip: \"a.anim\")])".to_string())
             }
         }
         let mut resources = Resources::new();
         resources.insert(BlendSpaceCache::new());
         resources.insert(AnimGraphPlanCache::new());
         let spaces = resources.get_mut::<BlendSpaceCache>().unwrap();
-        assert!(spaces.get_or_load("blendspaces\\loco.blendspace", &OneSpace).unwrap().is_ok());
-        assert!(spaces.get_or_load("blendspaces/none.blendspace", &OneSpace).is_none());
+        assert!(spaces
+            .get_or_load("blendspaces\\loco.blendspace", &OneSpace)
+            .unwrap()
+            .is_ok());
+        assert!(spaces
+            .get_or_load("blendspaces/none.blendspace", &OneSpace)
+            .is_none());
         assert_eq!(spaces.len(), 1);
         let plans = resources.get_mut::<AnimGraphPlanCache>().unwrap();
         plans.store("graphs/a.animgraph", Ok(Arc::new(AnimGraphPlan::default())));
@@ -1710,7 +1746,10 @@ mod tests {
         invalidate_blend_space(&mut resources, "blendspaces/loco.blendspace");
         assert!(resources.get::<BlendSpaceCache>().unwrap().is_empty());
         let plans = resources.get::<AnimGraphPlanCache>().unwrap();
-        assert!(plans.is_empty(), "plans go wholesale: they compiled the space in");
+        assert!(
+            plans.is_empty(),
+            "plans go wholesale: they compiled the space in"
+        );
         assert_ne!(plans.generation(), g, "live machines restart on the bump");
     }
 

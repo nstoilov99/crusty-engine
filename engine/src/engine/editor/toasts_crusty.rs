@@ -94,7 +94,10 @@ pub fn toasts_panel(ui: &mut Ui, screen_rect: Rect, stack: &mut ToastStack, them
         p.rect_filled(
             *rect,
             r,
-            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+            style
+                .palette
+                .elevated
+                .with_alpha(style.palette.popover_alpha),
         );
         p.rect_stroke(*rect, r, style.metrics.border, style.palette.stroke_strong);
         p.rect_filled(

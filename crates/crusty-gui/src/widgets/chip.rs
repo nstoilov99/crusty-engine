@@ -37,10 +37,7 @@ impl CountChip {
         let gap = 6.0;
         let id = ui.alloc_id(("count_chip", &self.label));
         let label_size = ui.text_mut().measure(&self.label, font, None);
-        let rect = ui.allocate(Vec2::new(
-            pad + dot + gap + label_size.x + pad,
-            height,
-        ));
+        let rect = ui.allocate(Vec2::new(pad + dot + gap + label_size.x + pad, height));
         let (response, focused) = chip_interact(ui, id, rect);
 
         let p = &style.palette;
@@ -79,7 +76,14 @@ impl CountChip {
             rect.min.y + (height - label_size.y) * 0.5,
         );
         let Ui { ctx, text, .. } = ui;
-        text.add_text(&mut ctx.paint, &self.label, font, text_pos, text_color, None);
+        text.add_text(
+            &mut ctx.paint,
+            &self.label,
+            font,
+            text_pos,
+            text_color,
+            None,
+        );
         response
     }
 }
@@ -130,12 +134,16 @@ impl FilterChip {
             RectShape::fill(rect, style.rounding.small, fill)
                 .with_stroke(style.metrics.border, border),
         ));
-        let text_pos = Pos2::new(
-            rect.min.x + pad,
-            rect.min.y + (height - label_size.y) * 0.5,
-        );
+        let text_pos = Pos2::new(rect.min.x + pad, rect.min.y + (height - label_size.y) * 0.5);
         let Ui { ctx, text, .. } = ui;
-        text.add_text(&mut ctx.paint, &self.label, font, text_pos, text_color, None);
+        text.add_text(
+            &mut ctx.paint,
+            &self.label,
+            font,
+            text_pos,
+            text_color,
+            None,
+        );
         response
     }
 }

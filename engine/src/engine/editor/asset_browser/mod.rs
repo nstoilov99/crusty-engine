@@ -180,7 +180,10 @@ impl AssetBrowserPanel {
                 let (id, name) = (meta.id, meta.display_name.clone());
                 self.selection.select(id);
                 self.events.push(AssetBrowserEvent::AssetSelected { id });
-                self.renaming = Some(RenameTarget::Asset { id, current_name: name });
+                self.renaming = Some(RenameTarget::Asset {
+                    id,
+                    current_name: name,
+                });
             }
         }
     }
@@ -289,8 +292,13 @@ mod tests {
 
         let id = panel.registry.get_by_path(&rel).expect("registered").id;
         assert_eq!(panel.selection.primary(), Some(id));
-        assert!(matches!(&panel.renaming, Some(RenameTarget::Asset { id: r, current_name }) if *r == id && current_name == "NewCurve"));
-        assert!(panel.events.drain().any(|e| matches!(e, AssetBrowserEvent::AssetSelected { id: e } if e == id)));
+        assert!(
+            matches!(&panel.renaming, Some(RenameTarget::Asset { id: r, current_name }) if *r == id && current_name == "NewCurve")
+        );
+        assert!(panel
+            .events
+            .drain()
+            .any(|e| matches!(e, AssetBrowserEvent::AssetSelected { id: e } if e == id)));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

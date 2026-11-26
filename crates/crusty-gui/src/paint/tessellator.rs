@@ -1,7 +1,7 @@
 use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
+use crate::paint::TextureId;
 use crate::paint::command::{PaintCmd, RectShape};
 use crate::paint::mesh::{DrawRange, Mesh, Vertex};
-use crate::paint::TextureId;
 
 const MODE_SOLID: f32 = 0.0;
 const MODE_RRECT: f32 = 1.0;
@@ -707,11 +707,7 @@ fn outward_sign(points: &[Pos2], normals: &[Vec2]) -> f32 {
         let (dx, dy) = (points[i].x - cx, points[i].y - cy);
         vote += dx * normals[i].x + dy * normals[i].y;
     }
-    if vote >= 0.0 {
-        1.0
-    } else {
-        -1.0
-    }
+    if vote >= 0.0 { 1.0 } else { -1.0 }
 }
 
 fn clamp_rounding(r: Rounding, max: f32) -> Rounding {
@@ -735,9 +731,8 @@ fn push_quad(
     mesh.vertices.push(make_vertex([x1, y0], [1.0, 0.0])); // ne
     mesh.vertices.push(make_vertex([x1, y1], [1.0, 1.0])); // se
     mesh.vertices.push(make_vertex([x0, y1], [0.0, 1.0])); // sw
-    mesh.indices.extend_from_slice(&[
-        base, base + 1, base + 2, base, base + 2, base + 3,
-    ]);
+    mesh.indices
+        .extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
 }
 
 #[cfg(test)]
@@ -809,7 +804,10 @@ mod tests {
             .filter(|(y, _)| *y >= 10.0 - w * 0.5 - 0.1 && *y <= 10.0)
             .map(|(_, a)| *a)
             .collect();
-        assert!(up.windows(2).all(|p| p[1] >= p[0] - 1e-3), "not monotone: {up:?}");
+        assert!(
+            up.windows(2).all(|p| p[1] >= p[0] - 1e-3),
+            "not monotone: {up:?}"
+        );
         assert!(
             up.iter().any(|a| *a > 0.15 && *a < 0.85),
             "no partial-coverage samples — the edge is still hard: {up:?}"
@@ -860,7 +858,11 @@ mod tests {
             Pos2::new(50.0, 50.0),
         ];
         let n = path_normals(&pts, false);
-        assert!((n[1].length() - std::f32::consts::SQRT_2).abs() < 1e-3, "{:?}", n[1]);
+        assert!(
+            (n[1].length() - std::f32::consts::SQRT_2).abs() < 1e-3,
+            "{:?}",
+            n[1]
+        );
         // Endpoints take their own segment normal, unit length.
         assert!((n[0].length() - 1.0).abs() < 1e-4);
         assert!((n[2].length() - 1.0).abs() < 1e-4);
@@ -872,7 +874,11 @@ mod tests {
             Pos2::new(0.1, 0.0),
         ];
         let hn = path_normals(&hair, false);
-        assert!(hn.iter().all(|v| v.length().is_finite() && v.length() <= 4.001), "{hn:?}");
+        assert!(
+            hn.iter()
+                .all(|v| v.length().is_finite() && v.length() <= 4.001),
+            "{hn:?}"
+        );
     }
 
     /// Degenerate input must not produce NaN vertices or spurious geometry.
@@ -893,16 +899,25 @@ mod tests {
                 color: Color::WHITE,
             }]);
             assert!(
-                mesh.vertices.iter().all(|v| v.pos[0].is_finite() && v.pos[1].is_finite()),
+                mesh.vertices
+                    .iter()
+                    .all(|v| v.pos[0].is_finite() && v.pos[1].is_finite()),
                 "NaN vertex from {pts:?}"
             );
         }
         // Collinear points keep a unit normal throughout.
-        let line = [Pos2::new(0.0, 0.0), Pos2::new(10.0, 0.0), Pos2::new(20.0, 0.0)];
+        let line = [
+            Pos2::new(0.0, 0.0),
+            Pos2::new(10.0, 0.0),
+            Pos2::new(20.0, 0.0),
+        ];
         let n = path_normals(&line, false);
         assert!(n.iter().all(|v| (v.length() - 1.0).abs() < 1e-4), "{n:?}");
         // A closed 3-point path is still a triangle after dedup.
-        let closed = dedup_path(&[same, Pos2::new(9.0, 5.0), Pos2::new(5.0, 9.0), same], true);
+        let closed = dedup_path(
+            &[same, Pos2::new(9.0, 5.0), Pos2::new(5.0, 9.0), same],
+            true,
+        );
         assert_eq!(closed.len(), 3);
     }
 
@@ -918,13 +933,22 @@ mod tests {
                 Pos2::new(c.x + r * t.cos(), c.y + r * t.sin())
             })
             .collect();
-        let mesh = tess(&[PaintCmd::ConvexPolygon { points: pts, color: Color::WHITE }]);
+        let mesh = tess(&[PaintCmd::ConvexPolygon {
+            points: pts,
+            color: Color::WHITE,
+        }]);
         let prof = alpha_profile(&mesh, 50.0, 26.0, 34.0, 160);
         // Solid at the centre, clear well outside, ramped across the rim.
         let centre = alpha_profile(&mesh, 50.0, 49.0, 51.0, 4);
-        assert!(centre.iter().all(|(_, a)| *a > 0.99), "centre not solid: {centre:?}");
+        assert!(
+            centre.iter().all(|(_, a)| *a > 0.99),
+            "centre not solid: {centre:?}"
+        );
         assert!(prof.first().unwrap().1 < 0.01, "alpha outside the disc");
-        assert!(prof.last().unwrap().1 > 0.99, "not solid just inside the rim");
+        assert!(
+            prof.last().unwrap().1 > 0.99,
+            "not solid just inside the rim"
+        );
         assert!(
             prof.iter().any(|(_, a)| *a > 0.15 && *a < 0.85),
             "rim is not feathered"

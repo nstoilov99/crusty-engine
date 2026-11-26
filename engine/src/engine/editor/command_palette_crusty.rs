@@ -122,7 +122,10 @@ pub fn command_palette_panel(
         RectShape::fill(
             popover_rect,
             style.rounding.panel,
-            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+            style
+                .palette
+                .elevated
+                .with_alpha(style.palette.popover_alpha),
         )
         .with_stroke(style.metrics.border, style.palette.stroke_strong)
         .with_shadow(24.0, Color::BLACK.with_alpha(0.45)),
@@ -157,7 +160,7 @@ pub fn command_palette_panel(
 /// One 26px palette row; selected rows use the selection tokens.
 fn command_row(ui: &mut Ui, selected: bool, label: &str) -> bool {
     let style = ui.style();
-    let id = ui.alloc_id(&label);
+    let id = ui.alloc_id(label);
     let rect = ui.allocate(Vec2::new(ui.available().width(), ROW_H));
 
     let hovered = ui.contains_pointer(rect);

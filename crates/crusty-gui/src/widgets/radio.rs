@@ -58,10 +58,18 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
-        mem.press_anim =
-            approach_half_life(mem.press_anim, target_press, dt, style.motion.press_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = approach_half_life(
+            mem.press_anim,
+            target_press,
+            dt,
+            style.motion.press_half_life,
+        );
         mem.aux_anim =
             approach_half_life(mem.aux_anim, target_check, dt, style.motion.state_half_life);
         let hover_anim = mem.hover_anim;
@@ -96,8 +104,7 @@ impl<'a, T: PartialEq + Copy> Radio<'a, T> {
             .shrink(box_size * 0.22);
             let mut dot_color = style.palette.accent_active;
             dot_color.a *= check_anim;
-            let dot =
-                RectShape::fill(inner, Rounding::same(inner.width() * 0.5), dot_color);
+            let dot = RectShape::fill(inner, Rounding::same(inner.width() * 0.5), dot_color);
             ui.ctx_mut().paint.push(PaintCmd::Rrect(dot));
         }
         let _ = press_anim;

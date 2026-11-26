@@ -185,7 +185,14 @@ pub const PANEL_INSTANCE_ID: u64 = u64::MAX;
 /// Build the frame's preview from a runtime. Pure over the runtime — the
 /// world queries below are the only ECS-facing pieces.
 pub fn preview_from_runtime(rt: &AnimGraphRuntime, name: String, id: u64) -> AnimPreview {
-    preview_from_machine(&rt.plan, &rt.machine, &rt.params, rt.disabled.clone(), name, id)
+    preview_from_machine(
+        &rt.plan,
+        &rt.machine,
+        &rt.params,
+        rt.disabled.clone(),
+        name,
+        id,
+    )
 }
 
 /// The same read surface over a bare machine — what the Preview panel's own
@@ -310,8 +317,8 @@ mod tests {
     use super::*;
     use crate::engine::animation::graph::machine::AnimMachine;
     use crate::engine::animation::graph::plan::{
-        AnimParamType, CmpOp, ParamDecl, PlanClip, PlanRule, PlanState, PlanTransition,
-        PoseSource, TransitionFrom,
+        AnimParamType, CmpOp, ParamDecl, PlanClip, PlanRule, PlanState, PlanTransition, PoseSource,
+        TransitionFrom,
     };
     use crate::engine::animation::graph::{AnimGraphPlan, PlayOnceSlot};
     use std::sync::Arc;
@@ -487,7 +494,11 @@ mod tests {
         };
         let c = [inst(1), inst(2)];
         assert_eq!(resolve_anim_bind(Some(2), &[1], &c), Some(2));
-        assert_eq!(resolve_anim_bind(Some(9), &[1], &c), Some(1), "stale pick falls back");
+        assert_eq!(
+            resolve_anim_bind(Some(9), &[1], &c),
+            Some(1),
+            "stale pick falls back"
+        );
         assert_eq!(resolve_anim_bind(None, &[7, 2], &c), Some(2));
         assert_eq!(resolve_anim_bind(None, &[7], &c), None);
     }

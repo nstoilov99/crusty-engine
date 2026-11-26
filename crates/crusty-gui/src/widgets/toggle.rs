@@ -74,10 +74,18 @@ impl<'a> Toggle<'a> {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
-        mem.press_anim =
-            approach_half_life(mem.press_anim, target_press, dt, style.motion.press_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = approach_half_life(
+            mem.press_anim,
+            target_press,
+            dt,
+            style.motion.press_half_life,
+        );
         mem.aux_anim =
             approach_half_life(mem.aux_anim, target_on, dt, style.motion.state_half_life);
         let hover_anim = mem.hover_anim;

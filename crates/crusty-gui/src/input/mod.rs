@@ -9,5 +9,5 @@ mod gesture;
 
 pub use events::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
 pub use gesture::{
-    drag_threshold, DragTracker, GestureEnd, GesturePhase, ScrollAccumulator, DRAG_THRESHOLD,
+    DRAG_THRESHOLD, DragTracker, GestureEnd, GesturePhase, ScrollAccumulator, drag_threshold,
 };

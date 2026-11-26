@@ -75,7 +75,7 @@ pub struct CrustyFloatWindow {
     /// Last client-space cursor position.
     cursor: Pos2,
     /// The same cursor in screen space, fixed at event time (window origin
-    /// + client position). A window that is *moved* under a stationary
+    /// plus client position). A window that is *moved* under a stationary
     /// cursor gets no new `CursorMoved`, so a client-space value goes stale
     /// the moment the window follows it — see `frame`.
     cursor_screen: Option<Pos2>,

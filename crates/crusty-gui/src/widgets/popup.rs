@@ -90,7 +90,10 @@ impl Popup {
                 RectShape::fill(
                     popup_rect,
                     style.rounding.panel,
-                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                    style
+                        .palette
+                        .elevated
+                        .with_alpha(style.palette.popover_alpha),
                 )
                 .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
@@ -98,10 +101,10 @@ impl Popup {
             ui.ctx_mut().overlay_paint.extend(overlay_drained);
 
             // Top-order interaction area so items win pointer priority.
-            let area = ui
-                .ctx_mut()
-                .memory
-                .area_entry(popup_area_id, popup_rect.min, Order::Tooltip);
+            let area =
+                ui.ctx_mut()
+                    .memory
+                    .area_entry(popup_area_id, popup_rect.min, Order::Tooltip);
             area.pos = popup_rect.min;
             area.size = popup_rect.size();
 

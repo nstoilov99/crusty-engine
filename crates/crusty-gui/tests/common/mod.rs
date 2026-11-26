@@ -24,6 +24,7 @@ use crusty_gui::math::{Pos2, Rect, Vec2};
 use crusty_gui::paint::PaintCmd;
 use crusty_gui::text::TextRenderer;
 
+use vulkano::VulkanLibrary;
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::command_buffer::allocator::{
     StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo,
@@ -37,11 +38,8 @@ use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
 use vulkano::instance::{Instance, InstanceCreateFlags, InstanceCreateInfo};
-use vulkano::memory::allocator::{
-    AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator,
-};
+use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator};
 use vulkano::sync::GpuFuture;
-use vulkano::VulkanLibrary;
 
 const FORMAT: Format = Format::R8G8B8A8_UNORM;
 pub const DT: f32 = 1.0 / 60.0;
@@ -181,7 +179,10 @@ impl Harness {
     }
 
     pub fn screen_rect(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO, Vec2::new(self.size[0] as f32, self.size[1] as f32))
+        Rect::from_min_size(
+            Pos2::ZERO,
+            Vec2::new(self.size[0] as f32, self.size[1] as f32),
+        )
     }
 
     /// Run one Context frame with `events` and return its paint list.
@@ -215,7 +216,13 @@ impl Harness {
     pub fn render_pixels(&mut self, paint: &[PaintCmd]) -> Vec<u8> {
         let ui_cb = self
             .renderer
-            .render(&mut self.text, self.target.clone(), paint, None, Some(CLEAR))
+            .render(
+                &mut self.text,
+                self.target.clone(),
+                paint,
+                None,
+                Some(CLEAR),
+            )
             .expect("target has zero extent");
 
         let readback = Buffer::new_slice::<u8>(
@@ -256,7 +263,10 @@ impl Harness {
             .wait(None)
             .expect("GPU wait failed");
 
-        readback.read().expect("failed to map readback buffer").to_vec()
+        readback
+            .read()
+            .expect("failed to map readback buffer")
+            .to_vec()
     }
 
     /// Render `paint`, read the pixels back and compare against the golden.
@@ -275,7 +285,9 @@ impl Harness {
 // ── Golden compare ─────────────────────────────────────────────────────────
 
 fn snapshots_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("snapshots")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("snapshots")
 }
 
 fn compare(name: &str, actual: &[u8], size: [u32; 2]) {
@@ -307,7 +319,11 @@ fn compare(name: &str, actual: &[u8], size: [u32; 2]) {
     let mut bad = 0usize;
     let mut max_delta = 0u8;
     let mut diff = vec![0u8; total * 4];
-    for (i, (a, g)) in actual.chunks_exact(4).zip(golden.chunks_exact(4)).enumerate() {
+    for (i, (a, g)) in actual
+        .chunks_exact(4)
+        .zip(golden.chunks_exact(4))
+        .enumerate()
+    {
         let d = (0..4).map(|c| a[c].abs_diff(g[c])).max().unwrap();
         max_delta = max_delta.max(d);
         if d > CHANNEL_TOL {
@@ -349,9 +365,13 @@ fn write_png(path: &Path, rgba: &[u8], size: [u32; 2]) {
 
 fn read_png(path: &Path) -> Option<(Vec<u8>, [u32; 2])> {
     let file = File::open(path).ok()?;
-    let mut reader = png::Decoder::new(file).read_info().expect("invalid golden png");
+    let mut reader = png::Decoder::new(file)
+        .read_info()
+        .expect("invalid golden png");
     let mut buf = vec![0u8; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut buf).expect("failed to decode golden png");
+    let info = reader
+        .next_frame(&mut buf)
+        .expect("failed to decode golden png");
     assert_eq!(info.color_type, png::ColorType::Rgba, "golden must be RGBA");
     buf.truncate(info.buffer_size());
     Some((buf, [info.width, info.height]))

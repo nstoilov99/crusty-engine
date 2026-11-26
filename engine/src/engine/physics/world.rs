@@ -219,9 +219,8 @@ impl PhysicsWorld {
     pub fn present(&self, ecs_world: &mut World, alpha: f32) {
         let alpha = alpha.clamp(0.0, 1.0);
         let mut dirty_entities: Vec<Entity> = Vec::new();
-        for (entity, (transform, rigidbody)) in ecs_world
-            .query::<(&mut Transform, &EcsRigidBody)>()
-            .iter()
+        for (entity, (transform, rigidbody)) in
+            ecs_world.query::<(&mut Transform, &EcsRigidBody)>().iter()
         {
             if rigidbody.body_type != EcsRigidBodyType::Dynamic {
                 continue;
@@ -234,7 +233,10 @@ impl PhysicsWorld {
                 .handle
                 .and_then(|h| self.prev_poses.get(&h))
                 .unwrap_or(curr);
-            let translation = prev.translation.vector.lerp(&curr.translation.vector, alpha);
+            let translation = prev
+                .translation
+                .vector
+                .lerp(&curr.translation.vector, alpha);
             transform.position = position_from_physics(&translation);
             let rotation = if rb.is_rotation_locked().iter().all(|&locked| locked) {
                 curr.rotation
@@ -859,11 +861,23 @@ mod tests {
         let pos = |world: &World| world.get::<&Transform>(entity).unwrap().position;
 
         physics.present(&mut world, 0.0);
-        assert!((pos(&world).x - 0.0).abs() < 1e-4, "alpha 0 = previous pose: {:?}", pos(&world));
+        assert!(
+            (pos(&world).x - 0.0).abs() < 1e-4,
+            "alpha 0 = previous pose: {:?}",
+            pos(&world)
+        );
         physics.present(&mut world, 0.5);
-        assert!((pos(&world).x - 0.05).abs() < 1e-4, "alpha 0.5 = half-way: {:?}", pos(&world));
+        assert!(
+            (pos(&world).x - 0.05).abs() < 1e-4,
+            "alpha 0.5 = half-way: {:?}",
+            pos(&world)
+        );
         physics.present(&mut world, 1.0);
-        assert!((pos(&world).x - 0.1).abs() < 1e-4, "alpha 1 = current pose: {:?}", pos(&world));
+        assert!(
+            (pos(&world).x - 0.1).abs() < 1e-4,
+            "alpha 1 = current pose: {:?}",
+            pos(&world)
+        );
         assert!(
             world.get::<&TransformDirty>(entity).is_ok(),
             "presentation marks the transform dirty"
@@ -874,7 +888,11 @@ mod tests {
         physics.step(2.5 / 60.0, &mut world);
         let curr = physics.body_position(handle).unwrap();
         assert!((curr.x - 0.3).abs() < 1e-4, "three steps: {curr:?}");
-        assert!((pos(&world).x - 0.25).abs() < 1e-4, "presented at alpha 0.5: {:?}", pos(&world));
+        assert!(
+            (pos(&world).x - 0.25).abs() < 1e-4,
+            "presented at alpha 0.5: {:?}",
+            pos(&world)
+        );
     }
 
     /// F3: a fully rotation-locked body shows Rapier's rotation as-is (the
@@ -910,8 +928,16 @@ mod tests {
             let fwd = glm::quat_rotate_vec3(&q, &glm::vec3(1.0, 0.0, 0.0));
             fwd.y.atan2(fwd.x)
         };
-        assert!((yaw_of(locked_e) - 0.8).abs() < 1e-4, "locked: {}", yaw_of(locked_e));
-        assert!((yaw_of(free_e) - 0.4).abs() < 1e-4, "free, half-way: {}", yaw_of(free_e));
+        assert!(
+            (yaw_of(locked_e) - 0.8).abs() < 1e-4,
+            "locked: {}",
+            yaw_of(locked_e)
+        );
+        assert!(
+            (yaw_of(free_e) - 0.4).abs() < 1e-4,
+            "free, half-way: {}",
+            yaw_of(free_e)
+        );
     }
 
     #[test]

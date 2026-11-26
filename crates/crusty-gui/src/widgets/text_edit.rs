@@ -149,8 +149,9 @@ impl<'a> TextEdit<'a> {
             .data_get::<TextEditState>(id)
             .map_or(0.0, |s| s.scroll);
         let click_idx = if start_click || dragging {
-            pointer_pos
-                .map(|p| byte_index_at_x(ui.text_mut(), self.value, font, text_x - prev_scroll, p.x))
+            pointer_pos.map(|p| {
+                byte_index_at_x(ui.text_mut(), self.value, font, text_x - prev_scroll, p.x)
+            })
         } else {
             None
         };
@@ -317,8 +318,12 @@ impl<'a> TextEdit<'a> {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
         mem.aux_anim =
             approach_half_life(mem.aux_anim, target_focus, dt, style.motion.state_half_life);
         let hover_anim = mem.hover_anim;
@@ -327,7 +332,11 @@ impl<'a> TextEdit<'a> {
         // ── Background + border (focus = 1px focus_ring swap, no glow).
         let fill = self.fill.unwrap_or(style.palette.input);
         let stroke = lerp_color(
-            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim),
+            lerp_color(
+                style.palette.stroke,
+                style.palette.stroke_strong,
+                hover_anim,
+            ),
             style.palette.focus_ring,
             focus_anim,
         );
@@ -354,10 +363,12 @@ impl<'a> TextEdit<'a> {
         }
         let text_x = text_x - scroll;
         let text_pos = Pos2::new(text_x, text_y);
-        ui.ctx_mut().paint.push(PaintCmd::PushClip(Rect::from_min_max(
-            Pos2::new(rect.min.x + 1.0, rect.min.y),
-            Pos2::new(rect.max.x - 1.0, rect.max.y),
-        )));
+        ui.ctx_mut()
+            .paint
+            .push(PaintCmd::PushClip(Rect::from_min_max(
+                Pos2::new(rect.min.x + 1.0, rect.min.y),
+                Pos2::new(rect.max.x - 1.0, rect.max.y),
+            )));
 
         // Selection highlight, drawn under the glyphs.
         if focused && sel_a != sel_b {
@@ -384,13 +395,23 @@ impl<'a> TextEdit<'a> {
         } else if !focused && full_w > inner_w {
             // At rest an over-long value ends in an ellipsis: a hard clip mid
             // glyph reads as a rendering fault, "…" reads as "there is more".
-            (elide(ui.text_mut(), self.value, font, inner_w), style.palette.text)
+            (
+                elide(ui.text_mut(), self.value, font, inner_w),
+                style.palette.text,
+            )
         } else {
             (self.value.clone(), style.palette.text)
         };
         if !display_text.is_empty() {
             let Ui { ctx, text, .. } = ui;
-            text.add_text(&mut ctx.paint, &display_text, font, text_pos, display_color, None);
+            text.add_text(
+                &mut ctx.paint,
+                &display_text,
+                font,
+                text_pos,
+                display_color,
+                None,
+            );
         }
 
         // Caret. Blinks while focused.
@@ -400,9 +421,10 @@ impl<'a> TextEdit<'a> {
             // Wake the host exactly at the next on/off toggle (phase advances
             // 2/sec); without this a static frame would freeze the blink.
             let to_boundary = if blink_on { 0.55 - phase } else { 1.0 - phase };
-            ui.ctx_mut().request_repaint_after(std::time::Duration::from_secs_f64(
-                to_boundary / 2.0 + 0.005,
-            ));
+            ui.ctx_mut()
+                .request_repaint_after(std::time::Duration::from_secs_f64(
+                    to_boundary / 2.0 + 0.005,
+                ));
             if blink_on {
                 let caret_x = text_x + caret_off + 1.0;
                 let caret_rect = Rect::from_min_size(

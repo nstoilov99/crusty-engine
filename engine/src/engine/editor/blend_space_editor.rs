@@ -13,25 +13,49 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
-
 use super::blend_space_preview::{preview_input, BlendSpacePreview};
 use super::edit_stack::{EditStack, ReversibleEdit};
-use crate::engine::animation::graph::{AnimAssetLoader, DiskAnimAssets};
 use crate::engine::animation::blend_space::{
     parse_blend_space, serialize_blend_space, BlendAxis, BlendSample, BlendSpace, BlendSpaceDoc,
 };
+use crate::engine::animation::graph::{AnimAssetLoader, DiskAnimAssets};
 
 /// A reversible document edit. Whole-struct before/after for axes and
 /// samples: the structs are tiny and one variant then covers every field.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlendSpaceEdit {
-    SetAxisCount { from: u32, to: u32 },
-    SetAxis { axis: usize, from: BlendAxis, to: BlendAxis, label: String },
-    SetSmoothing { from: f32, to: f32 },
-    AddSample { index: usize, sample: BlendSample },
-    RemoveSample { index: usize, sample: BlendSample },
-    SetSample { index: usize, from: BlendSample, to: BlendSample, label: String },
-    SetPreviewMesh { from: String, to: String },
+    SetAxisCount {
+        from: u32,
+        to: u32,
+    },
+    SetAxis {
+        axis: usize,
+        from: BlendAxis,
+        to: BlendAxis,
+        label: String,
+    },
+    SetSmoothing {
+        from: f32,
+        to: f32,
+    },
+    AddSample {
+        index: usize,
+        sample: BlendSample,
+    },
+    RemoveSample {
+        index: usize,
+        sample: BlendSample,
+    },
+    SetSample {
+        index: usize,
+        from: BlendSample,
+        to: BlendSample,
+        label: String,
+    },
+    SetPreviewMesh {
+        from: String,
+        to: String,
+    },
 }
 
 impl ReversibleEdit for BlendSpaceEdit {
@@ -67,23 +91,45 @@ impl ReversibleEdit for BlendSpaceEdit {
 
     fn revert(&self, doc: &mut BlendSpaceDoc) {
         match self {
-            Self::SetAxisCount { from, to } => Self::SetAxisCount { from: *to, to: *from }.apply(doc),
-            Self::SetAxis { axis, from, to, label } => Self::SetAxis {
+            Self::SetAxisCount { from, to } => Self::SetAxisCount {
+                from: *to,
+                to: *from,
+            }
+            .apply(doc),
+            Self::SetAxis {
+                axis,
+                from,
+                to,
+                label,
+            } => Self::SetAxis {
                 axis: *axis,
                 from: to.clone(),
                 to: from.clone(),
                 label: label.clone(),
             }
             .apply(doc),
-            Self::SetSmoothing { from, to } => Self::SetSmoothing { from: *to, to: *from }.apply(doc),
+            Self::SetSmoothing { from, to } => Self::SetSmoothing {
+                from: *to,
+                to: *from,
+            }
+            .apply(doc),
             Self::SetPreviewMesh { from, .. } => doc.preview_mesh = from.clone(),
-            Self::AddSample { index, sample } => {
-                Self::RemoveSample { index: *index, sample: sample.clone() }.apply(doc)
+            Self::AddSample { index, sample } => Self::RemoveSample {
+                index: *index,
+                sample: sample.clone(),
             }
-            Self::RemoveSample { index, sample } => {
-                Self::AddSample { index: *index, sample: sample.clone() }.apply(doc)
+            .apply(doc),
+            Self::RemoveSample { index, sample } => Self::AddSample {
+                index: *index,
+                sample: sample.clone(),
             }
-            Self::SetSample { index, from, to, label } => Self::SetSample {
+            .apply(doc),
+            Self::SetSample {
+                index,
+                from,
+                to,
+                label,
+            } => Self::SetSample {
                 index: *index,
                 from: to.clone(),
                 to: from.clone(),
@@ -95,7 +141,9 @@ impl ReversibleEdit for BlendSpaceEdit {
 
     fn description(&self) -> String {
         match self {
-            Self::SetAxisCount { to, .. } => format!("Set Axes {}", if *to >= 2 { "2D" } else { "1D" }),
+            Self::SetAxisCount { to, .. } => {
+                format!("Set Axes {}", if *to >= 2 { "2D" } else { "1D" })
+            }
             Self::SetAxis { label, .. } | Self::SetSample { label, .. } => label.clone(),
             Self::SetSmoothing { .. } => "Set Smoothing".into(),
             Self::SetPreviewMesh { .. } => "Set Preview Mesh".into(),
@@ -144,7 +192,10 @@ pub enum FieldEvent {
     /// Mid-scrub: show the value, do not record it.
     Live(f32),
     /// The gesture ended (release, Enter, click-away): one undo entry.
-    Commit { from: f32, to: f32 },
+    Commit {
+        from: f32,
+        to: f32,
+    },
 }
 
 pub struct BlendSpaceEditorState {
@@ -244,14 +295,22 @@ impl BlendSpaceEditorState {
             .map(|t| now.duration_since(t).as_secs_f32().min(0.1))
             .unwrap_or(0.0);
         self.preview_last_frame = Some(now);
-        let loader = DiskAnimAssets { content_root: "content".into() };
+        let loader = DiskAnimAssets {
+            content_root: "content".into(),
+        };
         self.tick_preview_with(&loader, mesh_assets, dt);
     }
 
     /// [`Self::tick_preview`] with an explicit loader and step (tests).
-    pub fn tick_preview_with(&mut self, loader: &dyn AnimAssetLoader, mesh_assets: &[String], dt: f32) {
+    pub fn tick_preview_with(
+        &mut self,
+        loader: &dyn AnimAssetLoader,
+        mesh_assets: &[String],
+        dt: f32,
+    ) {
         if self.preview_stale {
-            self.preview.rebuild(&self.doc, &self.compiled, mesh_assets, loader);
+            self.preview
+                .rebuild(&self.doc, &self.compiled, mesh_assets, loader);
             self.preview_stale = false;
         }
         let input = preview_input(&self.doc, self.preview_point);
@@ -347,7 +406,9 @@ impl BlendSpaceEditorState {
 
     /// Start moving sample `index` (selects it).
     pub fn begin_drag(&mut self, index: usize) {
-        let Some(from) = self.doc.samples.get(index).cloned() else { return };
+        let Some(from) = self.doc.samples.get(index).cloned() else {
+            return;
+        };
         self.selection = Some(index);
         self.drag = Some((index, from));
     }
@@ -358,7 +419,9 @@ impl BlendSpaceEditorState {
         let Some((index, _)) = self.drag else { return };
         let p = self.snap_point(p, snap);
         let two_d = self.doc.is_2d();
-        let Some(sm) = self.doc.samples.get_mut(index) else { return };
+        let Some(sm) = self.doc.samples.get_mut(index) else {
+            return;
+        };
         if sm.x == p[0] && (!two_d || sm.y == p[1]) {
             return;
         }
@@ -391,7 +454,11 @@ impl BlendSpaceEditorState {
     /// clip is picked afterwards in the details column.
     pub fn add_sample_at(&mut self, p: [f32; 2], snap: bool) -> usize {
         let p = self.snap_point(p, snap);
-        let y = if self.doc.is_2d() { p[1] } else { (self.doc.axes[1].min + self.doc.axes[1].max) * 0.5 };
+        let y = if self.doc.is_2d() {
+            p[1]
+        } else {
+            (self.doc.axes[1].min + self.doc.axes[1].max) * 0.5
+        };
         let sample = BlendSample::new(p[0], y, "");
         let index = self.doc.samples.len();
         self.doc.samples.push(sample.clone());
@@ -443,7 +510,9 @@ impl BlendSpaceEditorState {
 
     /// Replace axis `axis` with `to` under `label` ("Set Axis Name", ...).
     pub fn set_axis(&mut self, axis: usize, to: BlendAxis, label: &str) {
-        let Some(from) = self.doc.axes.get(axis).cloned() else { return };
+        let Some(from) = self.doc.axes.get(axis).cloned() else {
+            return;
+        };
         if from == to {
             return;
         }
@@ -453,11 +522,18 @@ impl BlendSpaceEditorState {
 
     /// The doc already holds the new axis; record the entry against `from`.
     pub fn record_axis(&mut self, axis: usize, from: BlendAxis, label: &str) {
-        let Some(to) = self.doc.axes.get(axis).cloned() else { return };
+        let Some(to) = self.doc.axes.get(axis).cloned() else {
+            return;
+        };
         if from == to {
             return;
         }
-        self.commit(BlendSpaceEdit::SetAxis { axis, from, to, label: label.into() });
+        self.commit(BlendSpaceEdit::SetAxis {
+            axis,
+            from,
+            to,
+            label: label.into(),
+        });
     }
 
     pub fn set_smoothing(&mut self, to: f32) {
@@ -500,7 +576,9 @@ impl BlendSpaceEditorState {
     }
 
     pub fn set_sample(&mut self, index: usize, to: BlendSample, label: &str) {
-        let Some(from) = self.doc.samples.get(index).cloned() else { return };
+        let Some(from) = self.doc.samples.get(index).cloned() else {
+            return;
+        };
         if from == to {
             return;
         }
@@ -510,11 +588,18 @@ impl BlendSpaceEditorState {
 
     /// The doc already holds the new sample; record the entry against `from`.
     pub fn record_sample(&mut self, index: usize, from: BlendSample, label: &str) {
-        let Some(to) = self.doc.samples.get(index).cloned() else { return };
+        let Some(to) = self.doc.samples.get(index).cloned() else {
+            return;
+        };
         if from == to {
             return;
         }
-        self.commit(BlendSpaceEdit::SetSample { index, from, to, label: label.into() });
+        self.commit(BlendSpaceEdit::SetSample {
+            index,
+            from,
+            to,
+            label: label.into(),
+        });
     }
 
     // ── field gestures (panel helpers, pixel-free) ───────────────────────
@@ -524,20 +609,37 @@ impl BlendSpaceEditorState {
     /// the widget is being scrubbed. A scrub reports `Live` until release,
     /// then one `Commit` from the pre-drag value; a typed or stepped value
     /// commits at once.
-    pub fn numeric_event(&mut self, field: Field, before: f32, after: f32, pressed: bool) -> FieldEvent {
+    pub fn numeric_event(
+        &mut self,
+        field: Field,
+        before: f32,
+        after: f32,
+        pressed: bool,
+    ) -> FieldEvent {
         let active = self.field_drag.filter(|(f, _)| *f == field).map(|(_, v)| v);
         if pressed {
             if after != before && active.is_none() {
                 self.field_drag = Some((field, before));
             }
-            return if after != before { FieldEvent::Live(after) } else { FieldEvent::None };
+            return if after != before {
+                FieldEvent::Live(after)
+            } else {
+                FieldEvent::None
+            };
         }
         if let Some(from) = active {
             self.field_drag = None;
-            return if from != after { FieldEvent::Commit { from, to: after } } else { FieldEvent::None };
+            return if from != after {
+                FieldEvent::Commit { from, to: after }
+            } else {
+                FieldEvent::None
+            };
         }
         if after != before {
-            FieldEvent::Commit { from: before, to: after }
+            FieldEvent::Commit {
+                from: before,
+                to: after,
+            }
         } else {
             FieldEvent::None
         }
@@ -607,8 +709,10 @@ mod tests {
 
     fn state() -> BlendSpaceEditorState {
         let mut doc = BlendSpaceDoc::default();
-        doc.samples.push(BlendSample::new(0.0, 0.0, "anims/idle.anim"));
-        doc.samples.push(BlendSample::new(1.0, 0.5, "anims/run.anim"));
+        doc.samples
+            .push(BlendSample::new(0.0, 0.0, "anims/idle.anim"));
+        doc.samples
+            .push(BlendSample::new(1.0, 0.5, "anims/run.anim"));
         BlendSpaceEditorState::from_doc(doc, "blendspaces/t.blendspace")
     }
 
@@ -677,7 +781,10 @@ mod tests {
         assert!(s.compiled.is_ok());
         s.remove_sample(1);
         s.remove_sample(0);
-        assert_eq!(s.compiled.as_ref().err().map(String::as_str), Some("no samples"));
+        assert_eq!(
+            s.compiled.as_ref().err().map(String::as_str),
+            Some("no samples")
+        );
         s.undo();
         assert!(s.compiled.is_ok());
     }
@@ -714,9 +821,15 @@ mod tests {
         assert_eq!(s.numeric_event(f, 0.0, 0.0, true), FieldEvent::None);
         assert_eq!(s.numeric_event(f, 0.0, 0.1, true), FieldEvent::Live(0.1));
         assert_eq!(s.numeric_event(f, 0.1, 0.4, true), FieldEvent::Live(0.4));
-        assert_eq!(s.numeric_event(f, 0.4, 0.4, false), FieldEvent::Commit { from: 0.0, to: 0.4 });
+        assert_eq!(
+            s.numeric_event(f, 0.4, 0.4, false),
+            FieldEvent::Commit { from: 0.0, to: 0.4 }
+        );
         // A typed value commits at once.
-        assert_eq!(s.numeric_event(f, 0.4, 2.0, false), FieldEvent::Commit { from: 0.4, to: 2.0 });
+        assert_eq!(
+            s.numeric_event(f, 0.4, 2.0, false),
+            FieldEvent::Commit { from: 0.4, to: 2.0 }
+        );
         // A scrub that returns to where it started records nothing.
         assert_eq!(s.numeric_event(f, 2.0, 2.5, true), FieldEvent::Live(2.5));
         assert_eq!(s.numeric_event(f, 2.5, 2.0, true), FieldEvent::Live(2.0));
@@ -727,18 +840,39 @@ mod tests {
     fn text_gesture_commits_on_end_edit_only() {
         let mut s = state();
         let f = Field::AxisName(0);
-        assert_eq!(s.text_event(f, "Speed", "Sp".into(), true, false, false), None);
+        assert_eq!(
+            s.text_event(f, "Speed", "Sp".into(), true, false, false),
+            None
+        );
         assert_eq!(s.text_buffer(f, "Speed"), "Sp");
-        assert_eq!(s.text_event(f, "Speed", "Spe".into(), true, false, false), None);
+        assert_eq!(
+            s.text_event(f, "Speed", "Spe".into(), true, false, false),
+            None
+        );
         // Click-away commits.
-        assert_eq!(s.text_event(f, "Speed", "Spe".into(), false, false, false), Some("Spe".into()));
+        assert_eq!(
+            s.text_event(f, "Speed", "Spe".into(), false, false, false),
+            Some("Spe".into())
+        );
         assert_eq!(s.text_buffer(f, "Spe"), "Spe");
         // Escape drops.
-        assert_eq!(s.text_event(f, "Spe", "Sx".into(), true, false, false), None);
-        assert_eq!(s.text_event(f, "Spe", "Sx".into(), false, false, true), None);
+        assert_eq!(
+            s.text_event(f, "Spe", "Sx".into(), true, false, false),
+            None
+        );
+        assert_eq!(
+            s.text_event(f, "Spe", "Sx".into(), false, false, true),
+            None
+        );
         // Enter commits; unchanged text is not an edit.
-        assert_eq!(s.text_event(f, "Spe", "Spe".into(), true, true, false), None);
-        assert_eq!(s.text_event(f, "Spe", "Run".into(), true, true, false), Some("Run".into()));
+        assert_eq!(
+            s.text_event(f, "Spe", "Spe".into(), true, true, false),
+            None
+        );
+        assert_eq!(
+            s.text_event(f, "Spe", "Run".into(), true, true, false),
+            Some("Run".into())
+        );
     }
 }
 
@@ -778,7 +912,11 @@ mod canvas_tests {
         assert_eq!(s.selection, Some(0));
         s.drag_to([1.3, 0.2], true);
         s.drag_to([2.6, 0.4], true);
-        assert_eq!((s.doc.samples[0].x, s.doc.samples[0].y), (3.0, 0.5), "snapped live");
+        assert_eq!(
+            (s.doc.samples[0].x, s.doc.samples[0].y),
+            (3.0, 0.5),
+            "snapped live"
+        );
         assert!(!s.stack.can_undo(), "nothing recorded mid-drag");
         s.end_drag();
         assert_eq!(s.stack.undo_len(), 1);
@@ -836,9 +974,17 @@ mod canvas_tests {
     #[test]
     fn binding_prefers_a_selected_runtime_then_the_first_referencing_plan() {
         let rts = [(1, false), (2, true), (3, true)];
-        assert_eq!(resolve_blend_space_bind(&[1], &rts), Some(1), "selected runtime wins even without a reference");
+        assert_eq!(
+            resolve_blend_space_bind(&[1], &rts),
+            Some(1),
+            "selected runtime wins even without a reference"
+        );
         assert_eq!(resolve_blend_space_bind(&[9, 3], &rts), Some(3));
-        assert_eq!(resolve_blend_space_bind(&[9], &rts), Some(2), "first plan that references the space");
+        assert_eq!(
+            resolve_blend_space_bind(&[9], &rts),
+            Some(2),
+            "first plan that references the space"
+        );
         assert_eq!(resolve_blend_space_bind(&[], &[(1, false)]), None);
     }
 }

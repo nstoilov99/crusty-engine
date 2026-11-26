@@ -142,7 +142,12 @@ fn summarize_rule(doc: &GraphDoc, region: &GraphRegion) -> (Option<String>, bool
         return (None, false); // unwired Bool input = always-true
     };
 
-    let mut cx = Summarizer { doc, region, stack: Vec::new(), connective: None };
+    let mut cx = Summarizer {
+        doc,
+        region,
+        stack: Vec::new(),
+        connective: None,
+    };
     let mut leaves = Vec::new();
     let uniform = cx.connective_walk(edge.from_node, &mut leaves);
     if !uniform || leaves.len() >= 3 || leaves.iter().any(Option::is_none) {
@@ -200,7 +205,11 @@ impl Summarizer<'_> {
             };
             match node.type_id.as_str() {
                 AND | OR => {
-                    let here = if node.type_id == AND { Connective::And } else { Connective::Or };
+                    let here = if node.type_id == AND {
+                        Connective::And
+                    } else {
+                        Connective::Or
+                    };
                     match self.connective {
                         None => self.connective = Some(here),
                         Some(c) if c == here => {}
@@ -501,7 +510,10 @@ mod tests {
             ],
         };
         let chip = transition_chip(&doc_with(Some(region), 0.1, 1), 1);
-        assert_eq!(chip.text(), "Died \u{2227} HP \u{2264} 0.0 \u{b7} 0.10s \u{b7} P1");
+        assert_eq!(
+            chip.text(),
+            "Died \u{2227} HP \u{2264} 0.0 \u{b7} 0.10s \u{b7} P1"
+        );
     }
 
     /// Three or more conditions elide to "⋯ n".
@@ -642,13 +654,20 @@ mod tests {
         doc.nodes.push(idle);
         doc.nodes.push(node(3, ANIM_STATE_TYPE_ID));
         doc.nodes.push(node(4, ANIM_STATE_ALIAS_TYPE_ID));
-        doc.edges.push(edge(2, STATE_OUT_PIN, 1, TRANSITION_FROM_PIN));
+        doc.edges
+            .push(edge(2, STATE_OUT_PIN, 1, TRANSITION_FROM_PIN));
         doc.edges.push(edge(1, TRANSITION_TO_PIN, 3, STATE_IN_PIN));
-        assert_eq!(transition_chip(&doc, 1).tooltip(), "Idle \u{2192} State\n0.20s");
+        assert_eq!(
+            transition_chip(&doc, 1).tooltip(),
+            "Idle \u{2192} State\n0.20s"
+        );
 
         doc.edges[0] = edge(4, STATE_OUT_PIN, 1, TRANSITION_FROM_PIN);
         doc.edges.pop();
-        assert_eq!(transition_chip(&doc, 1).tooltip(), "Alias \u{2192} ?\n0.20s");
+        assert_eq!(
+            transition_chip(&doc, 1).tooltip(),
+            "Alias \u{2192} ?\n0.20s"
+        );
     }
 
     /// Float formatting: whole values take the mockup's ".0" spelling.

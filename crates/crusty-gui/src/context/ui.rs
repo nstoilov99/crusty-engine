@@ -216,8 +216,7 @@ impl<'a> Ui<'a> {
         }
         let is_active = self.ctx.memory.active_widget == Some(id);
         let pressed = is_active && pointer_down;
-        let clicked =
-            pointer_released && is_active && hovered && !self.ctx.dnd.is_dragging();
+        let clicked = pointer_released && is_active && hovered && !self.ctx.dnd.is_dragging();
 
         let dt = self.ctx.dt();
         let style = self.ctx.style;
@@ -263,11 +262,13 @@ impl<'a> Ui<'a> {
         label: impl Into<String>,
         payload: impl FnOnce() -> T,
     ) -> bool {
-        if self.ctx.input.pointer_pressed && self.contains_pointer(rect)
-            && let Some(p) = self.ctx.input.pointer_pos {
-                self.ctx.memory.active_widget = Some(id);
-                self.ctx.memory.data_insert::<Pos2>(id, p);
-            }
+        if self.ctx.input.pointer_pressed
+            && self.contains_pointer(rect)
+            && let Some(p) = self.ctx.input.pointer_pos
+        {
+            self.ctx.memory.active_widget = Some(id);
+            self.ctx.memory.data_insert::<Pos2>(id, p);
+        }
 
         if self.ctx.memory.active_widget != Some(id) {
             return false;
@@ -291,20 +292,19 @@ impl<'a> Ui<'a> {
             && let (Some(p), Some(start)) = (
                 self.ctx.input.pointer_pos,
                 self.ctx.memory.data_get_mut::<Pos2>(id).map(|s| *s),
-            ) {
-                let dx = p.x - start.x;
-                let dy = p.y - start.y;
-                if (dx * dx + dy * dy).sqrt() > DRAG_THRESHOLD {
-                    let value = payload();
-                    self.ctx.dnd.begin(
-                        Box::new(value),
-                        TypeId::of::<T>(),
-                        label.into(),
-                    );
-                    self.render_dnd_ghost();
-                    return true;
-                }
+            )
+        {
+            let dx = p.x - start.x;
+            let dy = p.y - start.y;
+            if (dx * dx + dy * dy).sqrt() > DRAG_THRESHOLD {
+                let value = payload();
+                self.ctx
+                    .dnd
+                    .begin(Box::new(value), TypeId::of::<T>(), label.into());
+                self.render_dnd_ghost();
+                return true;
             }
+        }
         false
     }
 
@@ -325,9 +325,7 @@ impl<'a> Ui<'a> {
     /// True when a payload of type `T` is in flight and currently over
     /// `rect`. Use to highlight compatible slots mid-drag.
     pub fn dnd_hovering<T: 'static>(&self, rect: Rect) -> bool {
-        self.ctx.dnd.is_dragging()
-            && self.ctx.dnd.holds::<T>()
-            && self.contains_pointer(rect)
+        self.ctx.dnd.is_dragging() && self.ctx.dnd.holds::<T>() && self.contains_pointer(rect)
     }
 
     /// Draw a faint labelled chip at the pointer into the overlay layer so
@@ -352,8 +350,8 @@ impl<'a> Ui<'a> {
         stroke.a = 0.85;
         // Translucent, not glass: the ghost floats over whatever the drop
         // target is, and the user has to see what they are aiming at.
-        let shape = RectShape::fill_translucent(rect, style.rounding.small, fill)
-            .with_stroke(1.0, stroke);
+        let shape =
+            RectShape::fill_translucent(rect, style.rounding.small, fill).with_stroke(1.0, stroke);
         self.ctx.overlay_paint.push(PaintCmd::Rrect(shape));
 
         let text_pos = Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y);
@@ -410,9 +408,7 @@ impl<'a> Ui<'a> {
         let style = self.ctx.style;
         let color = style.palette.stroke;
         let rect = match self.direction {
-            Direction::TopDown => {
-                self.allocate(Vec2::new(self.available().width(), 1.0))
-            }
+            Direction::TopDown => self.allocate(Vec2::new(self.available().width(), 1.0)),
             Direction::LeftToRight => {
                 let h = style.fonts.body + style.spacing.button_padding.y * 2.0;
                 self.allocate(Vec2::new(1.0, h))
@@ -446,8 +442,14 @@ impl<'a> Ui<'a> {
         opts: UiOptions,
         f: impl FnOnce(&mut Ui) -> R,
     ) -> (R, Rect) {
-        let mut child =
-            Ui::with_root(&mut *self.ctx, &mut *self.text, rect, direction, opts, root_id);
+        let mut child = Ui::with_root(
+            &mut *self.ctx,
+            &mut *self.text,
+            rect,
+            direction,
+            opts,
+            root_id,
+        );
         child.area = self.area;
         child.clip = self.clip;
         let result = f(&mut child);
@@ -473,11 +475,7 @@ impl<'a> Ui<'a> {
         self.run_nested(Direction::TopDown, f)
     }
 
-    fn run_nested<R>(
-        &mut self,
-        new_dir: Direction,
-        f: impl FnOnce(&mut Ui) -> R,
-    ) -> R {
+    fn run_nested<R>(&mut self, new_dir: Direction, f: impl FnOnce(&mut Ui) -> R) -> R {
         let saved_cursor = self.cursor;
         let saved_direction = self.direction;
         let saved_used = self.used;
@@ -548,9 +546,7 @@ impl<'a> Ui<'a> {
             self.used = self.used.union(group);
             match saved_direction {
                 Direction::TopDown => self.cursor.y = origin.y + size.y + self.spacing,
-                Direction::LeftToRight => {
-                    self.cursor.x = origin.x + dx + size.x + self.spacing
-                }
+                Direction::LeftToRight => self.cursor.x = origin.x + dx + size.x + self.spacing,
             }
         }
 

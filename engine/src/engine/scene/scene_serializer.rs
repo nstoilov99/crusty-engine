@@ -162,7 +162,6 @@ fn serialize_entity(world: &World, entity: Entity) -> Option<EntityData> {
         });
     }
 
-
     // Task 45-A: the attached graph. Unconditional — a scene naming a graph
     // must round-trip whether or not the runtime that executes it is even
     // compiled in.
@@ -851,10 +850,7 @@ pub fn spawn_subtree(
             roots.push(spawned[i]);
             continue;
         };
-        if let Some(&pi) = parent_guid
-            .as_deref()
-            .and_then(|g| index_by_guid.get(g))
-        {
+        if let Some(&pi) = parent_guid.as_deref().and_then(|g| index_by_guid.get(g)) {
             set_parent(world, spawned[i], spawned[pi]);
         } else if !fresh_guids {
             if let Some(parent) = resolve_parent(world, parent_name, parent_guid.as_deref()) {
@@ -955,7 +951,10 @@ mod tests {
         assert!(matches!(col.shape, ColliderShape::Capsule { .. }));
         assert_eq!(col.friction, 0.0);
         let cm = world.get::<&CharacterMovement>(player).unwrap();
-        assert_eq!(cm.jump_height, 1.6, "jump is authored as an apex height (P8)");
+        assert_eq!(
+            cm.jump_height, 1.6,
+            "jump is authored as an apex height (P8)"
+        );
         assert_eq!(cm.standing_friction, 1.0);
         drop(cm);
         assert!(world.get::<&PlayerInput>(player).is_ok());
@@ -972,7 +971,10 @@ mod tests {
         // Camera: active, orbiting the player by GUID.
         assert!(world.get::<&Camera>(camera).unwrap().active);
         let player_guid = world.get::<&EntityGuid>(player).unwrap().0;
-        assert_eq!(world.get::<&OrbitCamera>(camera).unwrap().target, Some(player_guid));
+        assert_eq!(
+            world.get::<&OrbitCamera>(camera).unwrap().target,
+            Some(player_guid)
+        );
 
         // Terrain: every static body is a cuboid with a visible mesh.
         let mut terrain = 0;
@@ -987,7 +989,10 @@ mod tests {
             assert!(mesh.visible && !mesh.mesh_path.is_empty());
             terrain += 1;
         }
-        assert!(terrain >= 1 + 2 + 8 + 9, "floor, ramps, stairs, blocks: {terrain}");
+        assert!(
+            terrain >= 1 + 2 + 8 + 9,
+            "floor, ramps, stairs, blocks: {terrain}"
+        );
     }
 
     #[test]

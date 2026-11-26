@@ -75,10 +75,18 @@ impl<'a> Checkbox<'a> {
         let mem = ui.ctx_mut().memory.get_or_default(id);
         mem.seen_this_frame = true;
         mem.last_rect = rect;
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
-        mem.press_anim =
-            approach_half_life(mem.press_anim, target_press, dt, style.motion.press_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = approach_half_life(
+            mem.press_anim,
+            target_press,
+            dt,
+            style.motion.press_half_life,
+        );
         mem.aux_anim =
             approach_half_life(mem.aux_anim, target_check, dt, style.motion.state_half_life);
         let hover_anim = mem.hover_anim;
@@ -86,8 +94,7 @@ impl<'a> Checkbox<'a> {
         let check_anim = mem.aux_anim;
 
         let box_top = rect.min.y + (rect.height() - box_size) * 0.5;
-        let box_rect =
-            Rect::from_min_size(Pos2::new(rect.min.x, box_top), Vec2::splat(box_size));
+        let box_rect = Rect::from_min_size(Pos2::new(rect.min.x, box_top), Vec2::splat(box_size));
 
         let p = &style.palette;
         let (fill, outline, mark_color, label_color) = if !self.enabled {
@@ -132,13 +139,11 @@ impl<'a> Checkbox<'a> {
                 )
                 .shrink(box_size * 0.22)
             };
-            ui.ctx_mut()
-                .paint
-                .push(PaintCmd::Rrect(RectShape::fill(
-                    mark,
-                    style.rounding.small,
-                    mark_color,
-                )));
+            ui.ctx_mut().paint.push(PaintCmd::Rrect(RectShape::fill(
+                mark,
+                style.rounding.small,
+                mark_color,
+            )));
         }
         let _ = press_anim;
 

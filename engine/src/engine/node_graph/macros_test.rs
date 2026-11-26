@@ -130,9 +130,14 @@ pub struct AutoProbe {
 fn auto_register_collects_node() {
     let mut reg = NodeRegistry::new();
     register_inventory_nodes(&mut reg).unwrap();
-    let d = reg.get("auto_probe").expect("auto_probe registered via inventory");
+    let d = reg
+        .get("auto_probe")
+        .expect("auto_probe registered via inventory");
     assert_eq!(d.name, "Auto Probe");
-    assert_eq!(d.input("value").unwrap().default, Some(PropValue::Float(1.0)));
+    assert_eq!(
+        d.input("value").unwrap().default,
+        Some(PropValue::Float(1.0))
+    );
 }
 
 /// Proves the domain-macro layering: `AnimationNode` shares the same core and
@@ -159,5 +164,8 @@ fn animation_node_derive_produces_descriptor() {
     let d = AnimProbe::descriptor();
     assert_eq!(d.id, "anim_probe");
     assert_eq!(d.category, "Animation");
-    assert_eq!(d.input("weight").unwrap().default, Some(PropValue::Float(0.5)));
+    assert_eq!(
+        d.input("weight").unwrap().default,
+        Some(PropValue::Float(0.5))
+    );
 }

@@ -84,11 +84,7 @@ impl ProgressBar {
         };
 
         // Track reads inset: darkest surface, no border.
-        let track_shape = RectShape::fill(
-            rect,
-            Rounding::same(height * 0.5),
-            style.palette.input,
-        );
+        let track_shape = RectShape::fill(rect, Rounding::same(height * 0.5), style.palette.input);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(track_shape));
 
         let fill_color = self.fill.unwrap_or(style.palette.accent_active);

@@ -29,12 +29,12 @@ use vulkano::descriptor_set::layout::{
 use vulkano::descriptor_set::{DescriptorSet, WriteDescriptorSet};
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
-use vulkano::image::sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode};
+use vulkano::image::sampler::{
+    Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode,
+};
 use vulkano::image::view::ImageView;
 use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
-use vulkano::memory::allocator::{
-    AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator,
-};
+use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator};
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::graphics::color_blend::{
     AttachmentBlend, BlendFactor, BlendOp, ColorBlendAttachmentState, ColorBlendState,
@@ -103,8 +103,7 @@ pub struct OffscreenTargets {
 
 impl OffscreenTargets {
     pub fn new(device: Arc<Device>, format: Format, extent: [u32; 2]) -> Self {
-        let memory_allocator =
-            Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
 
         let render_pass = vulkano::single_pass_renderpass!(
             device.clone(),
@@ -135,14 +134,12 @@ impl OffscreenTargets {
         )
         .expect("failed to create sampler");
 
-        let (scene_view, scene_fbo) =
-            make_target(&memory_allocator, &render_pass, format, extent);
+        let (scene_view, scene_fbo) = make_target(&memory_allocator, &render_pass, format, extent);
         let (blur_a_view, blur_a_fbo) =
             make_target(&memory_allocator, &render_pass, format, extent);
         let (blur_b_view, blur_b_fbo) =
             make_target(&memory_allocator, &render_pass, format, extent);
-        let (dummy_view, _dummy_fbo) =
-            make_target(&memory_allocator, &render_pass, format, [1, 1]);
+        let (dummy_view, _dummy_fbo) = make_target(&memory_allocator, &render_pass, format, [1, 1]);
 
         Self {
             memory_allocator,
@@ -165,12 +162,24 @@ impl OffscreenTargets {
             return;
         }
         self.extent = extent;
-        let (scene_view, scene_fbo) =
-            make_target(&self.memory_allocator, &self.render_pass, self.format, extent);
-        let (blur_a_view, blur_a_fbo) =
-            make_target(&self.memory_allocator, &self.render_pass, self.format, extent);
-        let (blur_b_view, blur_b_fbo) =
-            make_target(&self.memory_allocator, &self.render_pass, self.format, extent);
+        let (scene_view, scene_fbo) = make_target(
+            &self.memory_allocator,
+            &self.render_pass,
+            self.format,
+            extent,
+        );
+        let (blur_a_view, blur_a_fbo) = make_target(
+            &self.memory_allocator,
+            &self.render_pass,
+            self.format,
+            extent,
+        );
+        let (blur_b_view, blur_b_fbo) = make_target(
+            &self.memory_allocator,
+            &self.render_pass,
+            self.format,
+            extent,
+        );
         self.scene_view = scene_view;
         self.scene_fbo = scene_fbo;
         self.blur_a_view = blur_a_view;
@@ -252,12 +261,8 @@ pub struct BlurRenderer {
 impl BlurRenderer {
     pub fn new(device: Arc<Device>, subpass: Subpass) -> Self {
         let module = load_shader_module(&device, BLUR_SPV);
-        let vs = module
-            .entry_point("vs_main")
-            .expect("blur vs_main missing");
-        let fs = module
-            .entry_point("fs_main")
-            .expect("blur fs_main missing");
+        let vs = module.entry_point("vs_main").expect("blur vs_main missing");
+        let fs = module.entry_point("fs_main").expect("blur fs_main missing");
 
         let set_layout = single_sampled_image_set_layout(&device);
 
@@ -376,9 +381,7 @@ impl BlurRenderer {
             .expect("blur push_constants failed");
 
         unsafe {
-            builder
-                .draw(3, 1, 0, 0)
-                .expect("blur draw failed");
+            builder.draw(3, 1, 0, 0).expect("blur draw failed");
         }
     }
 }
@@ -452,7 +455,8 @@ impl TextureRegistry {
     ) -> TextureId {
         let id = TextureId(self.next_id);
         self.next_id += 1;
-        self.textures.insert(id, RegisteredTexture { view, sampler });
+        self.textures
+            .insert(id, RegisteredTexture { view, sampler });
         id
     }
 
@@ -492,8 +496,7 @@ pub struct UiRenderer {
 
 impl UiRenderer {
     pub fn new(device: Arc<Device>, subpass: Subpass) -> Self {
-        let memory_allocator =
-            Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+        let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
         let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(
             device.clone(),
             Default::default(),
@@ -714,10 +717,7 @@ impl UiRenderer {
             let scissor = match draw.clip {
                 Some(rect) => Scissor {
                     offset: [rect.min.x.max(0.0) as u32, rect.min.y.max(0.0) as u32],
-                    extent: [
-                        rect.width().max(0.0) as u32,
-                        rect.height().max(0.0) as u32,
-                    ],
+                    extent: [rect.width().max(0.0) as u32, rect.height().max(0.0) as u32],
                 },
                 None => Scissor {
                     offset: [0, 0],
@@ -919,12 +919,11 @@ pub fn upload_rgba_texture(
     )
     .expect("failed to allocate upload command buffer");
     builder
-        .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(
-            staging,
-            image.clone(),
-        ))
+        .copy_buffer_to_image(CopyBufferToImageInfo::buffer_image(staging, image.clone()))
         .expect("failed to record texture upload");
-    let command_buffer = builder.build().expect("failed to build upload command buffer");
+    let command_buffer = builder
+        .build()
+        .expect("failed to build upload command buffer");
 
     vulkano::sync::now(device)
         .then_execute(queue, command_buffer)
@@ -962,14 +961,42 @@ fn vertex_input_for_ui_vertex() -> VertexInputState {
     );
 
     let attrs = [
-        (0u32, Format::R32G32_SFLOAT, std::mem::offset_of!(Vertex, pos)),
+        (
+            0u32,
+            Format::R32G32_SFLOAT,
+            std::mem::offset_of!(Vertex, pos),
+        ),
         (1, Format::R32G32_SFLOAT, std::mem::offset_of!(Vertex, uv)),
-        (2, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, color)),
-        (3, Format::R32G32_SFLOAT, std::mem::offset_of!(Vertex, rect_center)),
-        (4, Format::R32G32_SFLOAT, std::mem::offset_of!(Vertex, rect_half)),
-        (5, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, rounding)),
-        (6, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, params)),
-        (7, Format::R32G32B32A32_SFLOAT, std::mem::offset_of!(Vertex, stroke_color)),
+        (
+            2,
+            Format::R32G32B32A32_SFLOAT,
+            std::mem::offset_of!(Vertex, color),
+        ),
+        (
+            3,
+            Format::R32G32_SFLOAT,
+            std::mem::offset_of!(Vertex, rect_center),
+        ),
+        (
+            4,
+            Format::R32G32_SFLOAT,
+            std::mem::offset_of!(Vertex, rect_half),
+        ),
+        (
+            5,
+            Format::R32G32B32A32_SFLOAT,
+            std::mem::offset_of!(Vertex, rounding),
+        ),
+        (
+            6,
+            Format::R32G32B32A32_SFLOAT,
+            std::mem::offset_of!(Vertex, params),
+        ),
+        (
+            7,
+            Format::R32G32B32A32_SFLOAT,
+            std::mem::offset_of!(Vertex, stroke_color),
+        ),
     ];
     for (loc, format, offset) in attrs {
         state = state.attribute(

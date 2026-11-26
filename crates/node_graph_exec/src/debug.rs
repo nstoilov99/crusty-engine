@@ -85,7 +85,9 @@ impl BreakSet {
 
 impl FromIterator<usize> for BreakSet {
     fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
-        Self { nodes: iter.into_iter().collect() }
+        Self {
+            nodes: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -116,7 +118,10 @@ pub struct DebugCtl<'a> {
 impl<'a> DebugCtl<'a> {
     /// Breakpoints for one tick, no command.
     pub fn breaks(set: &'a BreakSet) -> Self {
-        Self { breaks: Some(set), command: DebugCommand::Run }
+        Self {
+            breaks: Some(set),
+            command: DebugCommand::Run,
+        }
     }
 
     pub fn with_command(mut self, command: DebugCommand) -> Self {

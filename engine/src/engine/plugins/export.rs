@@ -168,7 +168,11 @@ mod tests {
         assert_eq!(export_features(&manifests, &[]), vec!["hud".to_string()]);
 
         let listed = exported_plugins(&manifests, &[PluginEntry::new("physics_rapier", false)]);
-        assert_eq!(listed.len(), 1, "it ships whether the manifest likes it or not");
+        assert_eq!(
+            listed.len(),
+            1,
+            "it ships whether the manifest likes it or not"
+        );
         assert_eq!(listed[0].cargo_feature, None);
     }
 

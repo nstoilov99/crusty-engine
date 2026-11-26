@@ -284,12 +284,15 @@ impl PluginManagerModel {
 
     /// What disabling `id` would take down with it (§5.7).
     pub fn cascade_for(&self, id: &str) -> CascadePrompt {
-        self.cascades.get(id).cloned().unwrap_or_else(|| CascadePrompt {
-            id: id.to_string(),
-            name: id.to_string(),
-            dependents: Vec::new(),
-            hits_internal: false,
-        })
+        self.cascades
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| CascadePrompt {
+                id: id.to_string(),
+                name: id.to_string(),
+                dependents: Vec::new(),
+                hits_internal: false,
+            })
     }
 
     pub fn count(&self, filter: ManagerFilter) -> usize {
@@ -432,9 +435,7 @@ fn state_glyph(state: &RowState, ui: &Ui) -> (&'static str, crusty_gui::math::Co
         // Pending = changed-but-not-applied, which is `status.overridden`'s
         // orange in the mockup - distinct from the warning yellow the RESTART
         // chip and the footer notice carry.
-        RowState::PendingEnable | RowState::PendingDisable => {
-            ("\u{25CF}", st.overridden, 8.0)
-        }
+        RowState::PendingEnable | RowState::PendingDisable => ("\u{25CF}", st.overridden, 8.0),
         RowState::Enabled => ("\u{25CF}", st.success, 8.0),
         RowState::Disabled => ("\u{25CB}", pal.text_disabled, 9.0),
     }
@@ -442,7 +443,9 @@ fn state_glyph(state: &RowState, ui: &Ui) -> (&'static str, crusty_gui::math::Co
 
 fn state_text(row: &PluginRow) -> String {
     match &row.state {
-        RowState::Failed { phase, .. } => format!("Failed to load \u{2014} during {}", phase.label()),
+        RowState::Failed { phase, .. } => {
+            format!("Failed to load \u{2014} during {}", phase.label())
+        }
         RowState::BlockedMissingDependency { missing } => {
             format!("Blocked \u{2014} requires {missing}, which is not available")
         }
@@ -475,9 +478,7 @@ fn row_chips(row: &PluginRow) -> Vec<(&'static str, ChipTone)> {
         // A plugin that failed to load is an *error*, not a caution - the
         // mockup's chip is error red, and the row's second line already is.
         RowState::Failed { .. } => chips.push(("FAILED", ChipTone::Error)),
-        RowState::BlockedMissingDependency { .. } => {
-            chips.push(("BLOCKED", ChipTone::Warning))
-        }
+        RowState::BlockedMissingDependency { .. } => chips.push(("BLOCKED", ChipTone::Warning)),
         RowState::NotInThisBuild => chips.push(("NOT IN BUILD", ChipTone::Muted)),
         _ => {}
     }
@@ -571,7 +572,8 @@ pub fn plugin_manager_page(
         );
         let resp = ui.interact(Id::new("plugin_relaunch"), btn);
         if resp.hovered {
-            ui.painter().rect_filled(btn, style.rounding.small, pal.hover);
+            ui.painter()
+                .rect_filled(btn, style.rounding.small, pal.hover);
         }
         ui.painter()
             .rect_stroke(btn, style.rounding.small, 1.0, pal.stroke_strong);
@@ -725,19 +727,21 @@ fn draw_cascade(
 
     let confirm = Rect::from_min_size(Pos2::new(x, y), Vec2::new(150.0, 24.0));
     let cancel = Rect::from_min_size(Pos2::new(x + 158.0, y), Vec2::new(90.0, 24.0));
-    for (rect, label, danger) in [
-        (confirm, "Disable anyway", true),
-        (cancel, "Cancel", false),
-    ] {
+    for (rect, label, danger) in [(confirm, "Disable anyway", true), (cancel, "Cancel", false)] {
         let resp = ui.interact(Id::new("cascade").with(label), rect);
         if resp.hovered {
-            ui.painter().rect_filled(rect, style.rounding.small, pal.hover);
+            ui.painter()
+                .rect_filled(rect, style.rounding.small, pal.hover);
         }
         ui.painter().rect_stroke(
             rect,
             style.rounding.small,
             1.0,
-            if danger { st.warning } else { pal.stroke_strong },
+            if danger {
+                st.warning
+            } else {
+                pal.stroke_strong
+            },
         );
         let w = ui.painter().measure_text(label, font, None).x;
         ui.painter().text(
@@ -787,7 +791,8 @@ fn draw_list(
     for row in visible {
         // ── group header (delta 3)
         if last_origin != Some(row.origin) {
-            let header = Rect::from_min_size(Pos2::new(list.min.x, y), Vec2::new(list.width(), GROUP_H));
+            let header =
+                Rect::from_min_size(Pos2::new(list.min.x, y), Vec2::new(list.width(), GROUP_H));
             ui.painter().rect_filled(header, 0.0, pal.window);
             // A rule above separates the group from the rows before it; the
             // header must read as a header, not as the previous row's
@@ -853,8 +858,13 @@ fn draw_list(
             pal.text
         };
         let mut x = rect.min.x + 30.0;
-        ui.painter()
-            .text(Pos2::new(x, rect.min.y + 7.0), &row.name, 13.0, name_color, None);
+        ui.painter().text(
+            Pos2::new(x, rect.min.y + 7.0),
+            &row.name,
+            13.0,
+            name_color,
+            None,
+        );
         x += ui.painter().measure_text(&row.name, 13.0, None).x + 7.0;
         if !row.version.is_empty() {
             let v = row.version.clone();
@@ -877,10 +887,8 @@ fn draw_list(
                 .painter()
                 .measure_text_family(text, 8.5, None, FontFamily::Mono)
                 .x;
-            let chip = Rect::from_min_size(
-                Pos2::new(x, rect.min.y + 9.0),
-                Vec2::new(cw + 10.0, 13.0),
-            );
+            let chip =
+                Rect::from_min_size(Pos2::new(x, rect.min.y + 9.0), Vec2::new(cw + 10.0, 13.0));
             if chip.max.x > rect.max.x - 52.0 {
                 break;
             }
@@ -905,10 +913,9 @@ fn draw_list(
         // second line
         let (line2, l2color) = match &row.state {
             RowState::Failed { message, .. } => (message.clone(), st.error),
-            RowState::BlockedMissingDependency { missing } => (
-                format!("Blocked \u{2014} requires {missing}"),
-                st.warning,
-            ),
+            RowState::BlockedMissingDependency { missing } => {
+                (format!("Blocked \u{2014} requires {missing}"), st.warning)
+            }
             RowState::NotInThisBuild => (
                 "Not compiled into this build \u{2014} setting preserved".to_string(),
                 pal.text_disabled,
@@ -919,7 +926,14 @@ fn draw_list(
                 } else {
                     format!("{} \u{2014} {}", row.author, row.description)
                 };
-                (text, if dim { pal.text_disabled } else { pal.text_secondary })
+                (
+                    text,
+                    if dim {
+                        pal.text_disabled
+                    } else {
+                        pal.text_secondary
+                    },
+                )
             }
         };
         let line2 = truncate_to_width(ui, &line2, 10.5, rect.width() - 92.0);
@@ -949,7 +963,10 @@ fn draw_list(
         ui.painter().rect_filled(tg, 8.0, fill);
         ui.painter().rect_stroke(tg, 8.0, 1.0, border);
         ui.painter().circle_filled(
-            Pos2::new(if on { tg.max.x - 7.0 } else { tg.min.x + 7.0 }, tg.center().y),
+            Pos2::new(
+                if on { tg.max.x - 7.0 } else { tg.min.x + 7.0 },
+                tg.center().y,
+            ),
             5.0,
             if locked {
                 pal.text_disabled
@@ -998,8 +1015,13 @@ fn draw_detail(ui: &mut Ui, detail: Rect, row: &PluginRow, model: &PluginManager
         pal.stroke,
     );
     let x = head.min.x + 16.0;
-    ui.painter()
-        .text(Pos2::new(x, head.min.y + 14.0), &row.name, 14.0, pal.text, None);
+    ui.painter().text(
+        Pos2::new(x, head.min.y + 14.0),
+        &row.name,
+        14.0,
+        pal.text,
+        None,
+    );
     let name_w = ui.painter().measure_text(&row.name, 14.0, None).x;
     if !row.version.is_empty() {
         ui.painter().text_family(
@@ -1201,8 +1223,14 @@ fn draw_phases(ui: &mut Ui, failed: RegistrationPhase) {
             ("\u{2713}", st.success)
         };
         let text = format!("{glyph} {label}");
-        ui.painter()
-            .text_family(Pos2::new(x, pos.y), &text, 10.0, color, None, FontFamily::Mono);
+        ui.painter().text_family(
+            Pos2::new(x, pos.y),
+            &text,
+            10.0,
+            color,
+            None,
+            FontFamily::Mono,
+        );
         x += ui
             .painter()
             .measure_text_family(&text, 10.0, None, FontFamily::Mono)
@@ -1215,14 +1243,8 @@ fn draw_phases(ui: &mut Ui, failed: RegistrationPhase) {
 fn section_label(ui: &mut Ui, text: &str) {
     let pal = ui.style().palette;
     let pos = ui.cursor();
-    ui.painter().text_family(
-        pos,
-        text,
-        9.5,
-        pal.text_secondary,
-        None,
-        FontFamily::Mono,
-    );
+    ui.painter()
+        .text_family(pos, text, 9.5, pal.text_secondary, None, FontFamily::Mono);
     ui.allocate(Vec2::new(ui.available().width(), 15.0));
 }
 
@@ -1236,8 +1258,7 @@ fn fact_row_colored(ui: &mut Ui, key: &str, value: &str, color: crusty_gui::math
     let font = ui.style().fonts.body;
     let pos = ui.cursor();
     let avail = ui.available().width();
-    ui.painter()
-        .text(pos, key, font, pal.text_disabled, None);
+    ui.painter().text(pos, key, font, pal.text_disabled, None);
     // Values are paths and identifiers — clipping mid-word beats spilling
     // past the pane edge.
     let value = truncate_to_width(ui, value, font - 1.0, (avail - 108.0).max(40.0));
@@ -1278,17 +1299,14 @@ fn truncate_to_width(ui: &mut Ui, text: &str, size: f32, max_w: f32) -> String {
     format!("{trimmed}\u{2026}")
 }
 
-fn label_wrapped(
-    ui: &mut Ui,
-    text: &str,
-    size: f32,
-    color: crusty_gui::math::Color,
-    wrap: f32,
-) {
+fn label_wrapped(ui: &mut Ui, text: &str, size: f32, color: crusty_gui::math::Color, wrap: f32) {
     let pos = ui.cursor();
     let measured = ui.painter().measure_text(text, size, Some(wrap));
     ui.painter().text(pos, text, size, color, Some(wrap));
-    ui.allocate(Vec2::new(ui.available().width(), measured.y.max(size * 1.4)));
+    ui.allocate(Vec2::new(
+        ui.available().width(),
+        measured.y.max(size * 1.4),
+    ));
 }
 
 #[cfg(test)]

@@ -48,9 +48,7 @@ use crate::engine::physics::{
     PhysicsWorld, RigidBody, Velocity,
 };
 
-use super::{
-    EnginePlugin, PluginContext, PluginError, PluginKind, PluginManifest, PluginOrigin,
-};
+use super::{EnginePlugin, PluginContext, PluginError, PluginKind, PluginManifest, PluginOrigin};
 
 /// The manifest id. Permanent: `project.ron` entries name it, and
 /// `ClientGamePlugin` depends on it.
@@ -214,7 +212,11 @@ mod tests {
 
         assert!(set.failures().is_empty(), "{:?}", set.failures());
         assert!(set.is_active(PHYSICS_RAPIER_ID));
-        assert_eq!(h.schedule.system_count(), 1, "the step system is registered");
+        assert_eq!(
+            h.schedule.system_count(),
+            1,
+            "the step system is registered"
+        );
 
         let counts = set.records()[0].counts;
         assert_eq!(counts.systems, 1);
@@ -224,12 +226,20 @@ mod tests {
 
         // The content moment creates the bodies.
         let mut world = world_with_a_body();
-        assert_eq!(h.bodies(), 0, "nothing is registered before a content moment");
-        assert!(set.run_world_loaded(&mut world, &mut h.resources).is_empty());
+        assert_eq!(
+            h.bodies(),
+            0,
+            "nothing is registered before a content moment"
+        );
+        assert!(set
+            .run_world_loaded(&mut world, &mut h.resources)
+            .is_empty());
         assert_eq!(h.bodies(), 1);
 
         // And re-running it (a second load) does not double them.
-        assert!(set.run_world_loaded(&mut world, &mut h.resources).is_empty());
+        assert!(set
+            .run_world_loaded(&mut world, &mut h.resources)
+            .is_empty());
         assert_eq!(h.bodies(), 1);
 
         let mut buffer = DebugDrawBuffer::new();
@@ -243,7 +253,10 @@ mod tests {
         let mut h = Harness::new();
         let mut set = PluginSet::new();
         set.add(RapierPhysicsPlugin);
-        h.build(&mut set, Some(&[PluginEntry::new(PHYSICS_RAPIER_ID, false)]));
+        h.build(
+            &mut set,
+            Some(&[PluginEntry::new(PHYSICS_RAPIER_ID, false)]),
+        );
 
         assert!(!set.is_active(PHYSICS_RAPIER_ID));
         assert_eq!(set.disabled(), [PHYSICS_RAPIER_ID.to_string()]);
@@ -251,7 +264,9 @@ mod tests {
         assert_eq!(set.world_loaded_count(), 0, "no body registration hook");
 
         let mut world = world_with_a_body();
-        assert!(set.run_world_loaded(&mut world, &mut h.resources).is_empty());
+        assert!(set
+            .run_world_loaded(&mut world, &mut h.resources)
+            .is_empty());
         assert_eq!(h.bodies(), 0, "a content moment creates no handles");
 
         // The resource is still there and still inert — every site that
@@ -309,7 +324,11 @@ mod tests {
         set.add(GameplayPlugin);
         h.build(&mut set, None);
         assert!(set.failures().is_empty(), "{:?}", set.failures());
-        assert_eq!(h.schedule.system_count(), 5, "core anim stack + physics + gameplay");
+        assert_eq!(
+            h.schedule.system_count(),
+            5,
+            "core anim stack + physics + gameplay"
+        );
         let on_errors = h.schedule.validate();
         assert!(
             on_errors.is_empty(),
@@ -322,7 +341,10 @@ mod tests {
         let mut set = PluginSet::new();
         set.add(RapierPhysicsPlugin);
         set.add(GameplayPlugin);
-        h.build(&mut set, Some(&[PluginEntry::new(PHYSICS_RAPIER_ID, false)]));
+        h.build(
+            &mut set,
+            Some(&[PluginEntry::new(PHYSICS_RAPIER_ID, false)]),
+        );
 
         assert!(set.records().is_empty(), "neither plugin builds");
         assert_eq!(set.failures().len(), 1);

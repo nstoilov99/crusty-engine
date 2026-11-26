@@ -478,18 +478,13 @@ fn toolbar(
         ),
         CameraControlMode::Orbit => ("Orbit".to_string(), super::theme::asset_color("cameras")),
         CameraControlMode::Pan => ("Pan".to_string(), super::theme::asset_color("vfx")),
-        CameraControlMode::LookDrag => {
-            ("Look".to_string(), super::theme::asset_color("materials"))
-        }
+        CameraControlMode::LookDrag => ("Look".to_string(), super::theme::asset_color("materials")),
         CameraControlMode::None => return,
     };
     let font = 11.0 * s;
     let tw = ui.painter().measure_text(&text, font, None).x;
     ui.painter().text(
-        Pos2::new(
-            speed_x - 8.0 * s - tw,
-            rect.center().y - font * 1.25 * 0.5,
-        ),
+        Pos2::new(speed_x - 8.0 * s - tw, rect.center().y - font * 1.25 * 0.5),
         &text,
         font,
         color,
@@ -532,7 +527,8 @@ fn pill_button(
         ui.painter()
             .rect_stroke(rect, rounding, 1.0, style.palette.accent_active);
     } else if resp.hovered {
-        ui.painter().rect_filled(rect, rounding, style.palette.hover);
+        ui.painter()
+            .rect_filled(rect, rounding, style.palette.hover);
     }
 
     let tint = if selected {
@@ -801,7 +797,8 @@ fn camera_speed_button(
                 *camera_speed = (log_min + t * (log_max - log_min)).exp();
             }
         }
-        ui.painter().rect_filled(track, 2.0 * s, style.palette.header);
+        ui.painter()
+            .rect_filled(track, 2.0 * s, style.palette.header);
         let t = ((camera_speed.ln() - log_min) / (log_max - log_min)).clamp(0.0, 1.0);
         let handle_color = if resp.pressed {
             style.palette.accent_active

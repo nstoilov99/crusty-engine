@@ -78,7 +78,11 @@ impl PluginSet {
 
     /// Record a plugin id rename, so a manifest entry written against the old
     /// id keeps applying to the renamed plugin.
-    pub fn with_alias(&mut self, old_id: impl Into<String>, new_id: impl Into<String>) -> &mut Self {
+    pub fn with_alias(
+        &mut self,
+        old_id: impl Into<String>,
+        new_id: impl Into<String>,
+    ) -> &mut Self {
         self.aliases.insert(old_id.into(), new_id.into());
         self
     }
@@ -328,9 +332,10 @@ impl PluginSet {
         loop {
             // First remaining plugin (manifest order) whose in-set deps are done.
             let next = remaining.iter().position(|&i| {
-                manifests[i].depends_on.iter().all(|dep| {
-                    !position.contains_key(dep.as_str()) || done.contains(dep.as_str())
-                })
+                manifests[i]
+                    .depends_on
+                    .iter()
+                    .all(|dep| !position.contains_key(dep.as_str()) || done.contains(dep.as_str()))
             });
             match next {
                 Some(pos) => {

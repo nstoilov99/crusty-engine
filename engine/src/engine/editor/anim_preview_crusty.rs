@@ -53,15 +53,29 @@ pub struct PreviewPaneCtx<'a> {
 /// Without a drawable target the pane explains why in its centre instead of
 /// showing a broken pose. `id` salts the pane's widget ids per document.
 pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: PreviewPaneCtx) {
-    let PreviewPaneCtx { gpu, texture, status, chip, chip_sub, playing, time } = ctx;
+    let PreviewPaneCtx {
+        gpu,
+        texture,
+        status,
+        chip,
+        chip_sub,
+        playing,
+        time,
+    } = ctx;
     let st = ui.style();
     let pad = st.spacing.padding;
     ui.painter().rect_filled(rect, 0.0, PREVIEW_BG);
-    let bar = Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - PREVIEW_BAR_H * s), rect.max);
+    let bar = Rect::from_min_max(
+        Pos2::new(rect.min.x, rect.max.y - PREVIEW_BAR_H * s),
+        rect.max,
+    );
     let view = Rect::from_min_max(rect.min, Pos2::new(rect.max.x, bar.min.y));
     let mut gpu = gpu;
     if let Some(g) = gpu.as_deref_mut() {
-        g.size = (rect.width().floor().max(1.0) as u32, rect.height().floor().max(1.0) as u32);
+        g.size = (
+            rect.width().floor().max(1.0) as u32,
+            rect.height().floor().max(1.0) as u32,
+        );
     }
     let ready = status.is_none() && gpu.as_deref().is_some_and(|g| !g.mesh_indices.is_empty());
     let centre = rect.center();
@@ -71,8 +85,14 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
     let Some(tex) = texture.filter(|_| ready) else {
         let (msg, color) = match (status, ready) {
             (Some(why), _) => (why.to_string(), st.palette.text_secondary),
-            (None, true) => ("Rendering preview\u{2026}".to_string(), st.palette.text_disabled),
-            (None, false) => ("Loading preview\u{2026}".to_string(), st.palette.text_disabled),
+            (None, true) => (
+                "Rendering preview\u{2026}".to_string(),
+                st.palette.text_disabled,
+            ),
+            (None, false) => (
+                "Loading preview\u{2026}".to_string(),
+                st.palette.text_disabled,
+            ),
         };
         centred_text(ui, centre, &msg, st.fonts.body, color, msg_w);
         return;
@@ -84,7 +104,7 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
         tint: Color::WHITE,
         texture: tex,
     });
-    if let Some(g) = gpu.as_deref_mut() {
+    if let Some(g) = gpu {
         orbit_controls(ui, view, id.with("orbit"), g);
     }
 
@@ -102,7 +122,14 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
         let r = Rect::from_min_size(rect.min + Vec2::splat(pad), size);
         p.rect_filled(r, st.rounding.small, st.palette.elevated.with_alpha(0.85));
         let at = r.min + Vec2::splat(pad * 0.6);
-        p.text_family(at, &text, st.fonts.small, st.palette.text, Some(msg_w), FontFamily::Mono);
+        p.text_family(
+            at,
+            &text,
+            st.fonts.small,
+            st.palette.text,
+            Some(msg_w),
+            FontFamily::Mono,
+        );
         if let Some(sub) = &chip_sub {
             p.text_family(
                 Pos2::new(at.x, at.y + line_h),
@@ -116,7 +143,8 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
     }
 
     // Control bar: play/pause, the clock, the camera hint.
-    ui.painter().rect_filled(bar, 0.0, st.palette.panel.with_alpha(0.85));
+    ui.painter()
+        .rect_filled(bar, 0.0, st.palette.panel.with_alpha(0.85));
     let bh = (bar.height() - 6.0 * s).min(st.metrics.control_height);
     let mut clock_x = bar.min.x + pad;
     let mut bar_used = 0.0;
@@ -131,9 +159,16 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
             brect,
             Direction::LeftToRight,
             id.with("play"),
-            UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+            UiOptions {
+                padding: Vec2::ZERO,
+                spacing: 0.0,
+            },
             |ui| {
-                toggle = Button::new(glyph).exact_size(brect.size()).ghost().show(ui).clicked;
+                toggle = Button::new(glyph)
+                    .exact_size(brect.size())
+                    .ghost()
+                    .show(ui)
+                    .clicked;
             },
         );
         if toggle {
@@ -169,7 +204,13 @@ pub fn skinned_preview_pane(ui: &mut Ui, rect: Rect, s: f32, id: Id, ctx: Previe
 pub fn centred_text(ui: &mut Ui, centre: Pos2, text: &str, font: f32, color: Color, max_w: f32) {
     let mut p = ui.painter();
     let size = p.measure_text(text, font, Some(max_w));
-    p.text(Pos2::new(centre.x - size.x * 0.5, centre.y - size.y * 0.5), text, font, color, Some(max_w));
+    p.text(
+        Pos2::new(centre.x - size.x * 0.5, centre.y - size.y * 0.5),
+        text,
+        font,
+        color,
+        Some(max_w),
+    );
 }
 
 pub struct AnimPreviewPanelCtx<'a> {
@@ -186,7 +227,11 @@ pub struct AnimPreviewPanelCtx<'a> {
 /// a mirrored entity adds a `LIVE · name` line and hides play/pause, since
 /// the pose is the entity's to drive.
 pub fn anim_preview_panel(ui: &mut Ui, rect: Rect, ctx: AnimPreviewPanelCtx) {
-    let AnimPreviewPanelCtx { preview: pv, key, texture } = ctx;
+    let AnimPreviewPanelCtx {
+        preview: pv,
+        key,
+        texture,
+    } = ctx;
     pv.shown = true;
     let s = (ui.style().metrics.row_height / 22.0).max(0.1);
     let id = Id::new(("anim_preview_panel", key));
@@ -195,7 +240,11 @@ pub fn anim_preview_panel(ui: &mut Ui, rect: Rect, ctx: AnimPreviewPanelCtx) {
         None => stem(m),
     });
     let chip_sub = pv.mirror.as_ref().map(|m| {
-        let who = if m.name.is_empty() { "(unnamed)" } else { m.name.as_str() };
+        let who = if m.name.is_empty() {
+            "(unnamed)"
+        } else {
+            m.name.as_str()
+        };
         format!("LIVE \u{00B7} {who}")
     });
     let mirroring = pv.mirror.is_some();

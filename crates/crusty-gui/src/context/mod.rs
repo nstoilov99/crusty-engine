@@ -202,8 +202,7 @@ impl Context {
             || self.hovered_area.is_some()
             || self.memory.active_widget.is_some()
             || self.dnd.is_dragging();
-        let wants_pointer =
-            owns_pointer || self.memory.any_widget_contains(self.input.pointer_pos);
+        let wants_pointer = owns_pointer || self.memory.any_widget_contains(self.input.pointer_pos);
         let wants_keyboard = self.memory.focused_widget.is_some();
         self.memory.end_frame(8);
         self.inside_frame = false;
@@ -216,9 +215,7 @@ impl Context {
         // (order class, stacking counter); legacy overlay commands
         // (tooltips, combo dropdowns) render last → on very top.
         let mut layers = std::mem::take(&mut self.layers);
-        layers.sort_by_key(|(id, order, _)| {
-            (*order, self.memory.area(*id).map_or(0, |a| a.z))
-        });
+        layers.sort_by_key(|(id, order, _)| (*order, self.memory.area(*id).map_or(0, |a| a.z)));
         let overlay = std::mem::take(&mut self.overlay_paint);
         let mut paint = std::mem::take(&mut self.paint);
         for (_, _, cmds) in layers {

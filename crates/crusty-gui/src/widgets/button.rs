@@ -150,10 +150,18 @@ impl Button {
         mem.last_rect = rect;
         let target_hover = if hovered { 1.0 } else { 0.0 };
         let target_press = if pressed { 1.0 } else { 0.0 };
-        mem.hover_anim =
-            approach_half_life(mem.hover_anim, target_hover, dt, style.motion.hover_half_life);
-        mem.press_anim =
-            approach_half_life(mem.press_anim, target_press, dt, style.motion.press_half_life);
+        mem.hover_anim = approach_half_life(
+            mem.hover_anim,
+            target_hover,
+            dt,
+            style.motion.hover_half_life,
+        );
+        mem.press_anim = approach_half_life(
+            mem.press_anim,
+            target_press,
+            dt,
+            style.motion.press_half_life,
+        );
         let hover_anim = mem.hover_anim;
         let press_anim = mem.press_anim;
 
@@ -243,14 +251,13 @@ impl Button {
             .with_stroke(style.metrics.border, stroke);
         ui.ctx_mut().paint.push(PaintCmd::Rrect(shape));
 
-        let text_color = self.text_color.unwrap_or(if self.enabled
-            && self.variant == ButtonVariant::Ghost
-            && !self.toggled
-        {
-            lerp_color(c.text, p.text, hover_anim)
-        } else {
-            c.text
-        });
+        let text_color = self.text_color.unwrap_or(
+            if self.enabled && self.variant == ButtonVariant::Ghost && !self.toggled {
+                lerp_color(c.text, p.text, hover_anim)
+            } else {
+                c.text
+            },
+        );
         let text_pos = Pos2::new(
             rect.min.x + (rect.width() - text_size.x) * 0.5,
             rect.min.y + (rect.height() - text_size.y) * 0.5 + press_anim * 1.0,

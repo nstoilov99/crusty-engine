@@ -146,7 +146,11 @@ mod tests {
         assert!(
             issues.is_empty(),
             "WCAG AA failures:\n{}",
-            issues.iter().map(|i| format!("  {i}")).collect::<Vec<_>>().join("\n")
+            issues
+                .iter()
+                .map(|i| format!("  {i}"))
+                .collect::<Vec<_>>()
+                .join("\n")
         );
     }
 
@@ -155,7 +159,10 @@ mod tests {
         let base = EditorTheme::dark_default();
         assert_eq!(base.metrics.ui_scale, 1.0);
         assert_eq!(base.with_density(Density::Compact).metrics.ui_scale, 0.85);
-        assert_eq!(base.with_density(Density::Comfortable).metrics.ui_scale, 1.0);
+        assert_eq!(
+            base.with_density(Density::Comfortable).metrics.ui_scale,
+            1.0
+        );
         assert_eq!(base.with_density(Density::Spacious).metrics.ui_scale, 1.15);
         // Base tokens are untouched — scaling happens at the crusty seam.
         let compact = base.with_density(Density::Compact);
@@ -174,7 +181,13 @@ mod tests {
     #[test]
     fn state_color_returns_semantic() {
         let theme = EditorTheme::dark_default();
-        assert_eq!(theme.state_color(StateKind::Error), theme.palette.status.error);
-        assert_eq!(theme.state_color(StateKind::Success), theme.palette.status.success);
+        assert_eq!(
+            theme.state_color(StateKind::Error),
+            theme.palette.status.error
+        );
+        assert_eq!(
+            theme.state_color(StateKind::Success),
+            theme.palette.status.success
+        );
     }
 }

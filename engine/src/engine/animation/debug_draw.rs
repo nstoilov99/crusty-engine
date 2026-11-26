@@ -75,7 +75,12 @@ pub fn submit_ik_debug_draws(
                 .map(|h| h.point);
             let Some(t) = targets.targets.get(&chain.name) else {
                 if let Some(p) = held {
-                    cross_overlay(buffer, p.to_array(), IK_EFFECTOR_CROSS_SIZE, IK_EFFECTOR_COLOR);
+                    cross_overlay(
+                        buffer,
+                        p.to_array(),
+                        IK_EFFECTOR_CROSS_SIZE,
+                        IK_EFFECTOR_COLOR,
+                    );
                 }
                 continue;
             };

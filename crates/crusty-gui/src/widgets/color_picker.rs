@@ -153,10 +153,16 @@ impl<'a> ColorPicker<'a> {
         let pointer_pressed = ui.ctx().input.pointer_pressed;
         let pointer_pos = ui.ctx().input.pointer_pos;
         if hovered {
-            ui.ctx_mut().set_cursor_icon(crate::context::CursorIcon::Pointer);
+            ui.ctx_mut()
+                .set_cursor_icon(crate::context::CursorIcon::Pointer);
         }
 
-        let was_open = ui.ctx().memory.get(id).map(|m| m.bool_state).unwrap_or(false);
+        let was_open = ui
+            .ctx()
+            .memory
+            .get(id)
+            .map(|m| m.bool_state)
+            .unwrap_or(false);
         let mut is_open = was_open;
         if pointer_pressed && hovered {
             is_open = !is_open;
@@ -214,8 +220,7 @@ impl<'a> ColorPicker<'a> {
 
             // Grip drag (uses this frame's pre-layout position, so the
             // popup follows the pointer without a frame of lag).
-            let grip_rect =
-                Rect::from_min_size(popup_pos, Vec2::new(popup_w, GRIP_H));
+            let grip_rect = Rect::from_min_size(popup_pos, Vec2::new(popup_w, GRIP_H));
             // The grip lives on the popup's floating area (and may sit
             // outside the panel's clip), so hit-test in that context.
             let (saved_area, saved_clip) = (ui.area(), ui.clip_rect());
@@ -235,7 +240,9 @@ impl<'a> ColorPicker<'a> {
                 && grip_resp.hovered
                 && let Some(p) = pointer_pos
             {
-                ui.ctx_mut().memory.data_insert(grip_id, GripDrag { last: p });
+                ui.ctx_mut()
+                    .memory
+                    .data_insert(grip_id, GripDrag { last: p });
             }
             if grip_resp.pressed
                 && let Some(p) = pointer_pos
@@ -271,8 +278,7 @@ impl<'a> ColorPicker<'a> {
             }
 
             let body_pos = Pos2::new(popup_pos.x, popup_pos.y + GRIP_H);
-            let scratch_rect =
-                Rect::from_min_size(body_pos, Vec2::new(popup_w, 600.0));
+            let scratch_rect = Rect::from_min_size(body_pos, Vec2::new(popup_w, 600.0));
             let body_start_main = ui.ctx().paint.len();
 
             let used_h = {
@@ -295,26 +301,28 @@ impl<'a> ColorPicker<'a> {
             };
 
             let drained: Vec<PaintCmd> = ui.ctx_mut().paint.drain(body_start_main..).collect();
-            let popup_rect = Rect::from_min_size(
-                popup_pos,
-                Vec2::new(popup_w, GRIP_H + used_h + 16.0),
-            );
+            let popup_rect =
+                Rect::from_min_size(popup_pos, Vec2::new(popup_w, GRIP_H + used_h + 16.0));
             ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
                 RectShape::fill(
                     popup_rect,
                     style.rounding.panel,
-                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                    style
+                        .palette
+                        .elevated
+                        .with_alpha(style.palette.popover_alpha),
                 )
                 .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
             // Grip bar: darker strip with a centered drag handle.
-            let grip_rect =
-                Rect::from_min_size(popup_pos, Vec2::new(popup_w, GRIP_H));
-            ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(RectShape::fill(
-                grip_rect.shrink(1.0),
-                style.rounding.widget,
-                style.palette.active,
-            )));
+            let grip_rect = Rect::from_min_size(popup_pos, Vec2::new(popup_w, GRIP_H));
+            ui.ctx_mut()
+                .overlay_paint
+                .push(PaintCmd::Rrect(RectShape::fill(
+                    grip_rect.shrink(1.0),
+                    style.rounding.widget,
+                    style.palette.active,
+                )));
             let c = grip_rect.center();
             for dy in [-2.0, 2.0] {
                 ui.ctx_mut().overlay_paint.push(PaintCmd::Line {
@@ -326,17 +334,16 @@ impl<'a> ColorPicker<'a> {
             }
             ui.ctx_mut().overlay_paint.extend(drained);
 
-            let area = ui
-                .ctx_mut()
-                .memory
-                .area_entry(popup_area_id, popup_rect.min, Order::Tooltip);
+            let area =
+                ui.ctx_mut()
+                    .memory
+                    .area_entry(popup_area_id, popup_rect.min, Order::Tooltip);
             area.pos = popup_rect.min;
             area.size = popup_rect.size();
 
             // While the eyedropper is armed the popup must survive clicks
             // anywhere (that's the pick) and Esc (that's the cancel).
-            let dropper_armed =
-                self.eyedropper.as_deref().is_some_and(|e| e.active);
+            let dropper_armed = self.eyedropper.as_deref().is_some_and(|e| e.active);
 
             if ui.ctx().memory.popup_close_requested {
                 is_open = false;
@@ -357,7 +364,8 @@ impl<'a> ColorPicker<'a> {
             if let Some(eye) = self.eyedropper.as_deref_mut()
                 && eye.active
             {
-                ui.ctx_mut().set_cursor_icon(crate::context::CursorIcon::Crosshair);
+                ui.ctx_mut()
+                    .set_cursor_icon(crate::context::CursorIcon::Crosshair);
                 let esc = ui.ctx().input.key_pressed(Key::Escape);
                 let right = ui.ctx().input.right_pressed;
                 if eye.cancelled || esc || right {
@@ -365,8 +373,7 @@ impl<'a> ColorPicker<'a> {
                 } else if eye.picked {
                     if let Some([r, g, b]) = eye.center_color() {
                         let a = self.color.a;
-                        *self.color =
-                            Color::from_srgb_u8(r, g, b, 255).with_alpha(a);
+                        *self.color = Color::from_srgb_u8(r, g, b, 255).with_alpha(a);
                         hsv = derive_hsv(self.color.to_srgb_u8(), Some(hsv));
                     }
                     eye.active = false;
@@ -452,7 +459,10 @@ impl<'a> ColorPicker<'a> {
                 rect: bar,
                 rounding: Rounding::same(2.0),
                 fill: None,
-                stroke: Some(crate::paint::Stroke { width: 1.0, color: style.palette.stroke }),
+                stroke: Some(crate::paint::Stroke {
+                    width: 1.0,
+                    color: style.palette.stroke,
+                }),
                 shadow: None,
                 glow: None,
                 translucent: false,
@@ -493,7 +503,11 @@ impl<'a> ColorPicker<'a> {
                 vals[2].round() as u8,
                 255,
             );
-            c.a = if self.alpha { vals[3] / 255.0 } else { self.color.a };
+            c.a = if self.alpha {
+                vals[3] / 255.0
+            } else {
+                self.color.a
+            };
             *self.color = c;
             *hsv = derive_hsv(self.color.to_srgb_u8(), Some(*hsv));
         }
@@ -541,8 +555,7 @@ impl<'a> ColorPicker<'a> {
                     style.palette.stroke
                 };
                 ui.ctx_mut().paint.push(PaintCmd::Rrect(
-                    RectShape::fill(btn, Rounding::same(3.0), fill)
-                        .with_stroke(1.0, stroke),
+                    RectShape::fill(btn, Rounding::same(3.0), fill).with_stroke(1.0, stroke),
                 ));
                 if let Some(tex) = self.eyedropper_icon {
                     ui.ctx_mut().paint.push(PaintCmd::Image {
@@ -581,10 +594,7 @@ impl<'a> ColorPicker<'a> {
             let per_row = ((SV_W + CHIP_GAP) / (CHIP + CHIP_GAP)).floor() as usize;
             let count = swatches.len() + 1; // plus the save chip
             let rows = count.div_ceil(per_row);
-            let block = ui.allocate(Vec2::new(
-                SV_W,
-                rows as f32 * (CHIP + CHIP_GAP) - CHIP_GAP,
-            ));
+            let block = ui.allocate(Vec2::new(SV_W, rows as f32 * (CHIP + CHIP_GAP) - CHIP_GAP));
 
             let chip_rect = |i: usize| {
                 let (row, col) = (i / per_row, i % per_row);
@@ -645,8 +655,7 @@ impl<'a> ColorPicker<'a> {
                     style.palette.stroke
                 };
                 ui.ctx_mut().paint.push(PaintCmd::Rrect(
-                    RectShape::fill(rect, Rounding::same(3.0), *swatch)
-                        .with_stroke(1.0, stroke),
+                    RectShape::fill(rect, Rounding::same(3.0), *swatch).with_stroke(1.0, stroke),
                 ));
                 if resp.clicked {
                     apply = Some(*swatch);
@@ -656,7 +665,11 @@ impl<'a> ColorPicker<'a> {
                 }
             }
             if let Some(c) = apply {
-                *self.color = if self.alpha { c } else { c.with_alpha(self.color.a) };
+                *self.color = if self.alpha {
+                    c
+                } else {
+                    c.with_alpha(self.color.a)
+                };
                 *hsv = derive_hsv(self.color.to_srgb_u8(), Some(*hsv));
             }
             if let Some(i) = remove {
@@ -703,7 +716,10 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
         RectShape::fill(
             rect,
             style.rounding.panel,
-            style.palette.elevated.with_alpha(style.palette.popover_alpha),
+            style
+                .palette
+                .elevated
+                .with_alpha(style.palette.popover_alpha),
         )
         .with_stroke(style.metrics.border, style.palette.stroke_strong),
     ));
@@ -715,10 +731,7 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
             for i in 0..side {
                 let [r, g, b] = eye.patch[j * side + i];
                 let cell = Rect::from_min_size(
-                    Pos2::new(
-                        grid_min.x + i as f32 * CELL,
-                        grid_min.y + j as f32 * CELL,
-                    ),
+                    Pos2::new(grid_min.x + i as f32 * CELL, grid_min.y + j as f32 * CELL),
                     Vec2::splat(CELL),
                 );
                 paint.push(PaintCmd::Rect {
@@ -733,9 +746,7 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
             Pos2::new(grid_min.x + c * CELL, grid_min.y + c * CELL),
             Vec2::splat(CELL),
         );
-        for (grow, color) in
-            [(1.0, Color::rgba(0.0, 0.0, 0.0, 0.8)), (0.0, Color::WHITE)]
-        {
+        for (grow, color) in [(1.0, Color::rgba(0.0, 0.0, 0.0, 0.8)), (0.0, Color::WHITE)] {
             paint.push(PaintCmd::Rrect(RectShape {
                 rect: Rect {
                     min: Pos2::new(center.min.x - grow, center.min.y - grow),
@@ -758,12 +769,8 @@ fn paint_magnifier(ui: &mut Ui, eye: &EyedropperState, pointer: Pos2) {
             Vec2::splat(14.0),
         );
         ui.ctx_mut().overlay_paint.push(PaintCmd::Rrect(
-            RectShape::fill(
-                sw,
-                Rounding::same(3.0),
-                Color::from_srgb_u8(r, g, b, 255),
-            )
-            .with_stroke(1.0, style.palette.stroke),
+            RectShape::fill(sw, Rounding::same(3.0), Color::from_srgb_u8(r, g, b, 255))
+                .with_stroke(1.0, style.palette.stroke),
         ));
         let hex = format!("#{:02X}{:02X}{:02X}", r, g, b);
         let font = style.fonts.small;
@@ -806,7 +813,12 @@ fn derive_hsv(srgb: [u8; 4], prev: Option<PickerHsv>) -> PickerHsv {
         s = p.s;
         h = p.h;
     }
-    PickerHsv { h, s, v, srgb: [srgb[0], srgb[1], srgb[2]] }
+    PickerHsv {
+        h,
+        s,
+        v,
+        srgb: [srgb[0], srgb[1], srgb[2]],
+    }
 }
 
 fn hsv_to_color(h: f32, s: f32, v: f32) -> Color {
@@ -834,7 +846,10 @@ fn hsv_to_color(h: f32, s: f32, v: f32) -> Color {
 
 fn format_hex(srgb: [u8; 4], alpha: bool) -> String {
     if alpha {
-        format!("#{:02X}{:02X}{:02X}{:02X}", srgb[0], srgb[1], srgb[2], srgb[3])
+        format!(
+            "#{:02X}{:02X}{:02X}{:02X}",
+            srgb[0], srgb[1], srgb[2], srgb[3]
+        )
     } else {
         format!("#{:02X}{:02X}{:02X}", srgb[0], srgb[1], srgb[2])
     }

@@ -152,7 +152,11 @@ impl LayoutOpts<'_> {
 
 /// Single source of truth for a tab's width.
 fn tab_width(text: &mut TextRenderer, title: &str, font: f32, opts: &LayoutOpts) -> f32 {
-    let close_w = if opts.close_buttons { CLOSE_BUTTON_W } else { 0.0 };
+    let close_w = if opts.close_buttons {
+        CLOSE_BUTTON_W
+    } else {
+        0.0
+    };
     (text.measure(title, font, None).x + 18.0 + close_w).max(opts.min_tab_width)
 }
 
@@ -214,11 +218,7 @@ impl<'a> DockArea<'a> {
 
     /// Tabs with unsaved changes: each shows a 5px dot (in `dirty_color`)
     /// in its close-button slot, swapping back to × while hovered.
-    pub fn dirty_tabs(
-        mut self,
-        tabs: &'a std::collections::HashSet<TabId>,
-        color: Color,
-    ) -> Self {
+    pub fn dirty_tabs(mut self, tabs: &'a std::collections::HashSet<TabId>, color: Color) -> Self {
         self.dirty_tabs = Some(tabs);
         self.dirty_color = color;
         self
@@ -270,9 +270,7 @@ impl<'a> DockArea<'a> {
 
         let opts = LayoutOpts {
             titles: self.titles,
-            tab_bar_h: self
-                .tab_bar_height
-                .unwrap_or(ctx.style.fonts.body + 10.0),
+            tab_bar_h: self.tab_bar_height.unwrap_or(ctx.style.fonts.body + 10.0),
             min_tab_width: self.min_tab_width,
             close_buttons: self.show_close_buttons,
             dirty_tabs: self.dirty_tabs,
@@ -308,7 +306,14 @@ impl<'a> DockArea<'a> {
         //    (browser-style) and records `home_bar`.
         let dock_root = Id::ROOT.with("dock");
         show_node(
-            self.root, rect, ctx, text, &mut f, dock_root, self.state, &opts,
+            self.root,
+            rect,
+            ctx,
+            text,
+            &mut f,
+            dock_root,
+            self.state,
+            &opts,
             &mut response,
         );
 
@@ -318,16 +323,16 @@ impl<'a> DockArea<'a> {
         //    rearranges tabs and a drag away detaches — like a browser.
         if let Some(drag) = self.state.drag.as_ref()
             && drag.activated
-                && !drag.home_bar
-                && (count_tabs(self.root) > 1 || self.lone_tearoff)
-            {
-                let tab = drag.tab_id.clone();
-                let pointer = drag.pointer_now;
-                if remove_tab(self.root, &tab) {
-                    response.detached = Some(DetachedTab { tab, pointer });
-                }
-                self.state.drag = None;
+            && !drag.home_bar
+            && (count_tabs(self.root) > 1 || self.lone_tearoff)
+        {
+            let tab = drag.tab_id.clone();
+            let pointer = drag.pointer_now;
+            if remove_tab(self.root, &tab) {
+                response.detached = Some(DetachedTab { tab, pointer });
             }
+            self.state.drag = None;
+        }
 
         // ── External drag (a torn-off panel dragged back over us): light
         //    up drop zones at the translated cursor and re-dock on release.
@@ -363,7 +368,13 @@ impl<'a> DockArea<'a> {
                 render_drop_preview(ctx, &candidate);
                 if ext.ghost {
                     render_external_decorator(
-                        ctx, text, &ext.tab_id, ext.pointer, ext.grab, &mut f, &opts,
+                        ctx,
+                        text,
+                        &ext.tab_id,
+                        ext.pointer,
+                        ext.grab,
+                        &mut f,
+                        &opts,
                     );
                 }
                 render_compass(ctx, &candidate);
@@ -464,8 +475,7 @@ fn locate_leaf(node: &DockNode, rect: Rect, p: Pos2) -> Option<(TabId, Rect)> {
         }
         DockNode::Split(split) => {
             let (rect_a, rect_b, _) = compute_split(rect, split.direction, split.ratio);
-            locate_leaf(&split.first, rect_a, p)
-                .or_else(|| locate_leaf(&split.second, rect_b, p))
+            locate_leaf(&split.first, rect_a, p).or_else(|| locate_leaf(&split.second, rect_b, p))
         }
     }
 }
@@ -486,8 +496,7 @@ fn show_node<F>(
 {
     match node {
         DockNode::Split(split) => {
-            let (rect_a, rect_b, splitter_rect) =
-                compute_split(rect, split.direction, split.ratio);
+            let (rect_a, rect_b, splitter_rect) = compute_split(rect, split.direction, split.ratio);
             let splitter_id = node_id.with("splitter");
             handle_splitter_drag(
                 ctx,
@@ -500,11 +509,25 @@ fn show_node<F>(
             draw_splitter(ctx, splitter_rect, splitter_id);
 
             show_node(
-                &mut split.first, rect_a, ctx, text, f, node_id.with(0), state, opts,
+                &mut split.first,
+                rect_a,
+                ctx,
+                text,
+                f,
+                node_id.with(0),
+                state,
+                opts,
                 response,
             );
             show_node(
-                &mut split.second, rect_b, ctx, text, f, node_id.with(1), state, opts,
+                &mut split.second,
+                rect_b,
+                ctx,
+                text,
+                f,
+                node_id.with(1),
+                state,
+                opts,
                 response,
             );
         }
@@ -531,7 +554,11 @@ fn show_leaf<F>(
     let style = ctx.style;
     // A hidden strip gives its row back to the content; the corner triangle
     // (drawn over the content below) is the whole restore affordance.
-    let tab_bar_h = if leaf.tabs_hidden { 0.0 } else { opts.tab_bar_h };
+    let tab_bar_h = if leaf.tabs_hidden {
+        0.0
+    } else {
+        opts.tab_bar_h
+    };
 
     // Panel background.
     let panel_shape = RectShape::fill(rect, style.rounding.panel, style.palette.panel)
@@ -550,7 +577,13 @@ fn show_leaf<F>(
         // width can't bleed sideways over the adjacent panel.
         ctx.paint.push(PaintCmd::PushClip(tab_bar_rect));
         draw_tabs(
-            ctx, text, tab_bar_rect, &mut leaf.tabs, &mut leaf.active, state, opts,
+            ctx,
+            text,
+            tab_bar_rect,
+            &mut leaf.tabs,
+            &mut leaf.active,
+            state,
+            opts,
             response,
         );
         ctx.paint.push(PaintCmd::PopClip);
@@ -563,10 +596,7 @@ fn show_leaf<F>(
     if ctx.input.pointer_pressed && ctx.pointer_over(None, rect) {
         state.focused_tab = Some(active_tab.clone());
     }
-    let content_rect = Rect::from_min_max(
-        Pos2::new(rect.min.x, rect.min.y + tab_bar_h),
-        rect.max,
-    );
+    let content_rect = Rect::from_min_max(Pos2::new(rect.min.x, rect.min.y + tab_bar_h), rect.max);
     let leaf_root_id = node_id.with("leaf").with(&active_tab);
     let opts = UiOptions {
         padding: Vec2::splat(style.spacing.padding),
@@ -577,7 +607,14 @@ fn show_leaf<F>(
     // (set to `content_rect` by `with_root`) handles hit testing; this clip
     // handles paint.
     ctx.paint.push(PaintCmd::PushClip(content_rect));
-    let mut ui = Ui::with_root(ctx, text, content_rect, Direction::TopDown, opts, leaf_root_id);
+    let mut ui = Ui::with_root(
+        ctx,
+        text,
+        content_rect,
+        Direction::TopDown,
+        opts,
+        leaf_root_id,
+    );
     f(&mut ui, &active_tab);
     if leaf.tabs_hidden {
         show_tabs_triangle(&mut ui, node_id, rect, &mut leaf.tabs_hidden);
@@ -660,17 +697,19 @@ fn handle_splitter_drag(
             SplitDirection::Vertical => CursorIcon::ResizeNs,
         });
     }
-    if is_active && pointer_down
-        && let Some(p) = ctx.input.pointer_pos {
-            *ratio = match dir {
-                SplitDirection::Horizontal => {
-                    ((p.x - parent_rect.min.x) / parent_rect.width()).clamp(0.05, 0.95)
-                }
-                SplitDirection::Vertical => {
-                    ((p.y - parent_rect.min.y) / parent_rect.height()).clamp(0.05, 0.95)
-                }
-            };
-        }
+    if is_active
+        && pointer_down
+        && let Some(p) = ctx.input.pointer_pos
+    {
+        *ratio = match dir {
+            SplitDirection::Horizontal => {
+                ((p.x - parent_rect.min.x) / parent_rect.width()).clamp(0.05, 0.95)
+            }
+            SplitDirection::Vertical => {
+                ((p.y - parent_rect.min.y) / parent_rect.height()).clamp(0.05, 0.95)
+            }
+        };
+    }
 }
 
 fn draw_splitter(ctx: &mut Context, splitter_rect: Rect, splitter_id: Id) {
@@ -712,32 +751,33 @@ fn draw_tabs(
         .filter(|d| d.activated)
         .map(|d| d.tab_id.clone());
     if let Some(dtab) = drag_tab
-        && let Some(from) = tabs.iter().position(|t| *t == dtab) {
-            let in_bar = ctx
-                .input
-                .pointer_pos
-                .is_some_and(|p| tab_bar_rect.contains(p));
-            if let Some(drag) = state.drag.as_mut() {
-                drag.home_bar = in_bar;
-            }
-            if let (true, Some(px)) = (in_bar, ctx.input.pointer_pos.map(|p| p.x)) {
-                let mut cx = tab_bar_rect.min.x + 6.0;
-                let mut to = tabs.len() - 1;
-                for (i, tab) in tabs.iter().enumerate() {
-                    let w = tab_width(text, opts.title(tab), style.fonts.body, opts);
-                    if px < cx + w * 0.5 {
-                        to = i;
-                        break;
-                    }
-                    cx += w + 4.0;
-                }
-                if to != from {
-                    let t = tabs.remove(from);
-                    tabs.insert(to, t);
-                }
-                *active = to;
-            }
+        && let Some(from) = tabs.iter().position(|t| *t == dtab)
+    {
+        let in_bar = ctx
+            .input
+            .pointer_pos
+            .is_some_and(|p| tab_bar_rect.contains(p));
+        if let Some(drag) = state.drag.as_mut() {
+            drag.home_bar = in_bar;
         }
+        if let (true, Some(px)) = (in_bar, ctx.input.pointer_pos.map(|p| p.x)) {
+            let mut cx = tab_bar_rect.min.x + 6.0;
+            let mut to = tabs.len() - 1;
+            for (i, tab) in tabs.iter().enumerate() {
+                let w = tab_width(text, opts.title(tab), style.fonts.body, opts);
+                if px < cx + w * 0.5 {
+                    to = i;
+                    break;
+                }
+                cx += w + 4.0;
+            }
+            if to != from {
+                let t = tabs.remove(from);
+                tabs.insert(to, t);
+            }
+            *active = to;
+        }
+    }
 
     let mut x = tab_bar_rect.min.x + 6.0;
     let bar_h = tab_bar_rect.height();
@@ -861,24 +901,31 @@ fn draw_tabs(
 
         // Start a drag on press (don't switch yet — switching happens
         // on release without movement).
-        if ctx.input.pointer_pressed && hovered && !over_close && state.drag.is_none()
-            && let Some(p) = ctx.input.pointer_pos {
-                state.drag = Some(DragState {
-                    tab_id: tab.clone(),
-                    pointer_start: p,
-                    pointer_now: p,
-                    activated: false,
-                    home_bar: false,
-                });
-            }
+        if ctx.input.pointer_pressed
+            && hovered
+            && !over_close
+            && state.drag.is_none()
+            && let Some(p) = ctx.input.pointer_pos
+        {
+            state.drag = Some(DragState {
+                tab_id: tab.clone(),
+                pointer_start: p,
+                pointer_now: p,
+                activated: false,
+                home_bar: false,
+            });
+        }
 
         // Click without drag = switch active tab (and focus it).
-        if ctx.input.pointer_released && hovered
+        if ctx.input.pointer_released
+            && hovered
             && let Some(drag) = state.drag.as_ref()
-                && !drag.activated && drag.tab_id == *tab {
-                    *active = i;
-                    state.focused_tab = Some(tab.clone());
-                }
+            && !drag.activated
+            && drag.tab_id == *tab
+        {
+            *active = i;
+            state.focused_tab = Some(tab.clone());
+        }
 
         x += tab_w + 4.0;
     }
@@ -983,8 +1030,7 @@ fn render_compass(ctx: &mut Context, candidate: &DropCandidate) {
             (1.0, style.palette.stroke)
         };
         ctx.paint.push(PaintCmd::Rrect(
-            RectShape::fill(btn_rect, style.rounding.small, fill)
-                .with_stroke(stroke_w, stroke),
+            RectShape::fill(btn_rect, style.rounding.small, fill).with_stroke(stroke_w, stroke),
         ));
         draw_compass_icon(ctx, btn_rect, zone, is_active);
     }
@@ -1007,8 +1053,11 @@ fn draw_compass_icon(ctx: &mut Context, btn_rect: Rect, zone: DropZone, active: 
             .with_stroke(1.0, ink.with_alpha(0.35)),
     ));
     let bar = Rect::from_min_size(icon.min, Vec2::new(icon.width(), 4.0));
-    ctx.paint
-        .push(PaintCmd::Rrect(RectShape::fill(bar, Rounding::same(1.0), ink)));
+    ctx.paint.push(PaintCmd::Rrect(RectShape::fill(
+        bar,
+        Rounding::same(1.0),
+        ink,
+    )));
 
     // Dashed split preview through the window body.
     let body = Rect::from_min_max(Pos2::new(icon.min.x, bar.max.y), icon.max);
@@ -1037,7 +1086,11 @@ fn dashed_line(ctx: &mut Context, from: Pos2, to: Pos2, color: Color) {
     const GAP: f32 = 2.5;
     const THICK: f32 = 1.5;
     let horizontal = (to.y - from.y).abs() < 0.5;
-    let len = if horizontal { to.x - from.x } else { to.y - from.y };
+    let len = if horizontal {
+        to.x - from.x
+    } else {
+        to.y - from.y
+    };
     let mut t = 0.0;
     while t < len {
         let seg = DASH.min(len - t);
@@ -1111,17 +1164,20 @@ fn render_external_decorator<F>(
     );
 
     // The panel's real content, clipped to the card body.
-    let content_rect = Rect::from_min_max(
-        Pos2::new(rect.min.x, rect.min.y + tab_bar_h),
-        rect.max,
-    );
+    let content_rect = Rect::from_min_max(Pos2::new(rect.min.x, rect.min.y + tab_bar_h), rect.max);
     ctx.paint.push(PaintCmd::PushClip(content_rect));
     let opts = UiOptions {
         padding: Vec2::splat(style.spacing.padding),
         spacing: style.spacing.item,
     };
-    let mut ui =
-        Ui::with_root(ctx, text, content_rect, Direction::TopDown, opts, Id::ROOT.with("dock_ghost"));
+    let mut ui = Ui::with_root(
+        ctx,
+        text,
+        content_rect,
+        Direction::TopDown,
+        opts,
+        Id::ROOT.with("dock_ghost"),
+    );
     f(&mut ui, tab_id);
     ctx.paint.push(PaintCmd::PopClip);
 
@@ -1209,15 +1265,9 @@ fn is_empty_leaf(n: &DockNode) -> bool {
 fn collapse_to(node: &mut DockNode, first_emptied: bool) {
     if let DockNode::Split(s) = node {
         let survivor = if first_emptied {
-            std::mem::replace(
-                &mut *s.second,
-                DockNode::Leaf(Leaf::new(vec![], 0)),
-            )
+            std::mem::replace(&mut *s.second, DockNode::Leaf(Leaf::new(vec![], 0)))
         } else {
-            std::mem::replace(
-                &mut *s.first,
-                DockNode::Leaf(Leaf::new(vec![], 0)),
-            )
+            std::mem::replace(&mut *s.first, DockNode::Leaf(Leaf::new(vec![], 0)))
         };
         *node = survivor;
     }
@@ -1245,9 +1295,10 @@ fn insert_at(
             // recurse first
             {
                 if let DockNode::Split(s) = node
-                    && insert_at(&mut s.first, anchor, dragged, zone, at) {
-                        return true;
-                    }
+                    && insert_at(&mut s.first, anchor, dragged, zone, at)
+                {
+                    return true;
+                }
             }
             if let DockNode::Split(s) = node {
                 insert_at(&mut s.second, anchor, dragged, zone, at)
@@ -1276,10 +1327,7 @@ fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone, at: Option<usi
             // Wrap the existing leaf in a new Split, with the dragged
             // tab on the appropriate side.
             let dragged_leaf = DockNode::Leaf(Leaf::new(vec![dragged.to_string()], 0));
-            let existing = std::mem::replace(
-                node,
-                DockNode::Leaf(Leaf::new(vec![], 0)),
-            );
+            let existing = std::mem::replace(node, DockNode::Leaf(Leaf::new(vec![], 0)));
             *node = match zone {
                 DropZone::North => DockNode::split_v(0.5, dragged_leaf, existing),
                 DropZone::South => DockNode::split_v(0.5, existing, dragged_leaf),
@@ -1295,9 +1343,7 @@ fn apply_zone(node: &mut DockNode, dragged: &str, zone: DropZone, at: Option<usi
 fn find_leaf<'a>(node: &'a DockNode, anchor: &str) -> Option<&'a Leaf> {
     match node {
         DockNode::Leaf(leaf) => leaf.tabs.iter().any(|t| t == anchor).then_some(leaf),
-        DockNode::Split(s) => {
-            find_leaf(&s.first, anchor).or_else(|| find_leaf(&s.second, anchor))
-        }
+        DockNode::Split(s) => find_leaf(&s.first, anchor).or_else(|| find_leaf(&s.second, anchor)),
     }
 }
 

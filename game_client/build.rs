@@ -21,7 +21,11 @@ fn main() {
     let git_hash = match git(&["rev-parse", "--short", "HEAD"]).filter(|h| !h.is_empty()) {
         Some(hash) => {
             let dirty = git(&["status", "--porcelain"]).is_some_and(|s| !s.is_empty());
-            if dirty { format!("{hash}-dirty") } else { hash }
+            if dirty {
+                format!("{hash}-dirty")
+            } else {
+                hash
+            }
         }
         None => "unknown".to_string(),
     };

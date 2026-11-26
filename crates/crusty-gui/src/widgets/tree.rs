@@ -90,11 +90,7 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
         self
     }
 
-    pub fn show<R>(
-        self,
-        ui: &mut Ui,
-        body: impl FnOnce(&mut Ui, &mut T) -> R,
-    ) -> Response {
+    pub fn show<R>(self, ui: &mut Ui, body: impl FnOnce(&mut Ui, &mut T) -> R) -> Response {
         self.show_dnd(ui, body).response
     }
 
@@ -282,12 +278,8 @@ impl<'a, T: PartialEq + Copy + 'static> TreeNode<'a, T> {
                     accent,
                 )),
                 TreeDropPos::Into => PaintCmd::Rrect(
-                    RectShape::fill(
-                        row_rect,
-                        style.rounding.small,
-                        style.palette.accent_soft,
-                    )
-                    .with_stroke(1.5, accent),
+                    RectShape::fill(row_rect, style.rounding.small, style.palette.accent_soft)
+                        .with_stroke(1.5, accent),
                 ),
             };
             ui.ctx_mut().paint.push(indicator);

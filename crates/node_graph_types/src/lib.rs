@@ -33,18 +33,17 @@ pub mod validate;
 pub use descriptors::{DocDescriptors, NodeKind};
 pub use doc::{
     CommentBox, Edge, GraphDoc, GraphRealm, GraphRegion, GroupBox, IfacePin, NodeInst, NodeRealm,
-    PinType, PropValue, VarDecl, COMMENT_FONT_SCALE_MAX, COMMENT_FONT_SCALE_MIN,
-    GRAPH_DOC_VERSION,
+    PinType, PropValue, VarDecl, COMMENT_FONT_SCALE_MAX, COMMENT_FONT_SCALE_MIN, GRAPH_DOC_VERSION,
 };
 pub use io::{load_graph, parse_graph, save_graph, serialize_graph, GraphIoError};
 pub use migrate::{migrate_doc, MigrationCtx, MigrationError, MigrationRecord};
 pub use registry::{
     MergeReport, MigrationFn, NodeDescriptor, NodeRegistry, PinDescriptor, PreviewKind,
-    RegistryError, StagedRegistry, EXEC_IN_PIN, EXEC_OUT_PIN, GRAPH_INPUT_TYPE_ID,
-    GRAPH_OUTPUT_TYPE_ID, RESERVED_TYPE_IDS, REROUTE_IN, REROUTE_OUT, REROUTE_TYPE_ID,
-    SUBGRAPH_TYPE_ID, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN, CURVE_PROP,
-    TIMELINE_FINISHED_PIN, TIMELINE_PLAY_PIN, TIMELINE_REVERSE_PIN, TIMELINE_STOP_PIN,
-    TIMELINE_TYPE_ID, TIMELINE_UPDATE_PIN,
+    RegistryError, StagedRegistry, CURVE_PROP, EXEC_IN_PIN, EXEC_OUT_PIN, GRAPH_INPUT_TYPE_ID,
+    GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_OUT, REROUTE_TYPE_ID, RESERVED_TYPE_IDS,
+    SUBGRAPH_TYPE_ID, TIMELINE_FINISHED_PIN, TIMELINE_PLAY_PIN, TIMELINE_REVERSE_PIN,
+    TIMELINE_STOP_PIN, TIMELINE_TYPE_ID, TIMELINE_UPDATE_PIN, VAR_GET_TYPE_ID, VAR_PROP,
+    VAR_SET_TYPE_ID, VAR_VALUE_PIN,
 };
 pub use resolver::{referencing_hosts, validate_refs, CurveResolver, GraphResolver};
 
@@ -53,8 +52,8 @@ pub use resolver::{referencing_hosts, validate_refs, CurveResolver, GraphResolve
 pub use curve_asset;
 pub use std_events::{
     register_std_events, std_event_descriptors, EventPhase, EVENT_ACTION_PROP,
-    EVENT_BEGIN_PLAY_TYPE_ID, EVENT_CUSTOM_TYPE_ID, EVENT_DRAIN_ORDER,
-    EVENT_INPUT_ACTION_TYPE_ID, EVENT_NAME_PROP, EVENT_PAYLOAD_PREFIX, EVENT_TICK_TYPE_ID,
+    EVENT_BEGIN_PLAY_TYPE_ID, EVENT_CUSTOM_TYPE_ID, EVENT_DRAIN_ORDER, EVENT_INPUT_ACTION_TYPE_ID,
+    EVENT_NAME_PROP, EVENT_PAYLOAD_PREFIX, EVENT_TICK_TYPE_ID,
 };
 pub use std_nodes::{register_std_nodes, std_node_descriptors, COMPARE_OPS, SEQUENCE_PINS};
 pub use validate::{

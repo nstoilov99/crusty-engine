@@ -191,10 +191,8 @@ impl<'a> DragValue<'a> {
         } else {
             0.0
         };
-        let minus_rect = crate::math::Rect::from_min_size(
-            rect.min,
-            Vec2::new(cap_w, rect.height()),
-        );
+        let minus_rect =
+            crate::math::Rect::from_min_size(rect.min, Vec2::new(cap_w, rect.height()));
         let plus_rect = crate::math::Rect::from_min_size(
             Pos2::new(rect.max.x - cap_w, rect.min.y),
             Vec2::new(cap_w, rect.height()),
@@ -211,15 +209,18 @@ impl<'a> DragValue<'a> {
             }
         }
 
-        let hovered =
-            ui.contains_pointer(rect) && !over_minus && !over_plus;
+        let hovered = ui.contains_pointer(rect) && !over_minus && !over_plus;
 
         if pointer_pressed && hovered {
             ui.ctx_mut().memory.active_widget = Some(id);
             if let Some(p) = pointer_pos {
-                ui.ctx_mut()
-                    .memory
-                    .data_insert(id, DragState { last_x: p.x, total_dx: 0.0 });
+                ui.ctx_mut().memory.data_insert(
+                    id,
+                    DragState {
+                        last_x: p.x,
+                        total_dx: 0.0,
+                    },
+                );
             }
         }
         let is_active = ui.ctx().memory.active_widget == Some(id);
@@ -230,9 +231,7 @@ impl<'a> DragValue<'a> {
         // click that opens edit mode.
         const DRAG_DEAD_ZONE: f32 = 3.0;
         let mut scrubbing = false;
-        if pressed
-            && let Some(p) = pointer_pos
-        {
+        if pressed && let Some(p) = pointer_pos {
             let mut delta = 0.0;
             if let Some(st) = ui.ctx_mut().memory.data_get_mut::<DragState>(id) {
                 let dx = p.x - st.last_x;
@@ -315,7 +314,11 @@ impl<'a> DragValue<'a> {
         let stroke = if focused {
             style.palette.focus_ring
         } else {
-            lerp_color(style.palette.stroke, style.palette.stroke_strong, hover_anim)
+            lerp_color(
+                style.palette.stroke,
+                style.palette.stroke_strong,
+                hover_anim,
+            )
         };
         let shape = RectShape::fill(rect, style.rounding.widget, fill)
             .with_stroke(style.metrics.border, stroke);
@@ -366,8 +369,7 @@ impl<'a> DragValue<'a> {
         }
 
         if cap_w > 0.0 {
-            for (cap, over, glyph) in
-                [(minus_rect, over_minus, "−"), (plus_rect, over_plus, "+")]
+            for (cap, over, glyph) in [(minus_rect, over_minus, "−"), (plus_rect, over_plus, "+")]
             {
                 let cap = cap.shrink(1.0);
                 let cap_fill = if over {
@@ -380,12 +382,9 @@ impl<'a> DragValue<'a> {
                     style.rounding.small,
                     cap_fill,
                 )));
-                let gsize = ui.text_mut().measure_family(
-                    glyph,
-                    font,
-                    None,
-                    crate::text::FontFamily::Mono,
-                );
+                let gsize =
+                    ui.text_mut()
+                        .measure_family(glyph, font, None, crate::text::FontFamily::Mono);
                 let gpos = Pos2::new(
                     cap.min.x + (cap.width() - gsize.x) * 0.5,
                     cap.min.y + (cap.height() - gsize.y) * 0.5,
@@ -454,7 +453,10 @@ fn format_value(v: f32, min_decimals: usize, max_decimals: usize, suffix: &str) 
         }
     }
     let mut s = s.unwrap_or_else(|| format!("{v:.max_decimals$}"));
-    if s.trim_start_matches('-').chars().all(|c| c == '0' || c == '.') {
+    if s.trim_start_matches('-')
+        .chars()
+        .all(|c| c == '0' || c == '.')
+    {
         s = s.trim_start_matches('-').to_string();
     }
     s.push_str(suffix);

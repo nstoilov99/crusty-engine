@@ -187,8 +187,9 @@ impl<'exec> RenderGraph<'exec> {
 
             #[cfg_attr(not(debug_assertions), allow(unused_mut))]
             let mut ctx = PassContext::new(builder, resources);
-            exec(&mut ctx)
-                .map_err(|e| RenderError::Graph(format!("render graph: pass '{name}' failed: {e}")))?;
+            exec(&mut ctx).map_err(|e| {
+                RenderError::Graph(format!("render graph: pass '{name}' failed: {e}"))
+            })?;
 
             #[cfg(debug_assertions)]
             Self::check_touches(&passes[idx], &ctx, resources)?;

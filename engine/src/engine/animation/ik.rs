@@ -64,13 +64,7 @@ pub fn bend_direction(root: Vec3, mid: Vec3, tip: Vec3, min_offset: f32) -> Opti
 ///   axis); a perfectly straight chain falls back to an arbitrary but
 ///   deterministic perpendicular (`Vec3::any_orthonormal_vector`).
 /// - **Zero-length bone**: returned unchanged (nothing to solve).
-pub fn solve_two_bone(
-    root: Mat4,
-    mid: Mat4,
-    tip: Mat4,
-    target: Vec3,
-    pole: Vec3,
-) -> (Mat4, Mat4) {
+pub fn solve_two_bone(root: Mat4, mid: Mat4, tip: Mat4, target: Vec3, pole: Vec3) -> (Mat4, Mat4) {
     let (root_s, root_r, a) = root.to_scale_rotation_translation();
     let (mid_s, mid_r, b) = mid.to_scale_rotation_translation();
     let c = tip.to_scale_rotation_translation().2;
@@ -89,10 +83,7 @@ pub fn solve_two_bone(
         .or_else(|| (c - a).try_normalize())
         .unwrap_or(Vec3::X);
     // Reach clamp (see the doc comment's edge cases).
-    let d = to_target
-        .length()
-        .clamp((l1 - l2).abs(), l1 + l2)
-        .max(EPS);
+    let d = to_target.length().clamp((l1 - l2).abs(), l1 + l2).max(EPS);
     // Bend plane: pole rejected off the aim axis, with the documented
     // fallbacks for a degenerate pole.
     let bend = reject(pole - a, n)
@@ -259,8 +250,16 @@ mod tests {
         let target = Vec3::new(0.0, 1.8, 0.0);
         let (_, mid_px) = solve_two_bone(root, mid, tip, target, Vec3::new(5.0, 0.0, 0.0));
         let (_, mid_nx) = solve_two_bone(root, mid, tip, target, Vec3::new(-5.0, 0.0, 0.0));
-        assert!(pos(mid_px).x > 0.1, "+X pole bends toward +X: {}", pos(mid_px));
-        assert!(pos(mid_nx).x < -0.1, "-X pole bends toward -X: {}", pos(mid_nx));
+        assert!(
+            pos(mid_px).x > 0.1,
+            "+X pole bends toward +X: {}",
+            pos(mid_px)
+        );
+        assert!(
+            pos(mid_nx).x < -0.1,
+            "-X pole bends toward -X: {}",
+            pos(mid_nx)
+        );
         // Both still reach.
         assert!((tip_after(mid, tip, mid_px) - target).length() < 1e-4);
         assert!((tip_after(mid, tip, mid_nx) - target).length() < 1e-4);
@@ -275,7 +274,11 @@ mod tests {
         let tip = Mat4::from_translation(Vec3::new(0.0, 2.0, 0.0));
         let target = Vec3::new(0.0, 1.8, 0.0);
         let (_, mid2) = solve_two_bone(root, mid, tip, target, Vec3::new(0.0, 7.0, 0.0));
-        assert!(pos(mid2).x > 0.05, "kept the animated bend side: {}", pos(mid2));
+        assert!(
+            pos(mid2).x > 0.05,
+            "kept the animated bend side: {}",
+            pos(mid2)
+        );
         assert!((tip_after(mid, tip, mid2) - target).length() < 1e-3);
     }
 
@@ -283,8 +286,13 @@ mod tests {
     fn a_straight_chain_with_a_degenerate_pole_still_solves_finitely() {
         let (root, mid, tip) = chain();
         // Pole straight up the chain: doubly degenerate.
-        let (root2, mid2) =
-            solve_two_bone(root, mid, tip, Vec3::new(0.0, 1.5, 0.0), Vec3::new(0.0, 9.0, 0.0));
+        let (root2, mid2) = solve_two_bone(
+            root,
+            mid,
+            tip,
+            Vec3::new(0.0, 1.5, 0.0),
+            Vec3::new(0.0, 9.0, 0.0),
+        );
         let t = tip_after(mid, tip, mid2);
         assert!(t.is_finite() && pos(root2).is_finite());
         assert!((t - Vec3::new(0.0, 1.5, 0.0)).length() < 1e-3, "tip {t}");
@@ -292,15 +300,11 @@ mod tests {
 
     #[test]
     fn bone_scale_survives_the_solve() {
-        let root = Mat4::from_scale_rotation_translation(
-            Vec3::splat(2.0),
-            Quat::IDENTITY,
-            Vec3::ZERO,
-        );
+        let root =
+            Mat4::from_scale_rotation_translation(Vec3::splat(2.0), Quat::IDENTITY, Vec3::ZERO);
         let mid = Mat4::from_translation(Vec3::new(0.0, 1.0, 0.0));
         let tip = Mat4::from_translation(Vec3::new(0.0, 2.0, 0.0));
-        let (root2, mid2) =
-            solve_two_bone(root, mid, tip, Vec3::new(1.0, 1.0, 0.0), Vec3::X);
+        let (root2, mid2) = solve_two_bone(root, mid, tip, Vec3::new(1.0, 1.0, 0.0), Vec3::X);
         assert!((root2.to_scale_rotation_translation().0 - Vec3::splat(2.0)).length() < 1e-4);
         assert!((mid2.to_scale_rotation_translation().0 - Vec3::ONE).length() < 1e-4);
     }
@@ -338,16 +342,16 @@ mod tests {
         let solved = solve_look_at(bone, Vec3::new(0.0, 0.0, -3.0), Vec3::Z, max);
         let fwd = solved.to_scale_rotation_translation().1 * Vec3::Z;
         let turned = fwd.dot(Vec3::Z).clamp(-1.0, 1.0).acos();
-        assert!((turned - max).abs() < 1e-3, "turned {turned} rad, clamp {max}");
+        assert!(
+            (turned - max).abs() < 1e-3,
+            "turned {turned} rad, clamp {max}"
+        );
     }
 
     #[test]
     fn blend_model_holds_the_endpoints_and_keeps_the_animated_scale() {
-        let from = Mat4::from_scale_rotation_translation(
-            Vec3::splat(2.0),
-            Quat::IDENTITY,
-            Vec3::ZERO,
-        );
+        let from =
+            Mat4::from_scale_rotation_translation(Vec3::splat(2.0), Quat::IDENTITY, Vec3::ZERO);
         let to = Mat4::from_scale_rotation_translation(
             Vec3::ONE,
             Quat::from_rotation_z(1.0),
@@ -357,10 +361,15 @@ mod tests {
         assert!((s0 - Vec3::splat(2.0)).length() < 1e-4);
         assert!(r0.angle_between(Quat::IDENTITY) < 1e-4 && t0.length() < 1e-4);
         let (s1, r1, t1) = blend_model(&from, &to, 1.0).to_scale_rotation_translation();
-        assert!((s1 - Vec3::splat(2.0)).length() < 1e-4, "animated scale kept at w=1");
+        assert!(
+            (s1 - Vec3::splat(2.0)).length() < 1e-4,
+            "animated scale kept at w=1"
+        );
         assert!(r1.angle_between(Quat::from_rotation_z(1.0)) < 1e-4);
         assert!((t1 - Vec3::new(2.0, 0.0, 0.0)).length() < 1e-4);
-        let t_half = blend_model(&from, &to, 0.5).to_scale_rotation_translation().2;
+        let t_half = blend_model(&from, &to, 0.5)
+            .to_scale_rotation_translation()
+            .2;
         assert!((t_half - Vec3::new(1.0, 0.0, 0.0)).length() < 1e-4);
     }
 
@@ -370,7 +379,11 @@ mod tests {
         // about Z: 2 and 3 must follow, 0 must not move.
         let locals: Vec<LocalBoneTransform> = (0..4)
             .map(|i| LocalBoneTransform {
-                translation: if i == 0 { Vec3::ZERO } else { Vec3::new(0.0, 1.0, 0.0) },
+                translation: if i == 0 {
+                    Vec3::ZERO
+                } else {
+                    Vec3::new(0.0, 1.0, 0.0)
+                },
                 ..Default::default()
             })
             .collect();
@@ -389,7 +402,15 @@ mod tests {
         rewalk_descendants(&mut model, &locals, |i| parents[i], &[1], &mut touched);
         assert_eq!(pos(model[0]), Vec3::ZERO, "the un-edited root never moves");
         // +Y in bone 1's frame now points along +X.
-        assert!((pos(model[2]) - Vec3::new(1.0, 1.0, 0.0)).length() < 1e-4, "{}", pos(model[2]));
-        assert!((pos(model[3]) - Vec3::new(2.0, 1.0, 0.0)).length() < 1e-4, "{}", pos(model[3]));
+        assert!(
+            (pos(model[2]) - Vec3::new(1.0, 1.0, 0.0)).length() < 1e-4,
+            "{}",
+            pos(model[2])
+        );
+        assert!(
+            (pos(model[3]) - Vec3::new(2.0, 1.0, 0.0)).length() < 1e-4,
+            "{}",
+            pos(model[3])
+        );
     }
 }

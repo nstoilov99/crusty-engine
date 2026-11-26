@@ -23,8 +23,7 @@ use node_graph_types::{EXEC_OUT_PIN, VAR_GET_TYPE_ID, VAR_SET_TYPE_ID, VAR_VALUE
 
 use crate::effect::{Effect, LogLevel, TransformSnapshot};
 use crate::node::{
-    EvalCtx, ExecError, FireCtx, FireResult, ImpureNode, NodeImpl, NodeImpls, PureNode,
-    Suspension,
+    EvalCtx, ExecError, FireCtx, FireResult, ImpureNode, NodeImpl, NodeImpls, PureNode, Suspension,
 };
 use crate::value::{EntityRef, Value};
 
@@ -39,7 +38,10 @@ pub fn register_impls(impls: &mut NodeImpls) {
     ] {
         impls.insert(id, NodeImpl::impure(EventEntry));
     }
-    impls.insert(node_graph_types::EVENT_TICK_TYPE_ID, NodeImpl::impure(TickEntry));
+    impls.insert(
+        node_graph_types::EVENT_TICK_TYPE_ID,
+        NodeImpl::impure(TickEntry),
+    );
 
     // --- reserved doc-dependent types ----------------------------------
     impls
@@ -53,14 +55,22 @@ pub fn register_impls(impls: &mut NodeImpls) {
         .insert(ids::FOR_LOOP, NodeImpl::impure(ForLoop))
         .insert(ids::WHILE_LOOP, NodeImpl::impure(WhileLoop))
         .insert(ids::DELAY, NodeImpl::impure(Delay))
-        .insert(node_graph_types::TIMELINE_TYPE_ID, NodeImpl::impure(Timeline))
+        .insert(
+            node_graph_types::TIMELINE_TYPE_ID,
+            NodeImpl::impure(Timeline),
+        )
         .insert(ids::GATE, NodeImpl::impure(Gate))
         .insert(ids::DO_ONCE, NodeImpl::impure(DoOnce))
         .insert(ids::FLIP_FLOP, NodeImpl::impure(FlipFlop));
     for id in [ids::FOR_EACH_FLOAT, ids::FOR_EACH_INT, ids::FOR_EACH_ENTITY] {
         impls.insert(id, NodeImpl::impure(ForEach));
     }
-    for id in [ids::SELECT_FLOAT, ids::SELECT_INT, ids::SELECT_BOOL, ids::SELECT_STRING] {
+    for id in [
+        ids::SELECT_FLOAT,
+        ids::SELECT_INT,
+        ids::SELECT_BOOL,
+        ids::SELECT_STRING,
+    ] {
         impls.insert(id, NodeImpl::pure(Select));
     }
 
@@ -111,11 +121,15 @@ pub fn register_impls(impls: &mut NodeImpls) {
 /// An `entity` input pin: unwired it is the instance's own entity, because
 /// `Value::zero_of(Entity)` is `self`.
 fn entity_of(ctx: &FireCtx<'_>) -> EntityRef {
-    ctx.input("entity").as_entity().unwrap_or_else(|| ctx.self_entity())
+    ctx.input("entity")
+        .as_entity()
+        .unwrap_or_else(|| ctx.self_entity())
 }
 
 fn entity_of_eval(ctx: &EvalCtx<'_>) -> EntityRef {
-    ctx.input("entity").as_entity().unwrap_or_else(|| ctx.self_entity())
+    ctx.input("entity")
+        .as_entity()
+        .unwrap_or_else(|| ctx.self_entity())
 }
 
 // ---------------------------------------------------------------------------
@@ -160,10 +174,13 @@ impl PureNode for VarGet {
                 slug: String::new(),
             });
         };
-        let v = ctx.var(&slug).cloned().ok_or_else(|| ExecError::UnknownVariable {
-            node: ctx.node_name().to_string(),
-            slug: slug.clone(),
-        })?;
+        let v = ctx
+            .var(&slug)
+            .cloned()
+            .ok_or_else(|| ExecError::UnknownVariable {
+                node: ctx.node_name().to_string(),
+                slug: slug.clone(),
+            })?;
         ctx.set_output(VAR_VALUE_PIN, v);
         Ok(())
     }
@@ -345,9 +362,12 @@ struct Timeline;
 /// pin from the same firing.
 fn timeline_state(v: Option<&Value>) -> (f32, f32, bool, bool) {
     match v {
-        Some(Value::Vec4(a)) => {
-            (a[0], if a[1] < 0.0 { -1.0 } else { 1.0 }, a[2] > 0.5, a[3] > 0.5)
-        }
+        Some(Value::Vec4(a)) => (
+            a[0],
+            if a[1] < 0.0 { -1.0 } else { 1.0 },
+            a[2] > 0.5,
+            a[3] > 0.5,
+        ),
         _ => (0.0, 1.0, false, false),
     }
 }
@@ -365,11 +385,15 @@ impl Timeline {
     /// Write `time` plus one output per track. Called on every advance, so the
     /// Update chain always pulls fresh values.
     fn write_tracks(ctx: &mut FireCtx<'_>, t: f32) {
-        let samples: Vec<(String, f32)> =
-            match ctx.curve_path().and_then(|p| ctx.world().curve(p)) {
-                Some(c) => c.tracks.iter().map(|tr| (tr.slug.clone(), tr.sample(t))).collect(),
-                None => Vec::new(),
-            };
+        let samples: Vec<(String, f32)> = match ctx.curve_path().and_then(|p| ctx.world().curve(p))
+        {
+            Some(c) => c
+                .tracks
+                .iter()
+                .map(|tr| (tr.slug.clone(), tr.sample(t)))
+                .collect(),
+            None => Vec::new(),
+        };
         for (slug, v) in samples {
             ctx.set_output(&slug, Value::Float(v));
         }
@@ -468,7 +492,11 @@ impl ImpureNode for Timeline {
         // activation that tried to play it — rather than silently playing
         // nothing for as long as the game runs. Validation says the same
         // thing at edit time; this is the runtime's half.
-        if ctx.curve_path().and_then(|p| ctx.world().curve(p)).is_none() {
+        if ctx
+            .curve_path()
+            .and_then(|p| ctx.world().curve(p))
+            .is_none()
+        {
             return FireResult::Stop(ExecError::Stopped {
                 node: ctx.node_name().to_string(),
                 reason: match ctx.curve_path() {
@@ -482,7 +510,11 @@ impl ImpureNode for Timeline {
         // caller's own activation; every later one is the ticker's.
         let reverse = ctx.entered() == Some(TIMELINE_REVERSE_PIN);
         dir = if reverse { -1.0 } else { 1.0 };
-        t = if reverse { Timeline::duration(ctx) } else { 0.0 };
+        t = if reverse {
+            Timeline::duration(ctx)
+        } else {
+            0.0
+        };
         ctx.set_state(timeline_value(t, dir, true, false));
         ctx.set_ticking(true);
         Timeline::write_tracks(ctx, t);
@@ -567,7 +599,11 @@ struct Select;
 
 impl PureNode for Select {
     fn eval(&self, ctx: &mut EvalCtx<'_>) -> Result<(), ExecError> {
-        let pick = if ctx.bool("condition")? { "if_true" } else { "if_false" };
+        let pick = if ctx.bool("condition")? {
+            "if_true"
+        } else {
+            "if_false"
+        };
         let v = ctx.input(pick).clone();
         ctx.set_output("result", v);
         Ok(())
@@ -826,7 +862,10 @@ impl ImpureNode for Print {
         // Deliberately permissive about the input type: printing a value is
         // the one place where "whatever it is, show it" is the right answer.
         let text = ctx.input("text").to_string();
-        ctx.emit(Effect::Log { level: LogLevel::Info, text });
+        ctx.emit(Effect::Log {
+            level: LogLevel::Info,
+            text,
+        });
         FireResult::Continue(EXEC_OUT_PIN)
     }
 }
@@ -841,7 +880,10 @@ impl ImpureNode for EmitEvent {
         ctx.queue_event(&name, Vec::new());
         // …and recorded in the stream so the console and the P7 trace see it.
         // The runner must not deliver it again.
-        ctx.emit(Effect::EmitEvent { name, payload: Vec::new() });
+        ctx.emit(Effect::EmitEvent {
+            name,
+            payload: Vec::new(),
+        });
         FireResult::Continue(EXEC_OUT_PIN)
     }
 }
@@ -863,7 +905,10 @@ impl ImpureNode for SpawnPrefab {
         ctx.emit(Effect::SpawnPrefab {
             path,
             alias,
-            transform: TransformSnapshot { position, ..Default::default() },
+            transform: TransformSnapshot {
+                position,
+                ..Default::default()
+            },
         });
         FireResult::Continue(EXEC_OUT_PIN)
     }

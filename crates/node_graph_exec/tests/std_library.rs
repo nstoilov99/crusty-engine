@@ -43,7 +43,10 @@ use node_graph_types::{
 const TESTED: &[(&str, &str)] = &[
     // control
     (n::BRANCH, "branch_and_for_loop_basics"),
-    (n::SEQUENCE, "sequence_runs_each_output_in_order_skipping_gaps"),
+    (
+        n::SEQUENCE,
+        "sequence_runs_each_output_in_order_skipping_gaps",
+    ),
     (n::FOR_LOOP, "branch_and_for_loop_basics"),
     (n::WHILE_LOOP, "while_loop_rechecks_its_condition_each_pass"),
     (n::DELAY, "tests/latent.rs — the whole file"),
@@ -51,9 +54,18 @@ const TESTED: &[(&str, &str)] = &[
         node_graph_types::TIMELINE_TYPE_ID,
         "tests/timeline.rs — the whole file",
     ),
-    (n::FOR_EACH_INT, "for_each_walks_an_array_with_element_and_index"),
-    (n::FOR_EACH_FLOAT, "for_each_walks_an_array_with_element_and_index"),
-    (n::FOR_EACH_ENTITY, "for_each_walks_an_array_with_element_and_index"),
+    (
+        n::FOR_EACH_INT,
+        "for_each_walks_an_array_with_element_and_index",
+    ),
+    (
+        n::FOR_EACH_FLOAT,
+        "for_each_walks_an_array_with_element_and_index",
+    ),
+    (
+        n::FOR_EACH_ENTITY,
+        "for_each_walks_an_array_with_element_and_index",
+    ),
     (n::GATE, "gate_opens_closes_and_toggles_by_entrance"),
     (n::DO_ONCE, "do_once_passes_once_then_needs_a_reset"),
     (n::FLIP_FLOP, "flip_flop_alternates_and_reports_its_side"),
@@ -66,7 +78,10 @@ const TESTED: &[(&str, &str)] = &[
     (n::OR, "boolean_logic"),
     (n::NOT, "boolean_logic"),
     (n::COMPARE_INT, "comparisons_cover_every_declared_operator"),
-    (n::COMPARE_FLOAT, "comparisons_cover_every_declared_operator"),
+    (
+        n::COMPARE_FLOAT,
+        "comparisons_cover_every_declared_operator",
+    ),
     (n::ADD_INT, "integer_arithmetic"),
     (n::SUB_INT, "integer_arithmetic"),
     (n::MUL_INT, "integer_arithmetic"),
@@ -90,14 +105,35 @@ const TESTED: &[(&str, &str)] = &[
     (n::BOOL_TO_STRING, "numeric_and_text_conversions"),
     // effects
     (n::PRINT, "sequence_runs_each_output_in_order_skipping_gaps"),
-    (n::EMIT_EVENT, "emit_event_queues_on_this_instance_for_the_next_tick"),
-    (n::SPAWN_PREFAB, "spawn_hands_back_an_alias_the_runner_still_has_to_bind"),
-    (n::DESTROY_ENTITY, "spawn_hands_back_an_alias_the_runner_still_has_to_bind"),
+    (
+        n::EMIT_EVENT,
+        "emit_event_queues_on_this_instance_for_the_next_tick",
+    ),
+    (
+        n::SPAWN_PREFAB,
+        "spawn_hands_back_an_alias_the_runner_still_has_to_bind",
+    ),
+    (
+        n::DESTROY_ENTITY,
+        "spawn_hands_back_an_alias_the_runner_still_has_to_bind",
+    ),
     (n::GET_SELF, "transform_get_set_and_the_self_entity_default"),
-    (n::GET_POSITION, "transform_get_set_and_the_self_entity_default"),
-    (n::SET_POSITION, "transform_get_set_and_the_self_entity_default"),
-    (n::GET_TRANSFORM, "transform_get_set_and_the_self_entity_default"),
-    (n::SET_TRANSFORM, "transform_get_set_and_the_self_entity_default"),
+    (
+        n::GET_POSITION,
+        "transform_get_set_and_the_self_entity_default",
+    ),
+    (
+        n::SET_POSITION,
+        "transform_get_set_and_the_self_entity_default",
+    ),
+    (
+        n::GET_TRANSFORM,
+        "transform_get_set_and_the_self_entity_default",
+    ),
+    (
+        n::SET_TRANSFORM,
+        "transform_get_set_and_the_self_entity_default",
+    ),
 ];
 
 fn registry() -> NodeRegistry {
@@ -140,8 +176,7 @@ fn edge(from: u64, fp: &str, to: u64, tp: &str) -> Edge {
 fn run_world(doc: &GraphDoc, ticks: usize, seed: u64, world: &dyn WorldRead) -> Vec<Effect> {
     let reg = registry();
     let subs: BTreeMap<String, GraphDoc> = BTreeMap::new();
-    let plan = compile(doc, "test.graph", &reg, &subs)
-        .unwrap_or_else(|e| panic!("compile: {e}"));
+    let plan = compile(doc, "test.graph", &reg, &subs).unwrap_or_else(|e| panic!("compile: {e}"));
     let impls = n::std_impls();
     assert_eq!(impls.check_plan(&plan), vec![], "plan/impl cross-check");
     let mut inst = GraphInstance::new(&plan, EntityRef::SelfEntity, seed);
@@ -151,7 +186,10 @@ fn run_world(doc: &GraphDoc, ticks: usize, seed: u64, world: &dyn WorldRead) -> 
             &plan,
             &mut inst,
             &impls,
-            TickInput { dt: 0.1, time: i as f64 * 0.1 },
+            TickInput {
+                dt: 0.1,
+                time: i as f64 * 0.1,
+            },
             world,
             &mut effects,
         );
@@ -178,12 +216,7 @@ fn logs(effects: &[Effect]) -> Vec<String> {
 ///
 /// `wire` names the node's output pin; `converter` is the node id that turns
 /// it into text. Returns what got printed.
-fn eval_pure(
-    node_id: &str,
-    props: &[(&str, PropValue)],
-    out_pin: &str,
-    converter: &str,
-) -> String {
+fn eval_pure(node_id: &str, props: &[(&str, PropValue)], out_pin: &str, converter: &str) -> String {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
@@ -215,7 +248,11 @@ fn eval_bool(node_id: &str, props: &[(&str, PropValue)]) -> String {
 
 /// A statement driven by `event_begin_play` through the listed exec chain.
 fn chain(nodes: Vec<NodeInst>, edges: Vec<Edge>) -> GraphDoc {
-    GraphDoc { nodes, edges, ..GraphDoc::default() }
+    GraphDoc {
+        nodes,
+        edges,
+        ..GraphDoc::default()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -245,7 +282,11 @@ fn sequence_runs_each_output_in_order_skipping_gaps() {
     assert_eq!(logs(&run(&doc, 1)), vec!["first", "second", "fourth"]);
 
     // Each branch runs *to completion* before the next starts.
-    doc.nodes.push(with(5, n::PRINT, &[("text", PropValue::Str("first-tail".into()))]));
+    doc.nodes.push(with(
+        5,
+        n::PRINT,
+        &[("text", PropValue::Str("first-tail".into()))],
+    ));
     doc.edges.push(edge(2, EXEC_OUT_PIN, 5, EXEC_IN_PIN));
     assert_eq!(
         logs(&run(&doc, 1)),
@@ -270,7 +311,14 @@ fn while_loop_rechecks_its_condition_each_pass() {
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         node(1, n::WHILE_LOOP),
         var(2, VAR_GET_TYPE_ID),
-        with(3, n::COMPARE_INT, &[("b", PropValue::Int(3)), ("op", PropValue::Enum("less".into()))]),
+        with(
+            3,
+            n::COMPARE_INT,
+            &[
+                ("b", PropValue::Int(3)),
+                ("op", PropValue::Enum("less".into())),
+            ],
+        ),
         with(4, n::ADD_INT, &[("b", PropValue::Int(1))]),
         var(5, VAR_SET_TYPE_ID),
         node(6, n::INT_TO_STRING),
@@ -316,7 +364,11 @@ fn for_each_walks_an_array_with_element_and_index() {
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         node(1, n::FOR_EACH_INT),
-        with(2, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("xs".into()))]),
+        with(
+            2,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("xs".into()))],
+        ),
         with(3, n::ADD_INT, &[]),
         node(4, n::INT_TO_STRING),
         with(5, n::PRINT, &[]),
@@ -343,7 +395,11 @@ fn for_each_walks_an_array_with_element_and_index() {
     // descriptors.
     for (id, ty, default) in [
         (n::FOR_EACH_FLOAT, PinType::Float, PropValue::Float(1.5)),
-        (n::FOR_EACH_ENTITY, PinType::Entity, PropValue::Raw("x".into())),
+        (
+            n::FOR_EACH_ENTITY,
+            PinType::Entity,
+            PropValue::Raw("x".into()),
+        ),
     ] {
         let mut d = GraphDoc::default();
         d.variables = vec![VarDecl {
@@ -356,7 +412,11 @@ fn for_each_walks_an_array_with_element_and_index() {
         d.nodes = vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
             node(1, id),
-            with(2, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("xs".into()))]),
+            with(
+                2,
+                VAR_GET_TYPE_ID,
+                &[(VAR_PROP, PropValue::Str("xs".into()))],
+            ),
             with(3, n::PRINT, &[("text", PropValue::Str("hit".into()))]),
         ];
         d.edges = vec![
@@ -378,8 +438,16 @@ fn gate_opens_closes_and_toggles_by_entrance() {
         node(0, EVENT_TICK_TYPE_ID),
         with(1, n::GATE, &[("start_closed", PropValue::Bool(true))]),
         with(2, n::PRINT, &[("text", PropValue::Str("through".into()))]),
-        with(3, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("open".into()))]),
-        with(4, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("shut".into()))]),
+        with(
+            3,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("open".into()))],
+        ),
+        with(
+            4,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("shut".into()))],
+        ),
     ];
     doc.edges = vec![
         edge(0, EXEC_OUT_PIN, 1, "enter"),
@@ -399,16 +467,28 @@ fn gate_opens_closes_and_toggles_by_entrance() {
     assert_eq!(logs(&fx), Vec::<String>::new(), "starts closed");
 
     fx.clear();
-    inst.queue_event(node_graph_types::EventPhase::Custom, Some("open".into()), BTreeMap::new());
+    inst.queue_event(
+        node_graph_types::EventPhase::Custom,
+        Some("open".into()),
+        BTreeMap::new(),
+    );
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut fx);
     assert_eq!(logs(&fx), vec!["through"], "opened, and Enter passes");
 
     fx.clear();
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut fx);
-    assert_eq!(logs(&fx), vec!["through"], "the open state persists across ticks");
+    assert_eq!(
+        logs(&fx),
+        vec!["through"],
+        "the open state persists across ticks"
+    );
 
     fx.clear();
-    inst.queue_event(node_graph_types::EventPhase::Custom, Some("shut".into()), BTreeMap::new());
+    inst.queue_event(
+        node_graph_types::EventPhase::Custom,
+        Some("shut".into()),
+        BTreeMap::new(),
+    );
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut fx);
     assert_eq!(logs(&fx), Vec::<String>::new(), "closed again");
 }
@@ -421,7 +501,11 @@ fn do_once_passes_once_then_needs_a_reset() {
         node(0, EVENT_TICK_TYPE_ID),
         node(1, n::DO_ONCE),
         with(2, n::PRINT, &[("text", PropValue::Str("once".into()))]),
-        with(3, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("again".into()))]),
+        with(
+            3,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("again".into()))],
+        ),
     ];
     doc.edges = vec![
         edge(0, EXEC_OUT_PIN, 1, "enter"),
@@ -442,9 +526,17 @@ fn do_once_passes_once_then_needs_a_reset() {
     assert_eq!(logs(&fx), vec!["once"], "three ticks, one pass");
 
     fx.clear();
-    inst.queue_event(node_graph_types::EventPhase::Custom, Some("again".into()), BTreeMap::new());
+    inst.queue_event(
+        node_graph_types::EventPhase::Custom,
+        Some("again".into()),
+        BTreeMap::new(),
+    );
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut fx);
-    assert_eq!(logs(&fx), vec!["once"], "reset re-arms it — in the same tick");
+    assert_eq!(
+        logs(&fx),
+        vec!["once"],
+        "reset re-arms it — in the same tick"
+    );
 }
 
 /// FlipFlop alternates, and says which side it took.
@@ -476,35 +568,47 @@ fn flip_flop_alternates_and_reports_its_side() {
 #[test]
 fn select_picks_a_value_per_type() {
     assert_eq!(
-        eval_int(n::SELECT_INT, &[
-            ("condition", PropValue::Bool(true)),
-            ("if_true", PropValue::Int(7)),
-            ("if_false", PropValue::Int(9)),
-        ]),
+        eval_int(
+            n::SELECT_INT,
+            &[
+                ("condition", PropValue::Bool(true)),
+                ("if_true", PropValue::Int(7)),
+                ("if_false", PropValue::Int(9)),
+            ]
+        ),
         "7"
     );
     assert_eq!(
-        eval_int(n::SELECT_INT, &[
-            ("condition", PropValue::Bool(false)),
-            ("if_true", PropValue::Int(7)),
-            ("if_false", PropValue::Int(9)),
-        ]),
+        eval_int(
+            n::SELECT_INT,
+            &[
+                ("condition", PropValue::Bool(false)),
+                ("if_true", PropValue::Int(7)),
+                ("if_false", PropValue::Int(9)),
+            ]
+        ),
         "9"
     );
     assert_eq!(
-        eval_float(n::SELECT_FLOAT, &[
-            ("condition", PropValue::Bool(true)),
-            ("if_true", PropValue::Float(1.5)),
-            ("if_false", PropValue::Float(2.5)),
-        ]),
+        eval_float(
+            n::SELECT_FLOAT,
+            &[
+                ("condition", PropValue::Bool(true)),
+                ("if_true", PropValue::Float(1.5)),
+                ("if_false", PropValue::Float(2.5)),
+            ]
+        ),
         "1.5"
     );
     assert_eq!(
-        eval_bool(n::SELECT_BOOL, &[
-            ("condition", PropValue::Bool(false)),
-            ("if_true", PropValue::Bool(true)),
-            ("if_false", PropValue::Bool(false)),
-        ]),
+        eval_bool(
+            n::SELECT_BOOL,
+            &[
+                ("condition", PropValue::Bool(false)),
+                ("if_true", PropValue::Bool(true)),
+                ("if_false", PropValue::Bool(false)),
+            ]
+        ),
         "false"
     );
     // The String variant needs no converter — it already prints.
@@ -512,13 +616,20 @@ fn select_picks_a_value_per_type() {
         vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
             with(1, n::PRINT, &[]),
-            with(2, n::SELECT_STRING, &[
-                ("condition", PropValue::Bool(true)),
-                ("if_true", PropValue::Str("yes".into())),
-                ("if_false", PropValue::Str("no".into())),
-            ]),
+            with(
+                2,
+                n::SELECT_STRING,
+                &[
+                    ("condition", PropValue::Bool(true)),
+                    ("if_true", PropValue::Str("yes".into())),
+                    ("if_false", PropValue::Str("no".into())),
+                ],
+            ),
         ],
-        vec![edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN), edge(2, "result", 1, "text")],
+        vec![
+            edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN),
+            edge(2, "result", 1, "text"),
+        ],
     );
     assert_eq!(logs(&run(&doc, 1)), vec!["yes"]);
 }
@@ -557,32 +668,46 @@ fn comparisons_cover_every_declared_operator() {
     ];
     for (op, want) in cases {
         assert_eq!(
-            eval_bool(n::COMPARE_INT, &[
-                ("a", PropValue::Int(2)),
-                ("b", PropValue::Int(5)),
-                ("op", PropValue::Enum(op.into())),
-            ]),
+            eval_bool(
+                n::COMPARE_INT,
+                &[
+                    ("a", PropValue::Int(2)),
+                    ("b", PropValue::Int(5)),
+                    ("op", PropValue::Enum(op.into())),
+                ]
+            ),
             want.to_string(),
             "int {op}"
         );
         assert_eq!(
-            eval_bool(n::COMPARE_FLOAT, &[
-                ("a", PropValue::Float(2.0)),
-                ("b", PropValue::Float(5.0)),
-                ("op", PropValue::Enum(op.into())),
-            ]),
+            eval_bool(
+                n::COMPARE_FLOAT,
+                &[
+                    ("a", PropValue::Float(2.0)),
+                    ("b", PropValue::Float(5.0)),
+                    ("op", PropValue::Enum(op.into())),
+                ]
+            ),
             want.to_string(),
             "float {op}"
         );
     }
     // Equal values, to pin the boundary operators.
-    for (op, want) in [("equal", true), ("less_equal", true), ("greater_equal", true), ("less", false)] {
+    for (op, want) in [
+        ("equal", true),
+        ("less_equal", true),
+        ("greater_equal", true),
+        ("less", false),
+    ] {
         assert_eq!(
-            eval_bool(n::COMPARE_INT, &[
-                ("a", PropValue::Int(4)),
-                ("b", PropValue::Int(4)),
-                ("op", PropValue::Enum(op.into())),
-            ]),
+            eval_bool(
+                n::COMPARE_INT,
+                &[
+                    ("a", PropValue::Int(4)),
+                    ("b", PropValue::Int(4)),
+                    ("op", PropValue::Enum(op.into())),
+                ]
+            ),
             want.to_string(),
             "int {op} on equal values"
         );
@@ -591,11 +716,14 @@ fn comparisons_cover_every_declared_operator() {
     // than failing the graph — an out-of-list enum is data to fix, not a
     // broken document (the Task 40 ruling).
     assert_eq!(
-        eval_bool(n::COMPARE_INT, &[
-            ("a", PropValue::Int(4)),
-            ("b", PropValue::Int(4)),
-            ("op", PropValue::Enum("approximately".into())),
-        ]),
+        eval_bool(
+            n::COMPARE_INT,
+            &[
+                ("a", PropValue::Int(4)),
+                ("b", PropValue::Int(4)),
+                ("op", PropValue::Enum("approximately".into())),
+            ]
+        ),
         "true"
     );
 }
@@ -608,8 +736,16 @@ fn integer_arithmetic() {
     assert_eq!(eval_int(n::MUL_INT, &p(4, 3)), "12");
     assert_eq!(eval_int(n::DIV_INT, &p(7, 2)), "3");
     // A graph is user input: neither of these may panic.
-    assert_eq!(eval_int(n::DIV_INT, &p(7, 0)), "0", "divide by zero yields 0");
-    assert_eq!(eval_int(n::ADD_INT, &p(i32::MAX, 1)), i32::MIN.to_string(), "wrapping");
+    assert_eq!(
+        eval_int(n::DIV_INT, &p(7, 0)),
+        "0",
+        "divide by zero yields 0"
+    );
+    assert_eq!(
+        eval_int(n::ADD_INT, &p(i32::MAX, 1)),
+        i32::MIN.to_string(),
+        "wrapping"
+    );
 }
 
 #[test]
@@ -626,11 +762,14 @@ fn float_arithmetic_lerp_and_clamp() {
     );
 
     let lerp = |t: f32| {
-        eval_float(n::LERP_FLOAT, &[
-            ("a", PropValue::Float(10.0)),
-            ("b", PropValue::Float(20.0)),
-            ("alpha", PropValue::Float(t)),
-        ])
+        eval_float(
+            n::LERP_FLOAT,
+            &[
+                ("a", PropValue::Float(10.0)),
+                ("b", PropValue::Float(20.0)),
+                ("alpha", PropValue::Float(t)),
+            ],
+        )
     };
     assert_eq!(lerp(0.0), "10");
     assert_eq!(lerp(0.5), "15");
@@ -639,23 +778,33 @@ fn float_arithmetic_lerp_and_clamp() {
     assert_eq!(lerp(-1.0), "10");
 
     let clamp_f = |v: f32, lo: f32, hi: f32| {
-        eval_float(n::CLAMP_FLOAT, &[
-            ("value", PropValue::Float(v)),
-            ("min", PropValue::Float(lo)),
-            ("max", PropValue::Float(hi)),
-        ])
+        eval_float(
+            n::CLAMP_FLOAT,
+            &[
+                ("value", PropValue::Float(v)),
+                ("min", PropValue::Float(lo)),
+                ("max", PropValue::Float(hi)),
+            ],
+        )
     };
     assert_eq!(clamp_f(5.0, 0.0, 1.0), "1");
     assert_eq!(clamp_f(-5.0, 0.0, 1.0), "0");
     assert_eq!(clamp_f(0.5, 0.0, 1.0), "0.5");
-    assert_eq!(clamp_f(0.5, 10.0, 0.0), "10", "inverted bounds do not panic");
+    assert_eq!(
+        clamp_f(0.5, 10.0, 0.0),
+        "10",
+        "inverted bounds do not panic"
+    );
 
     let clamp_i = |v: i32, lo: i32, hi: i32| {
-        eval_int(n::CLAMP_INT, &[
-            ("value", PropValue::Int(v)),
-            ("min", PropValue::Int(lo)),
-            ("max", PropValue::Int(hi)),
-        ])
+        eval_int(
+            n::CLAMP_INT,
+            &[
+                ("value", PropValue::Int(v)),
+                ("min", PropValue::Int(lo)),
+                ("max", PropValue::Int(hi)),
+            ],
+        )
     };
     assert_eq!(clamp_i(50, 0, 10), "10");
     assert_eq!(clamp_i(-50, 0, 10), "0");
@@ -671,7 +820,11 @@ fn random_nodes_are_seeded_and_volatile() {
     doc.nodes = vec![
         node(0, EVENT_TICK_TYPE_ID),
         with(1, n::PRINT, &[]),
-        with(2, n::RANDOM_INT, &[("min", PropValue::Int(1)), ("max", PropValue::Int(1000))]),
+        with(
+            2,
+            n::RANDOM_INT,
+            &[("min", PropValue::Int(1)), ("max", PropValue::Int(1000))],
+        ),
         node(3, n::INT_TO_STRING),
     ];
     doc.edges = vec![
@@ -701,7 +854,14 @@ fn random_nodes_are_seeded_and_volatile() {
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         with(1, n::PRINT, &[]),
-        with(2, n::RANDOM_INT, &[("min", PropValue::Int(1)), ("max", PropValue::Int(1_000_000))]),
+        with(
+            2,
+            n::RANDOM_INT,
+            &[
+                ("min", PropValue::Int(1)),
+                ("max", PropValue::Int(1_000_000)),
+            ],
+        ),
         with(3, n::SUB_INT, &[]),
         node(4, n::INT_TO_STRING),
     ];
@@ -723,7 +883,14 @@ fn random_nodes_are_seeded_and_volatile() {
     doc.nodes = vec![
         node(0, EVENT_TICK_TYPE_ID),
         with(1, n::PRINT, &[]),
-        with(2, n::RANDOM_FLOAT, &[("min", PropValue::Float(-2.0)), ("max", PropValue::Float(2.0))]),
+        with(
+            2,
+            n::RANDOM_FLOAT,
+            &[
+                ("min", PropValue::Float(-2.0)),
+                ("max", PropValue::Float(2.0)),
+            ],
+        ),
         node(3, n::FLOAT_TO_STRING),
     ];
     doc.edges = vec![
@@ -748,11 +915,15 @@ fn vec3_make_and_break_round_trip() {
         vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
             with(1, n::PRINT, &[]),
-            with(2, n::MAKE_VEC3, &[
-                ("x", PropValue::Float(1.0)),
-                ("y", PropValue::Float(2.0)),
-                ("z", PropValue::Float(3.0)),
-            ]),
+            with(
+                2,
+                n::MAKE_VEC3,
+                &[
+                    ("x", PropValue::Float(1.0)),
+                    ("y", PropValue::Float(2.0)),
+                    ("z", PropValue::Float(3.0)),
+                ],
+            ),
             node(3, n::BREAK_VEC3),
             node(4, n::FLOAT_TO_STRING),
         ],
@@ -768,14 +939,23 @@ fn vec3_make_and_break_round_trip() {
 
 #[test]
 fn numeric_and_text_conversions() {
-    assert_eq!(eval_float(n::INT_TO_FLOAT, &[("value", PropValue::Int(-3))]), "-3");
-    assert_eq!(eval_int(n::FLOAT_TO_INT, &[("value", PropValue::Float(2.9))]), "2");
+    assert_eq!(
+        eval_float(n::INT_TO_FLOAT, &[("value", PropValue::Int(-3))]),
+        "-3"
+    );
+    assert_eq!(
+        eval_int(n::FLOAT_TO_INT, &[("value", PropValue::Float(2.9))]),
+        "2"
+    );
     assert_eq!(
         eval_int(n::FLOAT_TO_INT, &[("value", PropValue::Float(-2.9))]),
         "-2",
         "truncation is toward zero"
     );
-    assert_eq!(eval_int(n::FLOAT_TO_INT, &[("value", PropValue::Float(f32::NAN))]), "0");
+    assert_eq!(
+        eval_int(n::FLOAT_TO_INT, &[("value", PropValue::Float(f32::NAN))]),
+        "0"
+    );
 
     // The three ToString variants, each through its own pin type.
     let text = |id: &str, v: PropValue| {
@@ -785,7 +965,10 @@ fn numeric_and_text_conversions() {
                 with(1, n::PRINT, &[]),
                 with(2, id, &[("value", v)]),
             ],
-            vec![edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN), edge(2, "text", 1, "text")],
+            vec![
+                edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN),
+                edge(2, "text", 1, "text"),
+            ],
         );
         logs(&run(&doc, 1)).remove(0)
     };
@@ -806,7 +989,11 @@ fn emit_event_queues_on_this_instance_for_the_next_tick() {
         vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
             with(1, n::EMIT_EVENT, &[("name", PropValue::Str("ping".into()))]),
-            with(2, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))]),
+            with(
+                2,
+                EVENT_CUSTOM_TYPE_ID,
+                &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))],
+            ),
             with(3, n::PRINT, &[("text", PropValue::Str("heard".into()))]),
         ],
         vec![
@@ -825,7 +1012,10 @@ fn emit_event_queues_on_this_instance_for_the_next_tick() {
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut fx);
     assert_eq!(
         fx,
-        vec![Effect::EmitEvent { name: "ping".into(), payload: vec![] }],
+        vec![Effect::EmitEvent {
+            name: "ping".into(),
+            payload: vec![]
+        }],
         "emitted, and NOT delivered in the same tick"
     );
 
@@ -841,10 +1031,14 @@ fn spawn_hands_back_an_alias_the_runner_still_has_to_bind() {
     let doc = chain(
         vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-            with(1, n::SPAWN_PREFAB, &[
-                ("path", PropValue::Str("prefabs/crate.prefab".into())),
-                ("position", PropValue::Vec3([1.0, 2.0, 3.0])),
-            ]),
+            with(
+                1,
+                n::SPAWN_PREFAB,
+                &[
+                    ("path", PropValue::Str("prefabs/crate.prefab".into())),
+                    ("position", PropValue::Vec3([1.0, 2.0, 3.0])),
+                ],
+            ),
             // …and the handle is usable in the very next statement.
             node(2, n::DESTROY_ENTITY),
         ],
@@ -860,7 +1054,14 @@ fn spawn_hands_back_an_alias_the_runner_still_has_to_bind() {
     let impls = n::std_impls();
     let mut inst = GraphInstance::new(&plan, EntityRef::SelfEntity, 1);
     let mut fx = Vec::new();
-    tick(&plan, &mut inst, &impls, TickInput::default(), &NoWorld, &mut fx);
+    tick(
+        &plan,
+        &mut inst,
+        &impls,
+        TickInput::default(),
+        &NoWorld,
+        &mut fx,
+    );
 
     assert_eq!(
         fx,
@@ -868,9 +1069,14 @@ fn spawn_hands_back_an_alias_the_runner_still_has_to_bind() {
             Effect::SpawnPrefab {
                 path: "prefabs/crate.prefab".into(),
                 alias: 0,
-                transform: TransformSnapshot { position: [1.0, 2.0, 3.0], ..Default::default() },
+                transform: TransformSnapshot {
+                    position: [1.0, 2.0, 3.0],
+                    ..Default::default()
+                },
             },
-            Effect::DestroyEntity { entity: EntityRef::Spawned(0) },
+            Effect::DestroyEntity {
+                entity: EntityRef::Spawned(0)
+            },
         ],
         "the alias flows from the spawn into the next node, with no real id in sight"
     );
@@ -879,7 +1085,10 @@ fn spawn_hands_back_an_alias_the_runner_still_has_to_bind() {
         vec![0],
         "the runner is told which aliases it still owes an entity"
     );
-    assert!(inst.take_pending_aliases().is_empty(), "draining is the handshake");
+    assert!(
+        inst.take_pending_aliases().is_empty(),
+        "draining is the handshake"
+    );
 }
 
 /// Transform reads and writes, including the `entity` pin's "unwired means
@@ -918,9 +1127,18 @@ fn transform_get_set_and_the_self_entity_default() {
     assert_eq!(
         run_world(&doc, 1, 1, &world),
         vec![
-            Effect::SetPosition { entity: EntityRef::SelfEntity, position: [1.0, 2.0, 3.0] },
-            Effect::SetRotation { entity: EntityRef::SelfEntity, rotation: [0.0, 0.0, 0.7, 0.7] },
-            Effect::SetScale { entity: EntityRef::SelfEntity, scale: [2.0, 2.0, 2.0] },
+            Effect::SetPosition {
+                entity: EntityRef::SelfEntity,
+                position: [1.0, 2.0, 3.0]
+            },
+            Effect::SetRotation {
+                entity: EntityRef::SelfEntity,
+                rotation: [0.0, 0.0, 0.7, 0.7]
+            },
+            Effect::SetScale {
+                entity: EntityRef::SelfEntity,
+                scale: [2.0, 2.0, 2.0]
+            },
         ],
         "three fine-grained effects, read straight back out"
     );
@@ -953,7 +1171,10 @@ fn transform_get_set_and_the_self_entity_default() {
     // a graph that runs before its entity exists must not die.
     assert_eq!(
         run(&doc, 1),
-        vec![Effect::SetPosition { entity: EntityRef::SelfEntity, position: [0.0; 3] }]
+        vec![Effect::SetPosition {
+            entity: EntityRef::SelfEntity,
+            position: [0.0; 3]
+        }]
     );
 }
 
@@ -969,10 +1190,11 @@ fn branch_and_for_loop_basics() {
         vec![
             node(0, EVENT_BEGIN_PLAY_TYPE_ID),
             with(1, n::BRANCH, &[("condition", PropValue::Bool(true))]),
-            with(2, n::FOR_LOOP, &[
-                ("first", PropValue::Int(2)),
-                ("last", PropValue::Int(4)),
-            ]),
+            with(
+                2,
+                n::FOR_LOOP,
+                &[("first", PropValue::Int(2)), ("last", PropValue::Int(4))],
+            ),
             with(3, n::PRINT, &[]),
             node(4, n::INT_TO_STRING),
             with(5, n::PRINT, &[("text", PropValue::Str("skipped".into()))]),
@@ -991,7 +1213,11 @@ fn branch_and_for_loop_basics() {
     doc.nodes[1]
         .properties
         .insert("condition".into(), PropValue::Bool(false));
-    assert_eq!(logs(&run(&doc, 1)), vec!["skipped"], "the loop is not entered");
+    assert_eq!(
+        logs(&run(&doc, 1)),
+        vec!["skipped"],
+        "the loop is not entered"
+    );
 }
 
 /// Every registered node type has an implementation, and every one of them is
@@ -1009,7 +1235,11 @@ fn every_std_node_is_covered() {
 
     // Descriptor -> implementation.
     let missing_impl: Vec<&String> = declared.iter().filter(|id| !impls.contains(id)).collect();
-    assert_eq!(missing_impl, Vec::<&String>::new(), "descriptors without an implementation");
+    assert_eq!(
+        missing_impl,
+        Vec::<&String>::new(),
+        "descriptors without an implementation"
+    );
     for id in &declared {
         assert!(reg.get(id).is_some(), "{id} did not register");
     }
@@ -1036,5 +1266,9 @@ fn every_std_node_is_covered() {
         Vec::<&&str>::new(),
         "the manifest names a node that no longer exists"
     );
-    assert_eq!(TESTED.len(), tested.len(), "the manifest lists a node twice");
+    assert_eq!(
+        TESTED.len(),
+        tested.len(),
+        "the manifest lists a node twice"
+    );
 }

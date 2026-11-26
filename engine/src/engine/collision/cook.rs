@@ -155,7 +155,11 @@ fn gather_mesh_triangles(
             .expect("queried")
             .mesh_path
             .clone();
-        sources.push((guid, mesh_path, hierarchy::get_world_transform(world, entity)));
+        sources.push((
+            guid,
+            mesh_path,
+            hierarchy::get_world_transform(world, entity),
+        ));
     }
     sources.extend(
         manifest_cells

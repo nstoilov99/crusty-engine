@@ -198,7 +198,10 @@ impl GraphExecViz {
 
     /// The last value that crossed one output pin.
     pub fn value(&self, node: u64, pin: &str) -> Option<&str> {
-        self.values.get(&node).and_then(|m| m.get(pin)).map(|s| s.as_str())
+        self.values
+            .get(&node)
+            .and_then(|m| m.get(pin))
+            .map(|s| s.as_str())
     }
 
     /// Has this node fired anything at all recently? Drives the node-level
@@ -206,7 +209,11 @@ impl GraphExecViz {
     pub fn node_active(&self, node: u64) -> f32 {
         self.pulses
             .get(&node)
-            .and_then(|m| m.values().cloned().fold(None, |a: Option<f32>, b| Some(a.map_or(b, |x| x.max(b)))))
+            .and_then(|m| {
+                m.values()
+                    .cloned()
+                    .fold(None, |a: Option<f32>, b| Some(a.map_or(b, |x| x.max(b))))
+            })
             .unwrap_or(0.0)
     }
 

@@ -103,10 +103,17 @@ impl Area {
         size = size.max(Vec2::splat(1.0));
         let mut new_pos = pos;
         if self.constrain && screen.width() > 0.0 {
-            new_pos.x = new_pos.x.clamp(screen.min.x, (screen.max.x - size.x).max(screen.min.x));
-            new_pos.y = new_pos.y.clamp(screen.min.y, (screen.max.y - size.y).max(screen.min.y));
+            new_pos.x = new_pos
+                .x
+                .clamp(screen.min.x, (screen.max.x - size.x).max(screen.min.x));
+            new_pos.y = new_pos
+                .y
+                .clamp(screen.min.y, (screen.max.y - size.y).max(screen.min.y));
         }
-        let area = ui.ctx_mut().memory.area_entry(id, self.default_pos, self.order);
+        let area = ui
+            .ctx_mut()
+            .memory
+            .area_entry(id, self.default_pos, self.order);
         area.pos = new_pos;
         area.size = size;
 

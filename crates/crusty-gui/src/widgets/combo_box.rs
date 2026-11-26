@@ -65,7 +65,12 @@ impl ComboBox {
         let hovered = ui.contains_pointer(trigger_rect);
         let pointer_pressed = ui.ctx().input.pointer_pressed;
 
-        let was_open = ui.ctx().memory.get(id).map(|m| m.bool_state).unwrap_or(false);
+        let was_open = ui
+            .ctx()
+            .memory
+            .get(id)
+            .map(|m| m.bool_state)
+            .unwrap_or(false);
         let mut is_open = was_open;
         if ui.ctx().modal_dismissed(id.with("popup_area")).is_some() {
             is_open = false;
@@ -144,19 +149,12 @@ impl ComboBox {
         if is_open {
             let popup_w = self.popup_width.unwrap_or(width);
             let dropdown_root = id.with("popup");
-            let dropdown_pos = super::popup_pos(
-                ui,
-                popup_area_id,
-                trigger_rect,
-                popup_w,
-                trigger_h,
-                2.0,
-            );
+            let dropdown_pos =
+                super::popup_pos(ui, popup_area_id, trigger_rect, popup_w, trigger_h, 2.0);
             // Reserve a generous max height; the dropdown will be tighter
             // than this after we measure the body.
             let scratch_h = 600.0_f32.max(self.max_popup_height + 16.0);
-            let scratch_rect =
-                Rect::from_min_size(dropdown_pos, Vec2::new(popup_w, scratch_h));
+            let scratch_rect = Rect::from_min_size(dropdown_pos, Vec2::new(popup_w, scratch_h));
 
             // We need the body's commands to land *between* the dropdown
             // background and any later overlay commands, so they:
@@ -171,8 +169,7 @@ impl ComboBox {
             // known after an unscrolled render, so it's remembered from the
             // last such frame (`aux_anim`): the first open of an oversized
             // popup renders raw once, then scrolls from the next frame on.
-            let prev_content_h =
-                ui.ctx().memory.get(id).map(|m| m.aux_anim).unwrap_or(0.0);
+            let prev_content_h = ui.ctx().memory.get(id).map(|m| m.aux_anim).unwrap_or(0.0);
             let needs_scroll = prev_content_h > self.max_popup_height + 0.5;
             let used_h = {
                 let max_h = self.max_popup_height;
@@ -205,8 +202,7 @@ impl ComboBox {
                 inner.used_rect().height()
             };
 
-            let drained: Vec<PaintCmd> =
-                ui.ctx_mut().paint.drain(body_start_main..).collect();
+            let drained: Vec<PaintCmd> = ui.ctx_mut().paint.drain(body_start_main..).collect();
 
             let dropdown_rect = Rect::from_min_size(
                 dropdown_pos,
@@ -218,7 +214,10 @@ impl ComboBox {
                 RectShape::fill(
                     dropdown_rect,
                     style.rounding.panel,
-                    style.palette.elevated.with_alpha(style.palette.popover_alpha),
+                    style
+                        .palette
+                        .elevated
+                        .with_alpha(style.palette.popover_alpha),
                 )
                 .with_stroke(style.metrics.border, style.palette.stroke_strong),
             ));
@@ -226,11 +225,10 @@ impl ComboBox {
 
             // Register the dropdown as a top-order interaction area so
             // its items win pointer priority over any window beneath.
-            let area = ui.ctx_mut().memory.area_entry(
-                popup_area_id,
-                dropdown_rect.min,
-                Order::Tooltip,
-            );
+            let area =
+                ui.ctx_mut()
+                    .memory
+                    .area_entry(popup_area_id, dropdown_rect.min, Order::Tooltip);
             area.pos = dropdown_rect.min;
             area.size = dropdown_rect.size();
 

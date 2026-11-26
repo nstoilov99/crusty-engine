@@ -68,7 +68,10 @@ mod tests {
         // AABB spanning the x=0 border pulls in cell (-1,0) too.
         assert_eq!(bp.aoe_candidates(Vec3::new(2.0, 10.0, 0.0), 5.0), [1, 3]);
         // Large radius covers all three neighboring cells; far cell excluded.
-        assert_eq!(bp.aoe_candidates(Vec3::new(30.0, 10.0, 0.0), 64.0), [1, 2, 3]);
+        assert_eq!(
+            bp.aoe_candidates(Vec3::new(30.0, 10.0, 0.0), 64.0),
+            [1, 2, 3]
+        );
     }
 
     #[test]

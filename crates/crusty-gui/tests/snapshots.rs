@@ -204,10 +204,9 @@ fn tab_focus_ring_in_floating_window() {
     for _ in 0..3 {
         h.frame(Vec::new(), |ui| build(ui, &mut open, &mut checked));
     }
-    h.frame(
-        vec![Event::PointerMoved(Pos2::new(200.0, 150.0))],
-        |ui| build(ui, &mut open, &mut checked),
-    );
+    h.frame(vec![Event::PointerMoved(Pos2::new(200.0, 150.0))], |ui| {
+        build(ui, &mut open, &mut checked)
+    });
     let tab = Event::Key {
         key: Key::Tab,
         pressed: true,
@@ -234,7 +233,10 @@ fn canvas_pan_zoom_nodes() {
     let mut h = harness_or_skip!([420, 300]);
     // Non-default view: panned into negative world space, zoomed to 1.5
     // (a text-ladder step, so labels render at body*1.5).
-    let mut view = CanvasView { pan: Vec2::new(-30.0, -20.0), zoom: 1.5 };
+    let mut view = CanvasView {
+        pan: Vec2::new(-30.0, -20.0),
+        zoom: 1.5,
+    };
     let nodes = [
         (Pos2::new(10.0, 20.0), "Event BeginPlay"),
         (Pos2::new(150.0, 90.0), "Spawn Emitter"),
@@ -246,11 +248,8 @@ fn canvas_pan_zoom_nodes() {
             let mut p = ui.painter();
             p.rect_filled(scope.rect(), 0.0, st.palette.input);
             // One wire between the two nodes, horizontal tangents.
-            let a = scope.world_to_screen(
-                nodes[0].0 + Vec2::new(node_size.x, node_size.y * 0.5),
-            );
-            let b =
-                scope.world_to_screen(nodes[1].0 + Vec2::new(0.0, node_size.y * 0.5));
+            let a = scope.world_to_screen(nodes[0].0 + Vec2::new(node_size.x, node_size.y * 0.5));
+            let b = scope.world_to_screen(nodes[1].0 + Vec2::new(0.0, node_size.y * 0.5));
             let dx = ((b.x - a.x) * 0.5).max(24.0);
             p.bezier_cubic(
                 a,
@@ -261,8 +260,7 @@ fn canvas_pan_zoom_nodes() {
                 st.palette.accent_active,
             );
             for (i, &(pos, label)) in nodes.iter().enumerate() {
-                let srect =
-                    scope.world_rect_to_screen(Rect::from_min_size(pos, node_size));
+                let srect = scope.world_rect_to_screen(Rect::from_min_size(pos, node_size));
                 let mut p = ui.painter();
                 p.rect_filled(srect, 4.0 * scope.zoom(), st.palette.elevated);
                 p.rect_stroke(srect, 4.0 * scope.zoom(), 1.0, st.palette.stroke_strong);

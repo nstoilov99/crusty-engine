@@ -219,7 +219,6 @@ impl GraphTrace {
 /// real pin, and deliberately unspellable as one.
 pub const HOST_ACTIVITY_PIN: &str = "\u{0}subgraph";
 
-
 /// Fold one instance's **live** state — parked activations and a runtime kill
 /// — into a viz built from its trace (GS-3).
 ///
@@ -265,11 +264,7 @@ pub fn add_live_state(
 /// Separate from [`add_live_state`] because it reads the *runtime*, not the
 /// instance: the hit counter lives beside the trace, and the armed set is the
 /// tab's, not the graph's.
-pub fn add_debug_state(
-    out: &mut GraphExecViz,
-    rt: &super::runner::GraphRuntime,
-    armed: &[u64],
-) {
+pub fn add_debug_state(out: &mut GraphExecViz, rt: &super::runner::GraphRuntime, armed: &[u64]) {
     use crate::engine::editor::graph_exec_viz::PauseInfo;
     if let Some((plan_node, id)) = rt.instance.paused() {
         if let Some((node, _)) = rt.plan.doc_node(plan_node) {
@@ -480,7 +475,9 @@ pub fn instances_for(
         .map(|(entity, (_, rt))| {
             let distance = match (
                 camera,
-                world.get::<&crate::engine::ecs::components::Transform>(entity).ok(),
+                world
+                    .get::<&crate::engine::ecs::components::Transform>(entity)
+                    .ok(),
             ) {
                 (Some(c), Some(t)) => {
                     let p = t.position;
@@ -728,14 +725,24 @@ mod tests {
     #[test]
     fn the_arriving_end_of_an_edge_lights_as_well() {
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("event_tick", 6, false), plan_node("var_set", 14, false)];
+        plan.nodes = vec![
+            plan_node("event_tick", 6, false),
+            plan_node("var_set", 14, false),
+        ];
         let mut t = GraphTrace::default();
         t.begin_tick(1.0);
         t.exec_edge(0, "exec_out", 1);
 
         let v = t.viz(&plan, 1.0, "Duck");
-        assert_eq!(v.pulse(6, "exec_out"), 1.0, "the wire out of the source pulses");
-        assert!(v.node_active(14) > 0.0, "and the node it reached is running");
+        assert_eq!(
+            v.pulse(6, "exec_out"),
+            1.0,
+            "the wire out of the source pulses"
+        );
+        assert!(
+            v.node_active(14) > 0.0,
+            "and the node it reached is running"
+        );
         assert_eq!(
             v.pulse(14, "exec_out"),
             0.0,
@@ -763,7 +770,10 @@ mod tests {
     #[test]
     fn the_taken_set_outlives_the_ring_and_clears_on_demand() {
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("event_tick", 6, false), plan_node("print", 4, false)];
+        plan.nodes = vec![
+            plan_node("event_tick", 6, false),
+            plan_node("print", 4, false),
+        ];
         let mut t = GraphTrace::default();
         t.begin_tick(1.0);
         t.exec_edge(0, "exec_out", 1);
@@ -772,10 +782,17 @@ mod tests {
             t.exec_edge(1, "exec_out", 0);
         }
         assert_eq!(t.fired_len(), EXEC_RING);
-        assert_eq!(t.taken_len(), 2, "two distinct edges, however often they fired");
+        assert_eq!(
+            t.taken_len(),
+            2,
+            "two distinct edges, however often they fired"
+        );
 
         let v = t.viz(&plan, 1.0, "Duck");
-        assert!(v.is_taken(6, "exec_out", 4), "the first edge is still taken");
+        assert!(
+            v.is_taken(6, "exec_out", 4),
+            "the first edge is still taken"
+        );
         assert!(v.has_session());
         // An edge nobody travelled is not taken — which is what dims.
         assert!(!v.is_taken(4, "other", 6));
@@ -783,7 +800,10 @@ mod tests {
         t.clear();
         assert_eq!(t.taken_len(), 0);
         assert_eq!(t.fired_len(), 0);
-        assert!(!t.viz(&plan, 1.0, "Duck").has_session(), "clear ends the session");
+        assert!(
+            !t.viz(&plan, 1.0, "Duck").has_session(),
+            "clear ends the session"
+        );
     }
 
     /// The firing rate is what decides when a wire stops strobing. Averaged
@@ -791,7 +811,10 @@ mod tests {
     #[test]
     fn the_firing_rate_drives_the_steady_hot_cap() {
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("event_tick", 6, false), plan_node("print", 4, false)];
+        plan.nodes = vec![
+            plan_node("event_tick", 6, false),
+            plan_node("print", 4, false),
+        ];
         let mut t = GraphTrace::default();
         // 30 firings inside the window, plus one long past it.
         t.begin_tick(0.0);
@@ -801,7 +824,11 @@ mod tests {
             t.exec_edge(0, "exec_out", 1);
         }
         let v = t.viz(&plan, 10.3, "Duck");
-        assert_eq!(v.rate(6, "exec_out"), 30.0, "the stale firing does not count");
+        assert_eq!(
+            v.rate(6, "exec_out"),
+            30.0,
+            "the stale firing does not count"
+        );
         assert!(v.steady_hot(6, "exec_out"), "30 Hz is past the cap");
 
         let mut slow = GraphTrace::default();
@@ -821,7 +848,10 @@ mod tests {
     fn parked_activations_become_one_wait_per_node() {
         use node_graph_exec::{Activation, ActivationId, GraphInstance, Suspension, ThreadState};
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("delay", 12, false), plan_node("timeline", 13, false)];
+        plan.nodes = vec![
+            plan_node("delay", 12, false),
+            plan_node("timeline", 13, false),
+        ];
 
         let park = |id: u64, node: usize, since: f64, until: f64| Activation {
             id: ActivationId(id),
@@ -839,8 +869,7 @@ mod tests {
                 since,
             }),
         };
-        let mut instance =
-            GraphInstance::new(&plan, node_graph_exec::EntityRef::SelfEntity, 1);
+        let mut instance = GraphInstance::new(&plan, node_graph_exec::EntityRef::SelfEntity, 1);
         instance.time = 4.0;
         instance.threads = vec![
             // Two on the Delay: 40% through a 5s wait, and one nearly due.
@@ -851,16 +880,29 @@ mod tests {
 
         let mut viz = GraphExecViz::new("Duck");
         add_live_state(&mut viz, &instance, &plan);
-        assert_eq!(viz.waiting_len(), 2, "one entry per node, never per activation");
+        assert_eq!(
+            viz.waiting_len(),
+            2,
+            "one entry per node, never per activation"
+        );
         let delay = viz.wait(12).unwrap();
         assert_eq!(delay.count, 2);
-        assert!((delay.remaining - 0.5).abs() < 1e-3, "the bar tracks the nearest due");
-        assert!((delay.fraction - 0.5).abs() < 1e-3, "…and its own elapsed fraction");
+        assert!(
+            (delay.remaining - 0.5).abs() < 1e-3,
+            "the bar tracks the nearest due"
+        );
+        assert!(
+            (delay.fraction - 0.5).abs() < 1e-3,
+            "…and its own elapsed fraction"
+        );
         let timeline = viz.wait(13).unwrap();
         assert_eq!(timeline.count, 1);
         assert!((timeline.fraction - 0.5).abs() < 1e-3);
         assert!(viz.wait(99).is_none());
-        assert!(viz.has_session(), "a wait is a live session even before anything fires");
+        assert!(
+            viz.has_session(),
+            "a wait is a live session even before anything fires"
+        );
     }
 
     /// **GS-4: which marks the interpreter can actually honour.**
@@ -886,9 +928,19 @@ mod tests {
         plan.nodes.push(pure);
 
         assert_eq!(plan_breaks(&plan, 7), vec![1]);
-        assert_eq!(plan_breaks(&plan, 40), vec![2], "a subgraph host resolves inward");
-        assert!(plan_breaks(&plan, 9).is_empty(), "a pure node is not a stop point");
-        assert!(plan_breaks(&plan, 999).is_empty(), "and a pruned node is not either");
+        assert_eq!(
+            plan_breaks(&plan, 40),
+            vec![2],
+            "a subgraph host resolves inward"
+        );
+        assert!(
+            plan_breaks(&plan, 9).is_empty(),
+            "a pure node is not a stop point"
+        );
+        assert!(
+            plan_breaks(&plan, 999).is_empty(),
+            "and a pruned node is not either"
+        );
 
         let rt = super::super::runner::GraphRuntime {
             graph: "graphs/t.graph".into(),
@@ -921,7 +973,10 @@ mod tests {
     fn a_parked_activation_becomes_the_banner_and_the_hit_node() {
         use node_graph_exec::{Activation, ActivationId, ThreadState};
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("event_tick", 6, false), plan_node("branch", 7, false)];
+        plan.nodes = vec![
+            plan_node("event_tick", 6, false),
+            plan_node("branch", 7, false),
+        ];
         let mut instance =
             node_graph_exec::GraphInstance::new(&plan, node_graph_exec::EntityRef::SelfEntity, 1);
         instance.threads = vec![Activation {
@@ -959,7 +1014,10 @@ mod tests {
         assert_eq!(p.activation, 4);
         assert_eq!(p.hits, 3);
         assert!(viz.paused_on(7) && !viz.paused_on(6));
-        assert!(viz.has_session(), "a pause is a live session even with no trace");
+        assert!(
+            viz.has_session(),
+            "a pause is a live session even with no trace"
+        );
         assert!(!viz.break_invalid(7));
     }
 
@@ -969,9 +1027,11 @@ mod tests {
     fn a_kill_anchors_to_its_node_and_says_why() {
         use node_graph_exec::{ExecError, GraphInstance};
         let mut plan = Plan::default();
-        plan.nodes = vec![plan_node("event_tick", 6, false), plan_node("for_loop", 21, false)];
-        let mut instance =
-            GraphInstance::new(&plan, node_graph_exec::EntityRef::SelfEntity, 1);
+        plan.nodes = vec![
+            plan_node("event_tick", 6, false),
+            plan_node("for_loop", 21, false),
+        ];
+        let mut instance = GraphInstance::new(&plan, node_graph_exec::EntityRef::SelfEntity, 1);
         instance.halted = Some(ExecError::BudgetExceeded {
             node: "for_loop".into(),
             budget: 12_000,
@@ -980,7 +1040,11 @@ mod tests {
         let mut viz = GraphExecViz::new("Duck");
         add_live_state(&mut viz, &instance, &plan);
         let kill = viz.killed.as_ref().expect("the canvas knows it died");
-        assert_eq!(kill.node, Some(21), "anchored to the offending document node");
+        assert_eq!(
+            kill.node,
+            Some(21),
+            "anchored to the offending document node"
+        );
         assert!(kill.reason.contains("12000") || kill.reason.contains("12,000"));
         assert!(kill.reason.contains("budget"));
 

@@ -439,16 +439,17 @@ impl WindowRenderer {
             // A queue-less future (`sync::now`, first frame) has nothing in
             // flight to wait for — and would trip a fence-signal assert.
             if let Some(prev) = self.previous_frame_end.take()
-                && prev.queue().is_some() {
-                    match prev.then_signal_fence_and_flush() {
-                        Ok(fence) => {
-                            let _ = fence.wait(None);
-                        }
-                        Err(_) => {
-                            let _ = unsafe { self.device.wait_idle() };
-                        }
+                && prev.queue().is_some()
+            {
+                match prev.then_signal_fence_and_flush() {
+                    Ok(fence) => {
+                        let _ = fence.wait(None);
+                    }
+                    Err(_) => {
+                        let _ = unsafe { self.device.wait_idle() };
                     }
                 }
+            }
             self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
         }
 
@@ -488,7 +489,8 @@ impl WindowRenderer {
         if self.scene_paint_hash != Some(scene_hash) {
             self.scene_paint_hash = Some(scene_hash);
             self.tessellator.reset(&mut self.scene_mesh);
-            self.tessellator.tessellate(scene_paint, &mut self.scene_mesh);
+            self.tessellator
+                .tessellate(scene_paint, &mut self.scene_mesh);
             self.scene_buffers = self.ui.upload(&self.scene_mesh);
             tessellated = true;
         }

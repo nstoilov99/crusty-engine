@@ -68,7 +68,12 @@ fn delay(id: u64, seconds: f32) -> NodeInst {
 }
 
 fn edge(from: u64, fp: &str, to: u64, tp: &str) -> Edge {
-    Edge { from_node: from, from_pin: fp.to_string(), to_node: to, to_pin: tp.to_string() }
+    Edge {
+        from_node: from,
+        from_pin: fp.to_string(),
+        to_node: to,
+        to_pin: tp.to_string(),
+    }
 }
 
 fn logs(effects: &[Effect]) -> Vec<String> {
@@ -98,7 +103,14 @@ impl Runner {
         let impls = n::std_impls();
         assert_eq!(impls.check_plan(&plan), vec![], "plan/impl cross-check");
         let instance = GraphInstance::new(&plan, EntityRef::SelfEntity, 1);
-        Self { plan, impls, instance, breaks: BreakSet::new(), time: 0.0, dt }
+        Self {
+            plan,
+            impls,
+            instance,
+            breaks: BreakSet::new(),
+            time: 0.0,
+            dt,
+        }
     }
 
     /// The plan index of a document node — what a breakpoint is, once the
@@ -123,12 +135,18 @@ impl Runner {
             &self.plan,
             &mut self.instance,
             &self.impls,
-            TickInput { dt: self.dt, time: self.time },
+            TickInput {
+                dt: self.dt,
+                time: self.time,
+            },
             &NoWorld,
             &mut fx,
             DEFAULT_BUDGET,
             &mut NoTrace,
-            DebugCtl { breaks: Some(&self.breaks), command },
+            DebugCtl {
+                breaks: Some(&self.breaks),
+                command,
+            },
         );
         (report, logs(&fx))
     }
@@ -191,7 +209,10 @@ fn a_breakpoint_parks_before_the_node_fires() {
 
     let (report, out) = r.run(DebugCommand::Run);
     assert_eq!(out, vec!["a"], "everything up to the breakpoint ran");
-    assert!(!out.contains(&"b".to_string()), "the parked node's effect did not");
+    assert!(
+        !out.contains(&"b".to_string()),
+        "the parked node's effect did not"
+    );
     assert_eq!(r.paused_on(), Some(r.plan_ix(2)), "parked on b");
     assert_eq!(report.paused.len(), 1, "the tick reports the hit");
     assert_eq!(report.paused[0].0, r.plan_ix(2));
@@ -199,7 +220,10 @@ fn a_breakpoint_parks_before_the_node_fires() {
     // Held: ticking again changes nothing at all, and reports no *new* hit.
     let (held, out) = r.run(DebugCommand::Run);
     assert!(out.is_empty(), "a held instance emits nothing");
-    assert!(held.paused.is_empty(), "the hit is the transition, not the state");
+    assert!(
+        held.paused.is_empty(),
+        "the hit is the transition, not the state"
+    );
     assert_eq!(r.paused_on(), Some(r.plan_ix(2)));
 }
 
@@ -265,7 +289,11 @@ fn a_paused_activation_holds_the_whole_instance() {
     // Resume: b fires, and the rest of the timeline picks up from there —
     // the latent is now due against a clock that only moved when it ran.
     let out = r.resume();
-    assert_eq!(out.first().map(String::as_str), Some("b"), "the parked node fires first");
+    assert_eq!(
+        out.first().map(String::as_str),
+        Some("b"),
+        "the parked node fires first"
+    );
     assert!(r.paused_on().is_none());
     let mut latent_seen = false;
     for _ in 0..4 {
@@ -274,7 +302,10 @@ fn a_paused_activation_holds_the_whole_instance() {
             break;
         }
     }
-    assert!(latent_seen, "the wait resumes on the timeline it was measured against");
+    assert!(
+        latent_seen,
+        "the wait resumes on the timeline it was measured against"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -298,7 +329,11 @@ fn resume_continues_from_the_parked_cursor_and_re_arms() {
     r.arm(2);
 
     assert_eq!(r.tick(), vec!["a"], "parks on b before firing it");
-    assert_eq!(r.resume(), vec!["b", "c"], "exactly the continuation it parked with");
+    assert_eq!(
+        r.resume(),
+        vec!["b", "c"],
+        "exactly the continuation it parked with"
+    );
     assert!(r.paused_on().is_none());
 
     // The waiting activation comes due and arrives at b, which is still armed
@@ -329,9 +364,16 @@ fn step_fires_exactly_one_node_then_re_parks() {
 
     assert_eq!(r.tick(), vec!["a"]);
     assert_eq!(r.step(), vec!["b"], "one firing");
-    assert_eq!(r.paused_on(), Some(r.plan_ix(3)), "re-parked on the next node, unfired");
+    assert_eq!(
+        r.paused_on(),
+        Some(r.plan_ix(3)),
+        "re-parked on the next node, unfired"
+    );
     assert_eq!(r.step(), vec!["c"], "and the next press fires that one");
-    assert!(r.paused_on().is_none(), "the activation finished — nothing to park on");
+    assert!(
+        r.paused_on().is_none(),
+        "the activation finished — nothing to park on"
+    );
     assert!(r.tick().is_empty());
 }
 
@@ -356,7 +398,10 @@ fn step_spends_one_firing_for_the_whole_instance() {
     r.arm(1);
     r.arm(3);
 
-    assert!(r.tick().is_empty(), "both activations park before their print");
+    assert!(
+        r.tick().is_empty(),
+        "both activations park before their print"
+    );
     assert_eq!(
         r.instance
             .threads
@@ -392,7 +437,11 @@ fn an_instance_serializes_mid_pause_and_resumes() {
 
     r.instance = back;
     assert_eq!(r.paused_on(), Some(r.plan_ix(2)));
-    assert_eq!(r.resume(), vec!["b", "c"], "resumes exactly where it parked");
+    assert_eq!(
+        r.resume(),
+        vec!["b", "c"],
+        "resumes exactly where it parked"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +499,10 @@ fn a_held_instance_spends_no_budget() {
     let mut r = Runner::new(&chain_doc(), 0.1);
     r.arm(2);
     let (first, _) = r.run(DebugCommand::Run);
-    assert!(first.steps > 0, "the tick that reached the breakpoint did work");
+    assert!(
+        first.steps > 0,
+        "the tick that reached the breakpoint did work"
+    );
 
     for _ in 0..5 {
         let (held, _) = r.run(DebugCommand::Run);

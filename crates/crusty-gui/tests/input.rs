@@ -36,7 +36,10 @@ fn pointer_press_and_release_edges() {
     let p = Pos2::new(10.0, 10.0);
 
     ctx.begin_frame(input_at(0.0, vec![primary(p, true)]));
-    assert!(ctx.input.pointer_pressed, "press edge fires on the press frame");
+    assert!(
+        ctx.input.pointer_pressed,
+        "press edge fires on the press frame"
+    );
     assert!(ctx.input.pointer_down);
     assert!(!ctx.input.pointer_released);
     ctx.end_frame();
@@ -88,14 +91,20 @@ fn slow_or_far_second_press_is_not_a_double_click() {
     ctx.begin_frame(input_at(0.1, vec![primary(p, false)]));
     ctx.end_frame();
     ctx.begin_frame(input_at(1.0, vec![primary(p, true)]));
-    assert!(!ctx.input.press_was_double, "second press after 1s is not a double");
+    assert!(
+        !ctx.input.press_was_double,
+        "second press after 1s is not a double"
+    );
     ctx.end_frame();
     ctx.begin_frame(input_at(1.1, vec![primary(p, false)]));
     ctx.end_frame();
 
     // Quick but far away.
     ctx.begin_frame(input_at(1.2, vec![primary(Pos2::new(200.0, 200.0), true)]));
-    assert!(!ctx.input.press_was_double, "second press 150px away is not a double");
+    assert!(
+        !ctx.input.press_was_double,
+        "second press 150px away is not a double"
+    );
     ctx.end_frame();
 }
 
@@ -122,8 +131,15 @@ fn typed_text_and_key_presses_reset_each_frame() {
             },
         ],
     ));
-    assert_eq!(ctx.input.typed_text, "abc", "text events concatenate within a frame");
-    assert_eq!(ctx.input.key_presses.len(), 1, "key releases are not recorded");
+    assert_eq!(
+        ctx.input.typed_text, "abc",
+        "text events concatenate within a frame"
+    );
+    assert_eq!(
+        ctx.input.key_presses.len(),
+        1,
+        "key releases are not recorded"
+    );
     assert!(matches!(ctx.input.key_presses[0].key, Key::Enter));
     assert!(ctx.input.key_presses[0].modifiers.contains(Modifiers::CTRL));
     ctx.end_frame();
@@ -194,7 +210,11 @@ fn modifiers_come_from_raw_input() {
     let mut raw = input_at(0.0, vec![]);
     raw.modifiers = Modifiers::SHIFT | Modifiers::ALT;
     ctx.begin_frame(raw);
-    assert!(ctx.input.modifiers.contains(Modifiers::SHIFT | Modifiers::ALT));
+    assert!(
+        ctx.input
+            .modifiers
+            .contains(Modifiers::SHIFT | Modifiers::ALT)
+    );
     assert!(!ctx.input.modifiers.contains(Modifiers::CTRL));
     ctx.end_frame();
 }
@@ -206,7 +226,11 @@ fn click_clears_keyboard_focus() {
     ctx.memory.focused_widget = Some(id);
 
     ctx.begin_frame(input_at(0.0, vec![]));
-    assert_eq!(ctx.memory.focused_widget, Some(id), "focus persists without clicks");
+    assert_eq!(
+        ctx.memory.focused_widget,
+        Some(id),
+        "focus persists without clicks"
+    );
     ctx.end_frame();
 
     ctx.begin_frame(input_at(0.1, vec![primary(Pos2::new(5.0, 5.0), true)]));
@@ -222,7 +246,11 @@ fn tab(shift: bool) -> Event {
         key: Key::Tab,
         pressed: true,
         repeat: false,
-        modifiers: if shift { Modifiers::SHIFT } else { Modifiers::empty() },
+        modifiers: if shift {
+            Modifiers::SHIFT
+        } else {
+            Modifiers::empty()
+        },
     }
 }
 

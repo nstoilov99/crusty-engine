@@ -30,9 +30,9 @@ use std::borrow::Cow;
 
 use crate::doc::{GraphDoc, NodeRealm, PinType, PropValue, VarDecl};
 use crate::registry::{
-    NodeDescriptor, NodeRegistry, PinDescriptor, EXEC_IN_PIN, EXEC_OUT_PIN, GRAPH_INPUT_TYPE_ID,
-    GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID, VAR_GET_TYPE_ID,
-    VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN, CURVE_PROP, TIMELINE_TYPE_ID,
+    NodeDescriptor, NodeRegistry, PinDescriptor, CURVE_PROP, EXEC_IN_PIN, EXEC_OUT_PIN,
+    GRAPH_INPUT_TYPE_ID, GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID,
+    TIMELINE_TYPE_ID, VAR_GET_TYPE_ID, VAR_PROP, VAR_SET_TYPE_ID, VAR_VALUE_PIN,
 };
 use crate::resolver::{CurveResolver, GraphResolver};
 use crate::std_events::{
@@ -109,7 +109,12 @@ impl<'a> DocDescriptors<'a> {
     /// Doc-local answers only: subgraph nodes resolve to `None`, exactly as
     /// `validate_doc` has always treated them.
     pub fn new(doc: &'a GraphDoc, registry: &'a NodeRegistry) -> Self {
-        Self { doc, registry, resolver: None, curves: None }
+        Self {
+            doc,
+            registry,
+            resolver: None,
+            curves: None,
+        }
     }
 
     /// …plus cross-asset answers: subgraph nodes resolve their interface.
@@ -118,7 +123,12 @@ impl<'a> DocDescriptors<'a> {
         registry: &'a NodeRegistry,
         resolver: &'a dyn GraphResolver,
     ) -> Self {
-        Self { doc, registry, resolver: Some(resolver), curves: None }
+        Self {
+            doc,
+            registry,
+            resolver: Some(resolver),
+            curves: None,
+        }
     }
 
     /// …and `.curve` answers: a Timeline node grows one Float output per
@@ -164,7 +174,9 @@ impl<'a> DocDescriptors<'a> {
 
     /// How this instance's pins are answered.
     pub fn kind(&self, node_id: u64) -> Option<NodeKind> {
-        self.doc.node(node_id).map(|n| NodeKind::of_type(&n.type_id))
+        self.doc
+            .node(node_id)
+            .map(|n| NodeKind::of_type(&n.type_id))
     }
 
     /// The variable a `var_get`/`var_set` instance names, if the document
@@ -259,14 +271,16 @@ impl<'a> DocDescriptors<'a> {
             return Some(t.clone());
         }
         let config = |key: &str| match n.properties.get(key) {
-            Some(PropValue::Str(s)) | Some(PropValue::Enum(s)) if !s.is_empty() => {
-                Some(s.clone())
-            }
+            Some(PropValue::Str(s)) | Some(PropValue::Enum(s)) if !s.is_empty() => Some(s.clone()),
             _ => None,
         };
         let name = match NodeKind::of_type(&n.type_id) {
             NodeKind::VarGet | NodeKind::VarSet => {
-                let verb = if n.type_id == VAR_SET_TYPE_ID { "Set" } else { "Get" };
+                let verb = if n.type_id == VAR_SET_TYPE_ID {
+                    "Set"
+                } else {
+                    "Get"
+                };
                 let what = self
                     .variable_of(node_id)
                     .map(|d| d.label.clone())
@@ -275,7 +289,10 @@ impl<'a> DocDescriptors<'a> {
                 format!("{verb} {what}")
             }
             NodeKind::EventCustom => {
-                format!("Event: {}", config(EVENT_NAME_PROP).unwrap_or_else(|| "<unnamed>".into()))
+                format!(
+                    "Event: {}",
+                    config(EVENT_NAME_PROP).unwrap_or_else(|| "<unnamed>".into())
+                )
             }
             NodeKind::Timeline => {
                 // Named by the asset it plays — two Timelines in one graph are
@@ -287,7 +304,10 @@ impl<'a> DocDescriptors<'a> {
                 format!("Timeline: {}", stem.unwrap_or_else(|| "<no curve>".into()))
             }
             _ if n.type_id == EVENT_INPUT_ACTION_TYPE_ID => {
-                format!("Input: {}", config(EVENT_ACTION_PROP).unwrap_or_else(|| "<unbound>".into()))
+                format!(
+                    "Input: {}",
+                    config(EVENT_ACTION_PROP).unwrap_or_else(|| "<unbound>".into())
+                )
             }
             // Everything else is named by its descriptor, which the caller
             // already has.
@@ -404,8 +424,18 @@ fn interface_descriptor(doc: &GraphDoc, is_input: bool) -> NodeDescriptor {
         (pins, Vec::new())
     };
     NodeDescriptor {
-        id: if is_input { GRAPH_INPUT_TYPE_ID } else { GRAPH_OUTPUT_TYPE_ID }.to_string(),
-        name: if is_input { "Graph Input" } else { "Graph Output" }.to_string(),
+        id: if is_input {
+            GRAPH_INPUT_TYPE_ID
+        } else {
+            GRAPH_OUTPUT_TYPE_ID
+        }
+        .to_string(),
+        name: if is_input {
+            "Graph Input"
+        } else {
+            "Graph Output"
+        }
+        .to_string(),
         category: "Interface".to_string(),
         version: 1,
         inputs,
@@ -447,7 +477,12 @@ fn var_descriptor(decl: &VarDecl, set: bool) -> NodeDescriptor {
         }
     };
     NodeDescriptor {
-        id: if set { VAR_SET_TYPE_ID } else { VAR_GET_TYPE_ID }.to_string(),
+        id: if set {
+            VAR_SET_TYPE_ID
+        } else {
+            VAR_GET_TYPE_ID
+        }
+        .to_string(),
         name: format!("{} {}", if set { "Set" } else { "Get" }, decl.label),
         category: "Data".to_string(),
         version: 1,
@@ -563,10 +598,7 @@ mod tests {
         let mut sub = node(4, SUBGRAPH_TYPE_ID);
         sub.subgraph = Some("lib/calc.subgraph".into());
         doc.nodes.push(sub);
-        doc.edges = vec![
-            edge(0, "sum", 1, REROUTE_IN),
-            edge(1, "out", 2, REROUTE_IN),
-        ];
+        doc.edges = vec![edge(0, "sum", 1, REROUTE_IN), edge(1, "out", 2, REROUTE_IN)];
 
         let d = DocDescriptors::new(&doc, &reg);
         let probes: &[(u64, &str, bool)] = &[
@@ -589,7 +621,11 @@ mod tests {
             );
         }
         for n in [1u64, 2, 3] {
-            assert_eq!(d.reroute_type(n), reroute_type(&doc, &reg, n), "reroute {n}");
+            assert_eq!(
+                d.reroute_type(n),
+                reroute_type(&doc, &reg, n),
+                "reroute {n}"
+            );
         }
 
         // An unwired reroute is untyped, not wrong — both agree.
@@ -640,9 +676,15 @@ mod tests {
         let d = DocDescriptors::new(&doc, &reg);
 
         let gi = d.descriptor(0).unwrap();
-        assert!(gi.inputs.is_empty(), "an interface input node has no inputs");
+        assert!(
+            gi.inputs.is_empty(),
+            "an interface input node has no inputs"
+        );
         assert_eq!(
-            gi.outputs.iter().map(|p| p.slug.as_str()).collect::<Vec<_>>(),
+            gi.outputs
+                .iter()
+                .map(|p| p.slug.as_str())
+                .collect::<Vec<_>>(),
             vec!["amount"]
         );
         assert_eq!(d.pin_type(0, "amount", true), Some(PinType::Float));
@@ -650,7 +692,10 @@ mod tests {
         let go = d.descriptor(1).unwrap();
         assert!(go.outputs.is_empty());
         assert_eq!(
-            go.inputs.iter().map(|p| p.slug.as_str()).collect::<Vec<_>>(),
+            go.inputs
+                .iter()
+                .map(|p| p.slug.as_str())
+                .collect::<Vec<_>>(),
             vec!["result"]
         );
         assert_eq!(d.pin_type(1, "result", false), Some(PinType::Float));
@@ -723,7 +768,9 @@ mod tests {
         // untyped rather than guessed, and the slug survives so the error can
         // name it.
         let d = DocDescriptors::new(&doc, &reg);
-        let dangling = d.descriptor(2).expect("a dangling reference still has a shape");
+        let dangling = d
+            .descriptor(2)
+            .expect("a dangling reference still has a shape");
         assert_eq!(dangling.name, "Get deleted");
         assert_eq!(
             d.pin_type(2, VAR_VALUE_PIN, true),
@@ -732,9 +779,14 @@ mod tests {
         );
         assert_eq!(d.variable_slug(2), Some("deleted"));
         // No `var` property at all: still a shape, named for what is missing.
-        let bare = d.descriptor(3).expect("no `var` property is still a var node");
+        let bare = d
+            .descriptor(3)
+            .expect("no `var` property is still a var node");
         assert_eq!(bare.name, "Get <missing>");
-        assert_eq!(d.pin_type(3, VAR_VALUE_PIN, true), Some(PinType::Domain(String::new())));
+        assert_eq!(
+            d.pin_type(3, VAR_VALUE_PIN, true),
+            Some(PinType::Domain(String::new()))
+        );
     }
 
     /// The wires of a dangling variable node land on its synthesized pins —
@@ -771,9 +823,10 @@ mod tests {
             "{errors:?}"
         );
         assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, GraphError::TypeMismatch { .. } | GraphError::UnknownPin { .. })),
+            !errors.iter().any(|e| matches!(
+                e,
+                GraphError::TypeMismatch { .. } | GraphError::UnknownPin { .. }
+            )),
             "one problem, one error: {errors:?}"
         );
     }
@@ -788,7 +841,10 @@ mod tests {
             format!("{EVENT_PAYLOAD_PREFIX}amount"),
             PropValue::Enum("float".into()),
         );
-        let doc = GraphDoc { nodes: vec![n], ..GraphDoc::default() };
+        let doc = GraphDoc {
+            nodes: vec![n],
+            ..GraphDoc::default()
+        };
         let d = DocDescriptors::new(&doc, &reg);
         assert_eq!(d.kind(0), Some(NodeKind::EventCustom));
         assert_eq!(d.pin_type(0, EXEC_OUT_PIN, true), Some(PinType::Exec));

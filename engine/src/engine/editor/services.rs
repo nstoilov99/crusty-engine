@@ -82,7 +82,6 @@ impl EditorServices {
     pub fn load_icons_crusty(&mut self) {
         self.icons = Arc::new(IconRegistry::empty_with_default_palette());
     }
-
 }
 
 impl Default for EditorServices {

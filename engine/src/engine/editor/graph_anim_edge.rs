@@ -330,10 +330,23 @@ pub fn anim_flow_layout(
             // consumer of the halves (hit test, cut, dim redraw) still sees
             // one straight line.
             let link = &links[li];
-            out.segs
-                .insert(link.e_from, EdgeSeg { a, b: mid, arrow: false });
+            out.segs.insert(
+                link.e_from,
+                EdgeSeg {
+                    a,
+                    b: mid,
+                    arrow: false,
+                },
+            );
             if let Some(eo) = link.e_to {
-                out.segs.insert(eo, EdgeSeg { a: mid, b, arrow: true });
+                out.segs.insert(
+                    eo,
+                    EdgeSeg {
+                        a: mid,
+                        b,
+                        arrow: true,
+                    },
+                );
             }
         }
         for &li in members {
@@ -451,7 +464,10 @@ mod tests {
 
         let h1 = &l.segs[&1];
         let h2 = &l.segs[&2];
-        assert!(!h1.arrow, "the half landing on the midpoint has no arrowhead");
+        assert!(
+            !h1.arrow,
+            "the half landing on the midpoint has no arrowhead"
+        );
         assert!(h2.arrow, "the half landing on the state carries the arrow");
         assert_eq!(h1.b, h2.a, "halves meet at the midpoint");
         // Straight horizontal run at the centers' height, border to border.
@@ -482,7 +498,8 @@ mod tests {
     fn bidirectional_transitions_take_opposite_lanes() {
         let (mut doc, mut rects) = machine();
         doc.nodes.push(node(11, ANIM_TRANSITION_TYPE_ID));
-        doc.edges.push(edge(2, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
+        doc.edges
+            .push(edge(2, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
         doc.edges.push(edge(11, TRANSITION_TO_PIN, 1, STATE_IN_PIN));
         rects.insert(11, [0.0, 400.0, 100.0, 426.0]);
         let l = layout(&doc, &rects);
@@ -510,7 +527,8 @@ mod tests {
     fn same_direction_transitions_share_one_line_and_stack_badges() {
         let (mut doc, mut rects) = machine();
         doc.nodes.push(node(11, ANIM_TRANSITION_TYPE_ID));
-        doc.edges.push(edge(1, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
+        doc.edges
+            .push(edge(1, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
         doc.edges.push(edge(11, TRANSITION_TO_PIN, 2, STATE_IN_PIN));
         rects.insert(11, [0.0, 400.0, 100.0, 426.0]);
         let l = layout(&doc, &rects);
@@ -537,7 +555,8 @@ mod tests {
         doc.edges[2] = edge(10, TRANSITION_TO_PIN, 1, STATE_IN_PIN);
         for id in [12u64, 11] {
             doc.nodes.push(node(id, ANIM_TRANSITION_TYPE_ID));
-            doc.edges.push(edge(2, STATE_OUT_PIN, id, TRANSITION_FROM_PIN));
+            doc.edges
+                .push(edge(2, STATE_OUT_PIN, id, TRANSITION_FROM_PIN));
             doc.edges.push(edge(id, TRANSITION_TO_PIN, 1, STATE_IN_PIN));
             rects.insert(id, [0.0, 400.0, 22.0, 422.0]);
         }
@@ -566,7 +585,8 @@ mod tests {
     fn lanes_compress_to_what_a_small_node_can_carry() {
         let (mut doc, mut rects) = machine();
         doc.nodes.push(node(11, ANIM_TRANSITION_TYPE_ID));
-        doc.edges.push(edge(2, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
+        doc.edges
+            .push(edge(2, STATE_OUT_PIN, 11, TRANSITION_FROM_PIN));
         doc.edges.push(edge(11, TRANSITION_TO_PIN, 1, STATE_IN_PIN));
         rects.insert(11, [0.0, 400.0, 100.0, 426.0]);
         // Short states (half-extent 10): the ±18 split caps at ±8, on-border.
@@ -593,7 +613,10 @@ mod tests {
         let s = &l.segs[&1];
         assert!(s.arrow, "the dangling half still points with the flow");
         // From Idle's border toward the stored chip rect.
-        assert!(s.b[1] >= 300.0 && s.b[1] <= 326.0, "lands on the chip border");
+        assert!(
+            s.b[1] >= 300.0 && s.b[1] <= 326.0,
+            "lands on the chip border"
+        );
         let d = l.chip_dir[&10];
         assert!(d[1] > 0.0, "points down toward the stored badge");
     }

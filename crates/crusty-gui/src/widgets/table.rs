@@ -238,7 +238,10 @@ impl Table {
             }
 
             ui.ctx_mut().paint.push(PaintCmd::PushClip(cell));
-            let text_pos = Pos2::new(cell.min.x + 6.0, cell.min.y + (header_h - style.fonts.body) * 0.5);
+            let text_pos = Pos2::new(
+                cell.min.x + 6.0,
+                cell.min.y + (header_h - style.fonts.body) * 0.5,
+            );
             {
                 let Ui { ctx, text, .. } = ui;
                 text.add_text(
@@ -268,8 +271,18 @@ impl Table {
                 let mid = Pos2::new(cx, tip_y);
                 let right = Pos2::new(cx + half, arm_y);
                 let paint = &mut ui.ctx_mut().paint;
-                paint.push(PaintCmd::Line { from: left, to: mid, width, color });
-                paint.push(PaintCmd::Line { from: mid, to: right, width, color });
+                paint.push(PaintCmd::Line {
+                    from: left,
+                    to: mid,
+                    width,
+                    color,
+                });
+                paint.push(PaintCmd::Line {
+                    from: mid,
+                    to: right,
+                    width,
+                    color,
+                });
             }
             ui.ctx_mut().paint.push(PaintCmd::PopClip);
         }
@@ -306,7 +319,9 @@ impl Table {
         state.offset_y = body.offset_y;
 
         let sort = body.sort;
-        ui.ctx_mut().memory.data_insert::<TableState>(table_id, state);
+        ui.ctx_mut()
+            .memory
+            .data_insert::<TableState>(table_id, state);
         TableOutput { sort }
     }
 }
@@ -417,7 +432,9 @@ impl TableRow<'_, '_, '_> {
             Pos2::new(left, self.row_top),
             Vec2::new(width, self.row_height),
         );
-        let root = self.table_id.with(("cell", self.row_index as u64, c as u64));
+        let root = self
+            .table_id
+            .with(("cell", self.row_index as u64, c as u64));
         let opts = UiOptions {
             padding: Vec2::new(6.0, 3.0),
             spacing: self.spacing,

@@ -11,18 +11,18 @@
 use std::sync::Arc;
 
 use etagere::{AtlasAllocator, Size as EtagereSize};
+use vulkano::DeviceSize;
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::command_buffer::{
     AutoCommandBufferBuilder, BufferImageCopy, CopyBufferToImageInfo, PrimaryAutoCommandBuffer,
 };
 use vulkano::format::Format;
-use vulkano::image::sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode};
+use vulkano::image::sampler::{
+    Filter, Sampler, SamplerAddressMode, SamplerCreateInfo, SamplerMipmapMode,
+};
 use vulkano::image::view::ImageView;
 use vulkano::image::{Image, ImageCreateInfo, ImageSubresourceLayers, ImageType, ImageUsage};
-use vulkano::memory::allocator::{
-    AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator,
-};
-use vulkano::DeviceSize;
+use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator};
 
 use crate::math::Pos2;
 
@@ -97,8 +97,7 @@ impl GlyphAtlas {
         )
         .expect("failed to create atlas sampler");
 
-        let allocator =
-            AtlasAllocator::new(EtagereSize::new(extent[0] as i32, extent[1] as i32));
+        let allocator = AtlasAllocator::new(EtagereSize::new(extent[0] as i32, extent[1] as i32));
 
         Self {
             memory_allocator,
@@ -168,7 +167,11 @@ impl GlyphAtlas {
     /// (`w * h * 4` straight-alpha RGBA) to be copied into the color page.
     /// Lazily creates the page on first use. Returns `None` if full.
     pub fn insert_rgba(&mut self, w: u32, h: u32, bytes: Vec<u8>) -> Option<AtlasRect> {
-        debug_assert_eq!(bytes.len(), (w * h * 4) as usize, "rgba bitmap size mismatch");
+        debug_assert_eq!(
+            bytes.len(),
+            (w * h * 4) as usize,
+            "rgba bitmap size mismatch"
+        );
         self.ensure_rgba_page();
         let allocator = self.rgba_allocator.as_mut()?;
         let alloc_size = EtagereSize::new(w.max(1) as i32, h.max(1) as i32);
@@ -227,12 +230,7 @@ impl GlyphAtlas {
         builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
         let r8_image = self.image.clone();
-        flush_page(
-            &self.memory_allocator,
-            builder,
-            &mut self.pending,
-            r8_image,
-        );
+        flush_page(&self.memory_allocator, builder, &mut self.pending, r8_image);
         if let Some(rgba_image) = self.rgba_image.clone() {
             flush_page(
                 &self.memory_allocator,
