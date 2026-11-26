@@ -1,10 +1,46 @@
 {
   "permissions": {
     "allow": [
-      "mcp__filesystem__read_text_file",
-      "mcp__filesystem__list_allowed_directories",
-      "Bash(ls -la \"e:\\\\Projects\\\\Rust\\\\rust-engine\\\\src\\\\engine\\\\benchmark\"\" 2>&1 || echo \"Directory not found \")",
-      "WebFetch(domain:ufbx.github.io)"
-    ]
+      "Bash(cargo check:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo tree:*)",
+      "Bash(cargo metadata:*)",
+      "Bash(cargo doc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git switch -c:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(bash scripts/lint_design.sh:*)",
+      "Bash(bash scripts/ci_local.sh:*)",
+      "Bash(pwsh scripts/ci_local.ps1:*)",
+      "Bash(pwsh scripts/screenshot.ps1:*)",
+      "Bash(codex exec:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:ufbx.github.io)",
+      "WebFetch(domain:spacetimedb.com)"
+    ],
+    "deny": [],
+    "ask": []
   }
 }

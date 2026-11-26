@@ -3,8 +3,16 @@
 /server/game_module/target/
 **/*.rs.bk
 *.pdb
-/docs/roadmap
-/docs/mockup
+# Local-only roadmap material: legacy tutorials/prompts and rendered HTML.
+# Plan docs (VULKANO-*.md, ROADMAP.md, COMPLETED.md) ARE tracked.
+/docs/roadmap/legacy/
+/docs/roadmap/*.html
+/docs/roadmap/_render_to_html.py
+# Mockup screenshots and uploads; the .md specs/audits are tracked.
+/docs/mockup/*-shots/
+/docs/mockup/assets/
+/docs/mockup/uploads/
+/docs/mockup/*.html
 
 # Cargo.lock  # <-- DON'T uncomment this for applications
 
@@ -15,8 +23,9 @@
 *.swo
 *~
 
-# User-local editor preferences (M10 P7)
+# User-local editor preferences (M10 P7) and per-machine agent permissions
 editor_prefs.ron
+.claude/settings.local.json
 
 # OS files
 .DS_Store
@@ -32,8 +41,7 @@ perf.data*
 /target/doc/
 nul
 editor_graph_state.ron
-.p2_play.txt
-.p2_play.err.txt
+.p2_play*
 
 # Task 41.6: raw animation sources (Mixamo FBX) — imported into content/anims, never shipped
 /content/import/
