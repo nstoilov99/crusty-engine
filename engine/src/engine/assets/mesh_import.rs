@@ -1315,8 +1315,7 @@ pub fn load_anim_binary_from_bytes(
                 if cursor + name_len > data.len() {
                     return Err("Anim file truncated in event marker name".into());
                 }
-                let name =
-                    String::from_utf8_lossy(&data[cursor..cursor + name_len]).to_string();
+                let name = String::from_utf8_lossy(&data[cursor..cursor + name_len]).to_string();
                 cursor += name_len;
                 events.push(AnimEventMarker { time_seconds, name });
             }
@@ -1627,7 +1626,10 @@ mod tests {
         assert_eq!(loaded_clips[0].channels[0].position_keys.len(), 2);
         assert_eq!(loaded_clips[0].channels[0].rotation_keys.len(), 2);
         assert_eq!(loaded_clips[0].channels[0].scale_keys.len(), 1);
-        assert_eq!(loaded_clips[0].events, clips[0].events, "markers round-trip");
+        assert_eq!(
+            loaded_clips[0].events, clips[0].events,
+            "markers round-trip"
+        );
     }
 
     /// A v1 `.anim` (no marker section) still loads — with no markers.

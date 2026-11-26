@@ -29,10 +29,10 @@ use super::mesh_editor::MeshPreviewState;
 use crate::engine::animation::components::SkeletonInstance;
 use crate::engine::animation::graph::plan::preview_mesh_of;
 use crate::engine::animation::graph::{
-    arm_masks, compile_anim_graph_with, new_extra_machines, tick_extra_machines,
-    tick_root_clocks, AnimAssetLoader, AnimGraphLoader, AnimGraphPlan, AnimGraphRuntime,
-    AnimMachine, AnimParamType, AnimParams, ClipSet, DiskAnimAssets, MachineSource,
-    PipelineState, PlanClip, PlayOnceSlot, PoseScratch, PoseSource, RootClipClock,
+    arm_masks, compile_anim_graph_with, new_extra_machines, tick_extra_machines, tick_root_clocks,
+    AnimAssetLoader, AnimGraphLoader, AnimGraphPlan, AnimGraphRuntime, AnimMachine, AnimParamType,
+    AnimParams, ClipSet, DiskAnimAssets, MachineSource, PipelineState, PlanClip, PlayOnceSlot,
+    PoseScratch, PoseSource, RootClipClock,
 };
 
 /// What the strip's chip calls the panel's own machine.
@@ -210,7 +210,9 @@ impl AnimGraphPreview {
             .map(|t| now.duration_since(t).as_secs_f32().min(0.1))
             .unwrap_or(0.0);
         self.last_frame = Some(now);
-        let loader = DiskAnimAssets { content_root: "content".into() };
+        let loader = DiskAnimAssets {
+            content_root: "content".into(),
+        };
         self.tick_with(doc, path, revision, mesh_assets, &loader, &loader, dt);
     }
 
@@ -401,7 +403,10 @@ impl AnimGraphPreview {
             });
         };
         let Some(skel) = &self.skeleton else {
-            return Err(format!("{} has no skeleton \u{2014} set Preview Mesh", stem(mesh)));
+            return Err(format!(
+                "{} has no skeleton \u{2014} set Preview Mesh",
+                stem(mesh)
+            ));
         };
         if plan.states.is_empty() {
             return Err("Graph has no states".into());
@@ -435,13 +440,14 @@ impl AnimGraphPreview {
     /// clocks, then the slot — or the mirror poses as-is; then the pipeline
     /// evaluates through [`PipelineState`] and the palette refreshes.
     pub fn advance(&mut self, dt: f32) {
-        let Some(skel) = self.skeleton.as_mut() else { return };
+        let Some(skel) = self.skeleton.as_mut() else {
+            return;
+        };
         if self.status.is_some() {
             return;
         }
         let clips = &self.clips;
-        let clip_for =
-            |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
+        let clip_for = |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
         let state = match &self.mirror {
             Some(m) => PipelineState {
                 plan: &m.plan,
@@ -516,15 +522,15 @@ fn state_label(plan: &AnimGraphPlan, machine: &AnimMachine) -> Option<String> {
 mod tests {
     use super::*;
     use crate::engine::animation::graph::plan::{
-        ANIM_ENTRY_TYPE_ID, ANIM_STATE_TYPE_ID, ANIM_TRANSITION_TYPE_ID, CLIP_PROP,
-        DURATION_PROP, PREVIEW_MESH_PROP, PRIORITY_PROP, RULE_RESULT_PIN, STATE_IN_PIN,
-        STATE_OUT_PIN, TRANSITION_FROM_PIN, TRANSITION_TO_PIN,
+        ANIM_ENTRY_TYPE_ID, ANIM_STATE_TYPE_ID, ANIM_TRANSITION_TYPE_ID, CLIP_PROP, DURATION_PROP,
+        PREVIEW_MESH_PROP, PRIORITY_PROP, RULE_RESULT_PIN, STATE_IN_PIN, STATE_OUT_PIN,
+        TRANSITION_FROM_PIN, TRANSITION_TO_PIN,
     };
-    use node_graph_types::PropValue;
     use crate::engine::animation::graph::{anim_node_registry, ANIM_STATE_ALIAS_TYPE_ID};
     use crate::engine::assets::model_loader::{AnimationChannel, BoneData, RawAnimationClip};
     use crate::engine::editor::graph_editor::{GraphDomain, GraphEditorState};
     use glam::{Mat4, Vec3};
+    use node_graph_types::PropValue;
     use node_graph_types::{
         Edge, GraphDoc, GraphRealm, GraphRegion, NodeInst, PinType, VarDecl, VAR_GET_TYPE_ID,
         VAR_PROP, VAR_VALUE_PIN,
@@ -552,12 +558,20 @@ mod tests {
     }
 
     fn edge(from: u64, fp: &str, to: u64, tp: &str) -> Edge {
-        Edge { from_node: from, from_pin: fp.into(), to_node: to, to_pin: tp.into() }
+        Edge {
+            from_node: from,
+            from_pin: fp.into(),
+            to_node: to,
+            to_pin: tp.into(),
+        }
     }
 
     /// ENTRY → Idle; Idle → Walk on the Bool `walk`, 0.5 s crossfade.
     fn two_state_doc() -> GraphDoc {
-        let mut doc = GraphDoc { realm: GraphRealm::Client, ..GraphDoc::default() };
+        let mut doc = GraphDoc {
+            realm: GraphRealm::Client,
+            ..GraphDoc::default()
+        };
         doc.variables = vec![VarDecl {
             slug: "walk".into(),
             label: "Walk".into(),
@@ -567,13 +581,26 @@ mod tests {
         }];
         doc.nodes = vec![
             node(1, ANIM_ENTRY_TYPE_ID, None),
-            with(2, ANIM_STATE_TYPE_ID, Some("Idle"), &[(CLIP_PROP, PropValue::Asset("idle.anim".into()))]),
-            with(3, ANIM_STATE_TYPE_ID, Some("Walk"), &[(CLIP_PROP, PropValue::Asset("walk.anim".into()))]),
+            with(
+                2,
+                ANIM_STATE_TYPE_ID,
+                Some("Idle"),
+                &[(CLIP_PROP, PropValue::Asset("idle.anim".into()))],
+            ),
+            with(
+                3,
+                ANIM_STATE_TYPE_ID,
+                Some("Walk"),
+                &[(CLIP_PROP, PropValue::Asset("walk.anim".into()))],
+            ),
             with(
                 4,
                 ANIM_TRANSITION_TYPE_ID,
                 None,
-                &[(DURATION_PROP, PropValue::Float(0.5)), (PRIORITY_PROP, PropValue::Int(0))],
+                &[
+                    (DURATION_PROP, PropValue::Float(0.5)),
+                    (PRIORITY_PROP, PropValue::Int(0)),
+                ],
             ),
         ];
         doc.edges = vec![
@@ -585,8 +612,17 @@ mod tests {
             4,
             GraphRegion {
                 nodes: vec![
-                    with(0, VAR_GET_TYPE_ID, None, &[(VAR_PROP, PropValue::Str("walk".into()))]),
-                    node(1, crate::engine::animation::graph::plan::ANIM_RULE_RESULT_TYPE_ID, None),
+                    with(
+                        0,
+                        VAR_GET_TYPE_ID,
+                        None,
+                        &[(VAR_PROP, PropValue::Str("walk".into()))],
+                    ),
+                    node(
+                        1,
+                        crate::engine::animation::graph::plan::ANIM_RULE_RESULT_TYPE_ID,
+                        None,
+                    ),
                 ],
                 edges: vec![edge(0, VAR_VALUE_PIN, 1, RULE_RESULT_PIN)],
             },
@@ -640,7 +676,10 @@ mod tests {
                 "upper.anim" => clip_on(1, "Upper", 7.0),
                 _ => return None,
             };
-            Some(ClipSet { bone_names: vec!["root".into(), "child".into()], clips: vec![clip] })
+            Some(ClipSet {
+                bone_names: vec!["root".into(), "child".into()],
+                clips: vec![clip],
+            })
         }
         fn load_skeleton(&self, rel: &str) -> Option<Vec<BoneData>> {
             match rel {
@@ -659,7 +698,10 @@ mod tests {
     }
 
     fn meshes() -> Vec<String> {
-        ["a.mesh", "b.mesh", "c.mesh"].iter().map(|s| s.to_string()).collect()
+        ["a.mesh", "b.mesh", "c.mesh"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 
     fn tick(p: &mut AnimGraphPreview, doc: &GraphDoc, rev: u64, dt: f32) {
@@ -671,18 +713,19 @@ mod tests {
     }
 
     fn bone_x(p: &AnimGraphPreview, i: usize) -> f32 {
-        p.skeleton.as_ref().expect("skeleton").local_transforms[i].translation.x
+        p.skeleton.as_ref().expect("skeleton").local_transforms[i]
+            .translation
+            .x
     }
 
     /// [`two_state_doc`] plus the pipeline `SM(20) ─base▶ Layer(22: bones,
     /// weight aim) ◀layer─ Clip(21: upper.anim) → Output(25)`.
     fn layer_doc(bones: &str) -> GraphDoc {
+        use crate::engine::animation::graph::plan::{ANIM_CLIP_TYPE_ID, POSE_PIN};
         use crate::engine::animation::graph::{
             ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID, ANIM_PIPE_OUTPUT_TYPE_ID,
-            LAYER_BASE_PIN, LAYER_LAYER_PIN, LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP,
-            PIPE_IN_PIN,
+            LAYER_BASE_PIN, LAYER_LAYER_PIN, LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP, PIPE_IN_PIN,
         };
-        use crate::engine::animation::graph::plan::{ANIM_CLIP_TYPE_ID, POSE_PIN};
         let mut doc = two_state_doc();
         doc.variables.push(VarDecl {
             slug: "aim".into(),
@@ -693,7 +736,12 @@ mod tests {
         });
         doc.nodes.extend([
             node(20, ANIM_PIPE_MACHINE_TYPE_ID, None),
-            with(21, ANIM_CLIP_TYPE_ID, Some("Upper"), &[(CLIP_PROP, PropValue::Asset("upper.anim".into()))]),
+            with(
+                21,
+                ANIM_CLIP_TYPE_ID,
+                Some("Upper"),
+                &[(CLIP_PROP, PropValue::Asset("upper.anim".into()))],
+            ),
             with(
                 22,
                 ANIM_PIPE_LAYER_TYPE_ID,
@@ -719,7 +767,11 @@ mod tests {
         let mut p = AnimGraphPreview::default();
         tick(&mut p, &doc, 1, 0.1);
         assert_eq!(p.status, None);
-        assert_eq!(p.mesh.as_deref(), Some("b.mesh"), "a.mesh lacks 'child', c.mesh has no bones");
+        assert_eq!(
+            p.mesh.as_deref(),
+            Some("b.mesh"),
+            "a.mesh lacks 'child', c.mesh has no bones"
+        );
         assert_eq!(p.state_label().as_deref(), Some("Idle"));
         assert!((bone0_x(&p) - 2.0).abs() < 1e-4, "entry state pose");
         let snap = p.snapshot();
@@ -750,8 +802,16 @@ mod tests {
         doc.nodes.retain(|n| n.type_id != ANIM_ENTRY_TYPE_ID);
         let mut p = AnimGraphPreview::default();
         tick(&mut p, &doc, 1, 0.1);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("ENTRY")), "{:?}", p.status);
-        assert!(p.snapshot().disabled.as_deref().is_some_and(|s| s.contains("ENTRY")));
+        assert!(
+            p.status.as_deref().is_some_and(|s| s.contains("ENTRY")),
+            "{:?}",
+            p.status
+        );
+        assert!(p
+            .snapshot()
+            .disabled
+            .as_deref()
+            .is_some_and(|s| s.contains("ENTRY")));
         assert_eq!(p.state_label(), None);
     }
 
@@ -769,7 +829,11 @@ mod tests {
         let mut broken = good.clone();
         broken.nodes.retain(|n| n.type_id != ANIM_ENTRY_TYPE_ID);
         tick(&mut p, &broken, 2, 0.1);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("ENTRY")), "{:?}", p.status);
+        assert!(
+            p.status.as_deref().is_some_and(|s| s.contains("ENTRY")),
+            "{:?}",
+            p.status
+        );
         assert!(p.snapshot().disabled.is_some());
         assert!((bone0_x(&p) - 10.0).abs() < 1e-4, "the last pose holds");
         // The next edit fixes it: same plan, so the machine is still in Walk
@@ -785,18 +849,42 @@ mod tests {
     #[test]
     fn the_entry_nodes_preview_mesh_wins_and_a_mismatch_is_explained() {
         let mut doc = two_state_doc();
-        doc.nodes[0].properties.insert(PREVIEW_MESH_PROP.into(), PropValue::Str("a.mesh".into()));
+        doc.nodes[0]
+            .properties
+            .insert(PREVIEW_MESH_PROP.into(), PropValue::Str("a.mesh".into()));
         let mut p = AnimGraphPreview::default();
         tick(&mut p, &doc, 1, 0.1);
         assert_eq!(p.mesh.as_deref(), Some("a.mesh"));
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("don't match")), "{:?}", p.status);
-        doc.nodes[0].properties.insert(PREVIEW_MESH_PROP.into(), PropValue::Str("c.mesh".into()));
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("don't match")),
+            "{:?}",
+            p.status
+        );
+        doc.nodes[0]
+            .properties
+            .insert(PREVIEW_MESH_PROP.into(), PropValue::Str("c.mesh".into()));
         tick(&mut p, &doc, 2, 0.1);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("no skeleton")), "{:?}", p.status);
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("no skeleton")),
+            "{:?}",
+            p.status
+        );
         doc.nodes[0].properties.remove(PREVIEW_MESH_PROP);
-        doc.nodes[1].properties.insert(CLIP_PROP.into(), PropValue::Asset("missing.anim".into()));
+        doc.nodes[1]
+            .properties
+            .insert(CLIP_PROP.into(), PropValue::Asset("missing.anim".into()));
         tick(&mut p, &doc, 3, 0.1);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("could not be loaded")), "{:?}", p.status);
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("could not be loaded")),
+            "{:?}",
+            p.status
+        );
     }
 
     #[test]
@@ -816,11 +904,19 @@ mod tests {
         assert!(p.time() > t);
         // A real change restarts at ENTRY with the Bool still set: the
         // transition fires again on the first tick.
-        doc.nodes[3].properties.insert(DURATION_PROP.into(), PropValue::Float(0.2));
+        doc.nodes[3]
+            .properties
+            .insert(DURATION_PROP.into(), PropValue::Float(0.2));
         tick(&mut p, &doc, 3, 0.05);
         assert_eq!(p.state_label().as_deref(), Some("Idle \u{2192} Walk"));
-        assert_eq!(p.snapshot().params.iter().find(|q| q.slug == "walk").map(|q| q.value.clone()),
-            Some(crate::engine::animation::graph::ParamValue::Bool(true)));
+        assert_eq!(
+            p.snapshot()
+                .params
+                .iter()
+                .find(|q| q.slug == "walk")
+                .map(|q| q.value),
+            Some(crate::engine::animation::graph::ParamValue::Bool(true))
+        );
     }
 
     #[test]
@@ -848,7 +944,10 @@ mod tests {
         });
         tick(&mut p, &doc, 1, 0.1);
         assert_eq!(p.state_label().as_deref(), Some("Walk"));
-        assert!((bone0_x(&p) - 10.0).abs() < 1e-4, "the entity's pose, not the panel's");
+        assert!(
+            (bone0_x(&p) - 10.0).abs() < 1e-4,
+            "the entity's pose, not the panel's"
+        );
         // The panel's own machine did not move: unmirrored, it is still Idle.
         p.mirror = None;
         tick(&mut p, &doc, 1, 0.0);
@@ -867,17 +966,26 @@ mod tests {
         assert_eq!(p.status, None);
         assert_eq!(p.mesh.as_deref(), Some("b.mesh"));
         let near = |a: f32, b: f32| (a - b).abs() < 1e-4;
-        assert!(near(bone_x(&p, 0), 2.0) && near(bone_x(&p, 1), 0.0), "aim 0: the base only");
+        assert!(
+            near(bone_x(&p, 0), 2.0) && near(bone_x(&p, 1), 0.0),
+            "aim 0: the base only"
+        );
         assert!(p.apply(&AnimParamEdit::SetFloat("aim".into(), 1.0)));
         tick(&mut p, &doc, 1, 0.1);
-        assert!(near(bone_x(&p, 1), 7.0), "child follows the layer: {}", bone_x(&p, 1));
+        assert!(
+            near(bone_x(&p, 1), 7.0),
+            "child follows the layer: {}",
+            bone_x(&p, 1)
+        );
         assert!(near(bone_x(&p, 0), 2.0), "root stays on Idle");
         assert_eq!(p.state_label().as_deref(), Some("Idle"));
 
         let bad = layer_doc("nope");
         tick(&mut p, &bad, 2, 0.1);
         assert!(
-            p.status.as_deref().is_some_and(|s| s.contains("layer #22: bone 'nope' is not in the skeleton")),
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("layer #22: bone 'nope' is not in the skeleton")),
             "{:?}",
             p.status
         );
@@ -902,7 +1010,10 @@ mod tests {
         assert_eq!(preview_mesh_of(&st.doc), "b.mesh");
         assert!(st.dirty);
         assert!(st.revision > rev, "an edit moves the revision");
-        assert_eq!(st.stack.undo_description().as_deref(), Some("Set preview_mesh"));
+        assert_eq!(
+            st.stack.undo_description().as_deref(),
+            Some("Set preview_mesh")
+        );
         st.undo(&reg);
         assert_eq!(st.preview_mesh(), "");
         st.redo(&reg);

@@ -1,0 +1,10 @@
+# Windows defaults to a 1 MB main-thread stack. Debug builds of vulkano's
+# SPIR-V validation use ~10 KB stack frames and recurse a few hundred frames
+# deep, which blows past 1 MB on the main thread. Set the binary stack
+# reserve to 8 MB on Windows to match the typical Linux default.
+#
+# Downstream applications embedding `crusty-gui` should add the same flag,
+# or call `UiRenderer::new` from a thread spawned with
+# `std::thread::Builder::new().stack_size(8 << 20)`.
+[target.'cfg(windows)']
+rustflags = ["-C", "link-arg=/STACK:8388608"]

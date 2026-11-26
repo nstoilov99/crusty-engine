@@ -231,6 +231,9 @@ mod tests {
                 ]),
             ],
         )"#;
-        assert_eq!(collision_mesh_paths(scene.as_bytes()), vec!["models/b.mesh"]);
+        assert_eq!(
+            collision_mesh_paths(scene.as_bytes()),
+            vec!["models/b.mesh"]
+        );
     }
 }

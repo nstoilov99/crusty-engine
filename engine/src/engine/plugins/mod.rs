@@ -39,12 +39,12 @@ pub mod graph_scripting;
 mod tests;
 
 pub use context::{DebugDrawFn, PluginContext, PluginCounts, WorldLoadedFn};
-pub use export::{export_features, exported_plugins, ExportedPlugin, EXPORT_BASE_FEATURES};
-pub use rapier::{RapierPhysicsPlugin, PHYSICS_RAPIER_ID};
 #[cfg(feature = "dev_nodes")]
 pub use dev_nodes::DevNodesPlugin;
+pub use export::{export_features, exported_plugins, ExportedPlugin, EXPORT_BASE_FEATURES};
 #[cfg(feature = "graph-scripting")]
 pub use graph_scripting::{GraphScriptingPlugin, GRAPH_SCRIPTING_FEATURE};
+pub use rapier::{RapierPhysicsPlugin, PHYSICS_RAPIER_ID};
 
 /// The `graph_scripting` manifest id. **Unconditional**: the editor asks
 /// `PluginSet::is_active` about it to grey out inert `GraphRunner` rows, and

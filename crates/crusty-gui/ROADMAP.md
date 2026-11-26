@@ -1,0 +1,301 @@
+# crusty-gui Roadmap
+
+Goal: grow `crusty-gui` into a comprehensive GUI library that can replace
+**egui** in [rust-engine](https://github.com/nstoilov99/rust-engine).
+
+Both projects already share a stack — **vulkano 0.35**, **winit 0.30**,
+**cosmic-text** — so integration is mostly additive.
+
+## Current State
+
+crusty-gui is a Phase 0–15 hybrid immediate/retained GUI with:
+
+- ~15 widgets (Button, Checkbox, Radio, Slider, ProgressBar, TextEdit, Label,
+  CollapsingHeader, ScrollArea, ComboBox, SelectableValue, Tooltip,
+  ContextMenu, TreeNode)
+- SDF rounded-rect rendering + glassmorphism (Kawase blur), WGSL→SPIR-V
+- cosmic-text shaping + swash rasterization into an R8 glyph atlas
+- CPU tessellator → vulkano backend, per-clip scissor ranges
+- Hierarchical ID system, persistent widget `Memory`, exponential animation
+- Basic docking (split/leaf tree, tab bars, splitters)
+- 2-layer paint (regular + overlay)
+
+### Engine integration targets (what must work after the swap)
+
+The rust-engine editor uses egui + egui_dock 0.18 via a custom vulkano
+integration (`engine/src/engine/gui/mod.rs`). Panels to port:
+
+- Asset Browser (grid/list, thumbnails, drag-drop, search)
+- Hierarchy Panel (scene tree)
+- Inspector Panel (component editing — label/value grids)
+- Profiler (flamegraph, sortable table, frame history)
+- Console (filtered log viewer)
+- Viewport (engine texture + transform gizmo overlay)
+- Scene tabs, Mesh editor (secondary window), Build/Import dialogs
+- Menu bar, status bar, toast notifications
+
+---
+
+## Phase 9 — Floating windows & layering *(blocker)*
+
+The editor relies on dialogs and popups everywhere.
+
+- [x] `Area` primitive: free-positioned UI region (foundation for windows,
+      tooltips, menus)
+- [x] `Window` widget: movable / resizable / collapsible, title bar
+- [x] Real z-order: replace the 2-layer paint/overlay split with N ordered
+      layers + bring-to-front on click
+- [x] Modal support + click-outside-to-close
+
+## Phase 10 — Texture protocol *(blocker)*
+
+The viewport, asset thumbnails, and previews render engine images.
+
+- [x] `TextureId` registry: user-registered vulkano `ImageView`s sampled in
+      the UI shader (new textured fragment mode)
+- [x] `Image` / `ImageButton` widgets with UV control
+- [x] RGBA atlas page alongside R8 (also unblocks color emoji)
+
+## Phase 11 — Layout engine upgrade
+
+Cursor-based top-down/left-right is too weak for the inspector and profiler.
+
+- [x] Nested `horizontal()` / `vertical()` with alignment & justify
+- [x] `Grid` (label/value rows — inspector)
+- [x] `Table` with resizable, sortable, virtualized columns (profiler)
+- [x] Wrapping text, `available_size` negotiation, min/max constraints
+- [x] Typed per-widget memory store (egui `IdTypeMap` parity): replace the
+      fixed `WidgetMemory` scratch fields with an `Id`+`TypeId` keyed any-map
+      so widgets (and external/user widgets) persist their own typed state —
+      table column widths, text selection ranges, etc.
+
+## Phase 12 — Docking completion
+
+- [x] Tab drag-out / drag-in
+- [x] 5-way drop zones with overlay preview
+- [x] serde serialization of dock tree **and** `Memory` (egui_dock parity)
+
+## Phase 13 — Editor-grade interaction
+
+- [x] Drag & drop payload system (asset browser → inspector slots)
+- [x] Clipboard (arboard) + full IME in TextEdit
+- [x] Keyboard focus traversal (Tab / Shift-Tab), shortcuts API
+- [x] Menu bar / nested menus, toasts
+
+## Phase 14 — Painter API
+
+- [x] Public low-level painter: lines, polygons, beziers, text-at-pos
+      (required for flamegraph, gizmo overlays, custom profiler drawing)
+- [ ] Plot helpers (later — raw painter unblocks everything first)
+
+## Phase 15 — Multi-window
+
+- [x] Multi-viewport: independent `Context`-per-window (or shared context
+      with per-window output) — mesh editor's secondary window
+- [x] Promote the demo's winit/swapchain glue into the real `src/window/`
+      module
+- [x] Detachable panels: tear a dock panel out into a **real secondary OS
+      window** (spawn a `WindowRenderer` hosting the panel with its own
+      `Context`, instead of an in-app floating `Area`), and **re-dock** it
+      back via drag & drop. Fuses Phase 12 (tab drag-out/drag-in + 5-way
+      drop zones) with Phase 15's multi-window. Drag a tab off the window
+      edge to detach; drag the torn-off window's title strip back over the
+      main dock to re-dock. Cross-window drag is solved with manual window
+      moves (`set_outer_position`) so the held button + release stay on the
+      panel window, and the global cursor (`inner_position` + local) is
+      translated into the main window's client space to drive the dock's
+      `external_drag` drop zones.
+
+## Phase 15.5 — Shell extraction *(pre-swap blocker)*
+
+`main.rs` holds ~2,100 lines of orchestration every consumer needs — the
+multi-window dock hosting, tear-off/decorator system, and input translation
+built in Phases 12–15 are demo-trapped. Extract them into a reusable
+`shell` module (the `eframe` to our `egui`) so the engine integrates
+against a library API instead of forking the demo. Panel *content* stays
+app-owned via a trait; presentation stays optional so the engine can
+record UI into its own render target (`FramePacket` flow) instead of
+letting `WindowRenderer` own the swapchain.
+
+- [x] `shell/input.rs`: winit `WindowEvent` → `Event` translation
+      (`apply_input_event`, `clear_stuck_pointer`, modifier tracking,
+      global↔client cursor mapping)
+- [x] `DockApp` trait: app-implemented panel content callback replacing the
+      string-keyed `render_panel` (tab title + `panel_ui(&mut Ui, tab)`)
+- [x] `Shell` type owning `GpuContext`, main `WindowRenderer`, `DockHost`
+      list, warm decorator pool, and all drag state; absorbs the ~25
+      tear-off/re-dock methods (`spawn_dock_host`, `begin_tearoff`,
+      `route_tab_drag`, `route_window_drag`, `promote_decorator`, …) behind
+      `handle_window_event()` / `render()` / `about_to_wait()` hooks
+- [x] Layout persistence helpers: serde save/load of dock tree + `Memory`
+      moved behind the `serde` feature (`LayoutRef`/`LayoutOwned`)
+- [x] `FrameOutput` extensions the engine seam needs: `wants_pointer` /
+      `wants_keyboard`, cursor icon, `repaint_after`
+- [x] Presentation-optional render path: tessellate + record into an
+      externally-owned command buffer / image target (engine composites),
+      swapchain ownership only in the shell path — `TargetRenderer` in
+      `backend/target.rs` (caller-owned `ImageView`, optional backdrop for
+      glass blur, returns a primary command buffer for the host frame graph)
+- [x] Backend quick wins touching the same seam: reuse vertex/index
+      buffers, drop `wait_idle` on glyph upload
+- [x] Demo `main.rs` becomes a thin driver (~700 lines): `EditorState`,
+      `render_panel`, theme, demo textures, default dock tree
+
+## Phase 16 — Swap & hardening
+
+- [x] ~~Define a `GuiBackend` trait~~ — skipped: cfg-gating already covers
+      coexistence, and a one-impl trait is dead weight once egui is deleted
+- [ ] Port panels one at a time (start with **console** — simplest)
+  - [x] Console — crusty panel draws into the egui dock tab's rect
+        (`console_crusty.rs`); filters + counts, stick-to-bottom log,
+        command input with Enter/history/Escape; egui fallback intact
+  - [x] Hierarchy — scene tree (`hierarchy_crusty.rs`); registry-tinted
+        icons, rename, context menu, visibility eye, search filter,
+        drag-drop reparent/reorder, keyboard shortcuts; egui fallback intact
+  - [x] Inspector — component editing (`inspector_crusty.rs`); per-component
+        editors, DragValue fields, redesigned ColorPicker (draggable popup,
+        cached swatches, desktop-wide eyedropper via host sampler),
+        Add Component menu, filter; egui fallback intact
+  - [x] Asset Browser — grid/list views (`asset_browser_crusty.rs`);
+        folder tree + Splitter, breadcrumb, search/type filter, GPU
+        thumbnails, rename, context menus, drag-drop, working list-view
+        sort, colored type badges + asset count/refresh (improvements);
+        egui fallback intact
+  - [x] Profiler — flamegraph (zoom/pan/breadcrumbs, threshold colors,
+        filter dimming), frame history + Live/Slowest modes, redesigned
+        Table and Budget views, Settings/Info/Tracy popups
+        (`profiler_crusty.rs`); egui fallback intact
+  - [x] Viewport — scene texture drawn via registered native TextureId,
+        toolbar as its own strip above the image (uniform padded SVG
+        icons), grid/snap/camera-speed popovers, transform gizmo overlay
+        via `PaintCmd::Mesh`, play-mode bar, keyboard shortcuts
+        (`viewport_crusty.rs`); egui fallback intact
+  - [x] Editor chrome — menu bar (File/Edit/View/Debug/Help, Build Game
+        flyout, play controls with SVG icons), status bar, toasts
+        (`menu_bar_crusty.rs`, `status_bar_crusty.rs`, `toasts_crusty.rs`);
+        egui panels only reserve the strips; scene tabs deferred to the
+        dock swap; egui fallback intact
+  - [x] Dock swap — crusty dock hosts all panels (tear-off ghost, compass
+        docking, close buttons); torn-off tabs become borderless OS float
+        windows with an Unreal-style caption (tabs in the title bar,
+        min/max/close, OS move/resize) and drag back to re-dock; engine
+        keeps rendering during OS modal move/resize loops
+  - [x] Scene tabs — viewport tabs in the crusty dock: focus-driven scene
+        switching, "+" new-scene button, dirty `*` prefix (active + dormant),
+        close with last-tab veto; viewport tabs never float
+  - [x] Modal dialogs — dialog stack (Ok/OkCancel/SaveDiscardCancel),
+        model import dialog, Save Scene As, file-drop overlay
+        (`dialogs_crusty.rs`); center-anchored crusty `Window`s; egui
+        fallback intact
+  - [x] Command palette — movable/resizable crusty `Window`, muted
+        selection highlight, focus-on-open search
+        (`command_palette_crusty.rs`); also fixed engine hotkeys on
+        non-Latin keyboard layouts (physical-key fallback)
+  - [x] Input settings / action / context editors — dock + float tabs,
+        listen-for-input overlay, grouped key combos
+        (`input_editors_crusty.rs`); egui fallback intact
+  - [x] Mesh editor + secondary preview OS windows — Unreal-style material
+        slots (thumbnail + searchable/tree dropdown, DnD assign, slot
+        add/remove/reset, Save bar) in `mesh_editor_crusty.rs`; mesh
+        undocking now creates crusty float windows (egui secondary
+        window path removed for mesh)
+  - [x] Delete egui: fallback panels, app.rs/main.rs branches, egui render
+        pass, FramePacket egui types, Cargo deps — zero egui references
+        remain; theme/panel types migrated to crusty math/input, gizmo on
+        the core transform-gizmo crate, `crusty` feature is now an alias
+        of `editor`
+- [x] Damage tracking / "needs repaint" to avoid 100% redraw, buffer reuse —
+      paint-hash gating end to end: renderers skip tessellation/upload and
+      reuse cached GPU buffers on identical paint (`d936c15`); the shell only
+      redraws on paint change, input, or timed wakeups (`FrameOutput::
+      paint_changed` + `repaint_after` via `ControlFlow::WaitUntil`), with a
+      synchronous frame pump for Windows' modal move/resize loop
+- [x] Snapshot tests (render-to-image compare) + unit tests for layout/input —
+      headless-GPU harness (`tests/common/mod.rs`) renders scenes through
+      `TargetRenderer` and compares against golden PNGs in `tests/snapshots/`
+      (`UPDATE_SNAPSHOTS=1` regenerates; bundled DejaVu Sans + injected time
+      for determinism); 7 snapshot scenes, plus `tests/layout.rs` and
+      `tests/input.rs` unit tests
+
+---
+
+# Beyond egui parity
+
+Phases 9–16 reach parity. Everything after is about making crusty-gui
+*better* than egui, not just equivalent.
+
+## Phase 17 — Performance beyond egui
+
+- [ ] Retained draw-command caching: skip tessellation for unchanged
+      subtrees (egui re-tessellates everything every frame — biggest
+      available win)
+- [ ] Glyph atlas eviction / growth
+- [ ] GPU buffer pooling
+- [ ] Partial swapchain updates / damage rects
+
+## Phase 18 — Polish that egui lacks
+
+- [ ] Rich animation system: spring physics, layout transitions (windows /
+      tabs animating into place), enter/exit animations — builds on the
+      existing `approach()` foundation
+- [ ] Hot-reloadable theming (style files, not code) — editor QoL
+- [ ] Theme selection in an editor-settings panel (rust-engine side) —
+      the current crusty editor theme reads darker than the egui one;
+      make brightness/palette a user choice instead of hand-tuned parity
+- [ ] Custom font fallback chains, color emoji, subpixel AA option
+
+## Phase 19 — Accessibility & i18n
+
+- [ ] AccessKit integration (screen readers, OS automation — egui has this)
+- [ ] RTL text layout (cosmic-text supports it — mostly plumbing)
+- [ ] Keyboard-only operation audit
+
+## Phase 20 — Game-facing UI (not just editor)
+
+- [ ] Worldspace UI: render to texture + raycast input mapping (HUDs,
+      in-game menus — egui is weak here; the engine integration makes it
+      natural)
+- [ ] Gamepad / controller navigation (engine already has gamepad input)
+- [ ] Data-driven UI definitions: load layouts from assets, hot-reload
+
+## Phase 21 — Ecosystem (if open-sourced)
+
+- [ ] Docs + examples gallery
+- [ ] Crate split: `crusty-gui-winit` / `crusty-gui-vulkano` so backends are
+      swappable
+- [ ] Optional wgpu backend for wider adoption
+
+## Phase 22 — Node canvas / pan-zoom *(visual scripting)*
+
+Foundation for a Blueprint-style visual scripting editor in the engine.
+Node positions live in the **graph asset** (app owns them for save/undo),
+not GUI memory — the canvas just renders at given positions and reports
+drags back. Depends on Phase 14 (bezier painter for wires) and leans on
+Phase 17 (culling + retained tessellation) before it scales to big graphs.
+
+- [x] Pan/zoom canvas transform: a world↔screen coordinate space with input
+      hit-tested in canvas space (`widgets::Canvas` + `CanvasView`/`CanvasScope`:
+      middle-drag/scroll pan, Ctrl+scroll zoom-about-pointer, caller-owned view
+      state, zoom-quantized label sizes; exercised by the "Node Canvas" demo panel)
+- [ ] Free-positioned node + pin widgets, link-drag interaction on the canvas
+- [ ] Bezier wire rendering between pins (uses the Phase 14 painter)
+- [ ] Off-screen node culling + retained draw caching for large graphs
+      (Phase 17), and glyph-atlas growth for multi-scale text under zoom
+
+---
+
+## Sequencing rationale
+
+- **9 + 10** unblock porting the first real panels.
+- **11** unblocks the inspector and profiler (the heaviest UIs).
+- **12–13** reach editor parity with egui + egui_dock.
+- **14–15** cover the long tail.
+- **16** is the actual migration.
+- **17 + 20** offer the highest post-parity returns: performance and
+  in-game UI are egui's genuine weaknesses, and Phase 20 turns this from
+  "editor UI" into the engine's only UI system.
+- **22** (node canvas) is gated on **14** (bezier wires) and only scales
+  with **17** (culling + retained tessellation), so it comes late despite
+  building on the Phase 9 free-positioning foundation.
+
+After Phase 11, the console and hierarchy panels should be portable.

@@ -39,26 +39,25 @@ pub use library::{
     anim_machine_registry, anim_node_registry, anim_node_tag, anim_pipeline_registry,
     anim_rule_registry, new_animgraph_doc, ANIM_CATEGORY, ANIM_FLOW_DOMAIN, ANIM_POSE_DOMAIN,
 };
-pub use pipeline::{
-    is_machine_node, is_pipeline_node, needs_pipeline_root, upgrade_pipeline_root,
-    ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID, ANIM_PIPE_OUTPUT_TYPE_ID, FAMILY_MACHINE,
-    FAMILY_PIPELINE, LAYER_BASE_PIN, LAYER_INCLUDE_ROOT_PROP, LAYER_LAYER_PIN,
-    LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP, PIPE_IN_PIN,
-};
 pub use machine::{
     any_transition_activity, collect_anim_events, evaluate_pose, extra_machine_index,
     new_extra_machines, tick_extra_machines, tick_root_clocks, whole_body_slot, AnimEventFire,
     AnimMachine, AnimParams, Crossfade, ParamValue, PipelineState, PlayOnceSlot, PoseScratch,
     RootClipClock,
 };
+pub use pipeline::{
+    is_machine_node, is_pipeline_node, needs_pipeline_root, upgrade_pipeline_root,
+    ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID, ANIM_PIPE_OUTPUT_TYPE_ID, FAMILY_MACHINE,
+    FAMILY_PIPELINE, LAYER_BASE_PIN, LAYER_INCLUDE_ROOT_PROP, LAYER_LAYER_PIN,
+    LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP, PIPE_IN_PIN,
+};
 pub use plan::{
     compile_anim_graph, compile_anim_graph_with, trigger_pin_type, upgrade_any_state,
-    AnchoredWarning, AnimGraphLoader, AnimGraphPlan, AnimParamType, CmpOp, Compiled,
-    MachineSource, MathOp, ParamDecl, PlanClip, PlanFootPlacement, PlanIkChain, PlanIkSolver,
-    PlanMachineRef, PlanMask, PlanPipeline, PlanPose, PlanRootClip, PlanRule, PlanSlot,
-    PlanSpace, PlanState, PlanTransition, PlanTree, PoseSource, RuleExpr, TransitionFrom,
-    ALIAS_GLOBAL_PROP, ALIAS_STATES_PROP, ANIM_IK_CHAIN_TYPE_ID, ANIM_STATE_ALIAS_TYPE_ID,
-    TRIGGER_PARAM_DOMAIN,
+    AnchoredWarning, AnimGraphLoader, AnimGraphPlan, AnimParamType, CmpOp, Compiled, MachineSource,
+    MathOp, ParamDecl, PlanClip, PlanFootPlacement, PlanIkChain, PlanIkSolver, PlanMachineRef,
+    PlanMask, PlanPipeline, PlanPose, PlanRootClip, PlanRule, PlanSlot, PlanSpace, PlanState,
+    PlanTransition, PlanTree, PoseSource, RuleExpr, TransitionFrom, ALIAS_GLOBAL_PROP,
+    ALIAS_STATES_PROP, ANIM_IK_CHAIN_TYPE_ID, ANIM_STATE_ALIAS_TYPE_ID, TRIGGER_PARAM_DOMAIN,
 };
 pub use runner::{
     arm_masks, compile_blend_space, invalidate_blend_space, AnimAssetLoader, AnimClipCache,

@@ -19,9 +19,27 @@ pub mod widgets;
 
 #[cfg(feature = "editor")]
 pub mod anim_events_dialog;
+/// Per-document layouts ticket 03: the Anim Preview dock panel's CPU half —
+/// the focused graph's compiled plan on a skeleton of its own.
+#[cfg(feature = "editor")]
+pub mod anim_graph_preview;
+/// Task 41 ticket 06: animation-graph preview data (parameter strip, live
+/// state highlight), the animation counterpart of `graph_exec_viz`.
+#[cfg(feature = "editor")]
+pub mod anim_preview;
+#[cfg(feature = "editor")]
+pub mod anim_preview_crusty;
 pub mod asset_browser;
 #[cfg(feature = "editor")]
 pub mod asset_browser_crusty;
+pub mod atomic_file;
+/// Task 41.5 ticket 04: the `.blendspace` document editor — state + undo
+/// stack here, drawing in `blend_space_editor_crusty`.
+pub mod blend_space_editor;
+#[cfg(feature = "editor")]
+pub mod blend_space_editor_crusty;
+/// Ticket 08: the tab's embedded 3D preview — skeleton, clock and pose.
+pub mod blend_space_preview;
 pub mod build_dialog;
 #[cfg(feature = "editor")]
 pub mod command_palette_crusty;
@@ -32,19 +50,46 @@ pub mod console_cmd;
 pub mod console_crusty;
 #[cfg(feature = "editor")]
 pub mod crusty_window;
+/// 45-A P8b: the `.curve` document editor — state + undo stack here, drawing
+/// in `curve_editor_crusty`. Mirrors the `graph_editor` / `mesh_editor` split.
+pub mod curve_editor;
+#[cfg(feature = "editor")]
+pub mod curve_editor_crusty;
 #[cfg(all(feature = "editor", windows))]
 pub mod desktop_sampler;
-pub mod atomic_file;
 #[cfg(feature = "editor")]
 pub mod dialogs_crusty;
 #[cfg(feature = "editor")]
 pub mod dock_crusty;
 mod dock_layout;
+/// Generic doc-local undo/redo stack shared by the curve and blend space editors.
+pub mod edit_stack;
+pub mod editor_prefs;
+pub mod graph_anim_chip;
+pub mod graph_anim_edge;
+/// Per-document layouts ticket 02: the focused graph's Details and
+/// Variables dock panels, thin views over `graph_editor_crusty`'s helpers.
+#[cfg(feature = "editor")]
+pub mod graph_dock_panels_crusty;
+pub mod graph_editor;
+#[cfg(feature = "editor")]
+pub mod graph_editor_crusty;
+/// 45-A P7 execution visualization, document-space. Editor-only by
+/// construction: nothing outside the editor has a canvas to draw a pulse on,
+/// and a shipped game must not carry the recorder that fills this in.
+#[cfg(feature = "editor")]
+pub mod graph_exec_viz;
+pub mod graph_layout;
+pub mod graph_palette;
+pub mod graph_prefs;
+pub mod graph_state_store;
+/// The 45-A P6b variables model: declarations, their edits and their undo
+/// behavior. Test-only — the panel that drives them is P6c.
+#[cfg(test)]
+mod graph_variables_tests;
+pub mod graph_wire_router;
 #[cfg(feature = "editor")]
 pub mod hierarchy_crusty;
-#[cfg(feature = "editor")]
-pub mod plugin_manager;
-pub mod relaunch;
 mod hierarchy_panel;
 pub mod import_dialog;
 mod input_action_editor;
@@ -55,67 +100,22 @@ mod input_settings_panel;
 #[cfg(feature = "editor")]
 pub mod inspector_crusty;
 mod inspector_panel;
+pub mod keymap;
 mod menu_bar;
 #[cfg(feature = "editor")]
 pub mod menu_bar_crusty;
 pub mod mesh_editor;
 #[cfg(feature = "editor")]
 pub mod mesh_editor_crusty;
-/// 45-A P8b: the `.curve` document editor — state + undo stack here, drawing
-/// in `curve_editor_crusty`. Mirrors the `graph_editor` / `mesh_editor` split.
-pub mod curve_editor;
-#[cfg(feature = "editor")]
-pub mod curve_editor_crusty;
-/// Generic doc-local undo/redo stack shared by the curve and blend space editors.
-pub mod edit_stack;
-/// Task 41.5 ticket 04: the `.blendspace` document editor — state + undo
-/// stack here, drawing in `blend_space_editor_crusty`.
-pub mod blend_space_editor;
-#[cfg(feature = "editor")]
-pub mod blend_space_editor_crusty;
-/// Ticket 08: the tab's embedded 3D preview — skeleton, clock and pose.
-pub mod blend_space_preview;
-pub mod graph_anim_chip;
-pub mod graph_anim_edge;
-pub mod graph_editor;
-/// The 45-A P6b variables model: declarations, their edits and their undo
-/// behavior. Test-only — the panel that drives them is P6c.
-#[cfg(test)]
-mod graph_variables_tests;
-pub mod graph_layout;
-pub mod graph_palette;
-pub mod graph_state_store;
-pub mod graph_prefs;
-pub mod graph_wire_router;
-/// 45-A P7 execution visualization, document-space. Editor-only by
-/// construction: nothing outside the editor has a canvas to draw a pulse on,
-/// and a shipped game must not carry the recorder that fills this in.
-#[cfg(feature = "editor")]
-pub mod graph_exec_viz;
-/// Task 41 ticket 06: animation-graph preview data (parameter strip, live
-/// state highlight), the animation counterpart of `graph_exec_viz`.
-#[cfg(feature = "editor")]
-pub mod anim_preview;
-/// Per-document layouts ticket 03: the Anim Preview dock panel's CPU half —
-/// the focused graph's compiled plan on a skeleton of its own.
-#[cfg(feature = "editor")]
-pub mod anim_graph_preview;
-#[cfg(feature = "editor")]
-pub mod anim_preview_crusty;
-#[cfg(feature = "editor")]
-pub mod graph_editor_crusty;
-/// Per-document layouts ticket 02: the focused graph's Details and
-/// Variables dock panels, thin views over `graph_editor_crusty`'s helpers.
-#[cfg(feature = "editor")]
-pub mod graph_dock_panels_crusty;
-pub mod editor_prefs;
-pub mod keymap;
 pub mod play_mode;
 pub mod play_settings;
+#[cfg(feature = "editor")]
+pub mod plugin_manager;
 pub mod profiler;
-pub mod project_config;
 #[cfg(feature = "editor")]
 pub mod profiler_crusty;
+pub mod project_config;
+pub mod relaunch;
 pub mod scene_tab;
 pub mod secondary_kind;
 mod selection;

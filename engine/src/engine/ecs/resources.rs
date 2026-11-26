@@ -173,7 +173,10 @@ impl Time {
         if editing {
             return 0.0;
         }
-        resources.get::<Time>().map(|t| t.scaled_delta()).unwrap_or(0.0)
+        resources
+            .get::<Time>()
+            .map(|t| t.scaled_delta())
+            .unwrap_or(0.0)
     }
 
     /// Advance time by one frame with the given raw delta.
@@ -191,32 +194,22 @@ impl Default for Time {
 }
 
 /// Editor play/pause mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PlayMode {
+    #[default]
     Edit,
     Playing,
     Paused,
 }
 
-impl Default for PlayMode {
-    fn default() -> Self {
-        Self::Edit
-    }
-}
-
 /// Editor tool mode for viewport interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ToolMode {
+    #[default]
     Select,
     Translate,
     Rotate,
     Scale,
-}
-
-impl Default for ToolMode {
-    fn default() -> Self {
-        Self::Select
-    }
 }
 
 /// Editor state resource tracking play mode and tool settings.

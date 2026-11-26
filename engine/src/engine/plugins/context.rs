@@ -12,8 +12,8 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 
-use crate::engine::ecs::access::SystemDescriptor;
 use crate::engine::debug_draw::DebugDrawBuffer;
+use crate::engine::ecs::access::SystemDescriptor;
 use crate::engine::ecs::resources::Resources;
 use crate::engine::ecs::schedule::{RunCriteria, Schedule, Stage, System};
 use crate::engine::node_graph::migrate::MigrationCtx;
@@ -94,7 +94,8 @@ impl PluginContext {
         stage: Stage,
         descriptor: SystemDescriptor,
     ) -> &mut Self {
-        self.schedule.add_system_described(system, stage, descriptor);
+        self.schedule
+            .add_system_described(system, stage, descriptor);
         self
     }
 

@@ -67,7 +67,11 @@ pub fn triangulate(pts: &[P]) -> Vec<[usize; 3]> {
         for &(a, b) in &edges {
             let shared = edges.iter().any(|&(x, y)| x == b && y == a);
             if !shared {
-                let t = if orient(at(a), at(b), at(p)) >= 0.0 { [a, b, p] } else { [b, a, p] };
+                let t = if orient(at(a), at(b), at(p)) >= 0.0 {
+                    [a, b, p]
+                } else {
+                    [b, a, p]
+                };
                 tris.push(t);
             }
         }
@@ -80,7 +84,8 @@ pub fn triangulate(pts: &[P]) -> Vec<[usize; 3]> {
 /// boundary (edges without a reverse twin).
 pub fn hull(tris: &[[usize; 3]]) -> Vec<usize> {
     let has_edge = |a: usize, b: usize| {
-        tris.iter().any(|t| (0..3).any(|k| t[k] == a && t[(k + 1) % 3] == b))
+        tris.iter()
+            .any(|t| (0..3).any(|k| t[k] == a && t[(k + 1) % 3] == b))
     };
     let mut next: Vec<(usize, usize)> = Vec::new();
     for t in tris {

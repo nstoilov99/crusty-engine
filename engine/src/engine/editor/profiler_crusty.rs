@@ -66,7 +66,7 @@ fn fmt_thousands(n: u64) -> String {
     let s = n.to_string();
     let mut out = String::with_capacity(s.len() + s.len() / 3);
     for (i, ch) in s.chars().enumerate() {
-        if i > 0 && (s.len() - i) % 3 == 0 {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
             out.push(',');
         }
         out.push(ch);
@@ -164,9 +164,7 @@ fn toolbar(ui: &mut Ui, s: f32, state: &mut ProfilerState) -> ToolbarAnchors {
     let status = Palette::invariant_status();
     ui.horizontal(|ui| {
         let label = if state.is_paused { "Resume" } else { "Pause" };
-        let r = Button::new(label)
-            .toggled(state.is_paused)
-            .show(ui);
+        let r = Button::new(label).toggled(state.is_paused).show(ui);
         if r.clicked {
             state.toggle_pause();
         }
@@ -296,7 +294,9 @@ fn toolbar(ui: &mut Ui, s: f32, state: &mut ProfilerState) -> ToolbarAnchors {
             } else {
                 status2.error
             };
-            Label::new("Avg:").color(style.palette.text_disabled).show(ui);
+            Label::new("Avg:")
+                .color(style.palette.text_disabled)
+                .show(ui);
             Label::new(format!("{:.2} ms", stats.avg_duration_ms))
                 .color(avg_color)
                 .show(ui);
@@ -304,12 +304,16 @@ fn toolbar(ui: &mut Ui, s: f32, state: &mut ProfilerState) -> ToolbarAnchors {
                 .color(avg_color)
                 .show(ui);
             ui.separator();
-            Label::new("Min:").color(style.palette.text_disabled).show(ui);
+            Label::new("Min:")
+                .color(style.palette.text_disabled)
+                .show(ui);
             Label::new(format!("{:.2} ms", stats.min_duration_ms))
                 .color(style.palette.text_secondary)
                 .show(ui);
             ui.separator();
-            Label::new("Max:").color(style.palette.text_disabled).show(ui);
+            Label::new("Max:")
+                .color(style.palette.text_disabled)
+                .show(ui);
             Label::new(format!("{:.2} ms", stats.max_duration_ms))
                 .color(style.palette.text_secondary)
                 .show(ui);
@@ -439,7 +443,7 @@ fn frame_history(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
                 Pos2::new(x + bar_w, chart.max.y),
             );
             let hover = resp.hovered
-                && pointer.map_or(false, |pt| {
+                && pointer.is_some_and(|pt| {
                     pt.x >= x && pt.x < x + bar_w + bar_pad && chart.contains(pt)
                 });
             if hover {
@@ -456,12 +460,7 @@ fn frame_history(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
             };
             p.rect_filled(bar, Rounding::same(1.0 * s), color);
             if selected {
-                p.rect_stroke(
-                    bar.expand(1.0 * s),
-                    Rounding::same(1.0 * s),
-                    2.0,
-                    fh_text,
-                );
+                p.rect_stroke(bar.expand(1.0 * s), Rounding::same(1.0 * s), 2.0, fh_text);
             }
         }
     }
@@ -574,13 +573,22 @@ fn frame_history(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
                 let mut p = ui.painter();
                 p.rect_filled(track, Rounding::same(3.0 * s), track_col);
                 p.rect_filled(thumb, Rounding::same(3.0 * s), thumb_color);
-                drop(p);
                 let fh_style2 = ui.style();
-                row_label(ui, &label, fh_style2.fonts.small, fh_style2.palette.text_secondary);
+                row_label(
+                    ui,
+                    &label,
+                    fh_style2.fonts.small,
+                    fh_style2.palette.text_secondary,
+                );
             }
             _ => {
                 let fh_style2 = ui.style();
-                row_label(ui, &format!("{total} frames"), fh_style2.fonts.small, fh_style2.palette.text_secondary);
+                row_label(
+                    ui,
+                    &format!("{total} frames"),
+                    fh_style2.fonts.small,
+                    fh_style2.palette.text_secondary,
+                );
             }
         }
     });
@@ -638,11 +646,7 @@ fn select_chip<T: PartialEq + Copy>(ui: &mut Ui, value: &mut T, option: T, label
         ui.painter().rect_filled(rect, style.rounding.widget, fill);
     }
     // Full-brightness text on the accent fill — accent-on-accent text was unreadable.
-    let text_color = if selected {
-        style.palette.text
-    } else {
-        style.palette.text
-    };
+    let text_color = style.palette.text;
     ui.painter().text(
         Pos2::new(rect.min.x + pad.x, rect.min.y + pad.y),
         label,
@@ -822,11 +826,7 @@ fn flamegraph(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
             Id::new("fg_breadcrumb"),
             bopts,
             |ui| {
-                if Button::new("Frame")
-                    .text_color(bc_text)
-                    .show(ui)
-                    .clicked
-                {
+                if Button::new("Frame").text_color(bc_text).show(ui).clicked {
                     reset = true;
                 }
                 for (i, item) in state.breadcrumb_path.iter().enumerate() {
@@ -848,9 +848,7 @@ fn flamegraph(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
                     } else {
                         item.name.clone()
                     };
-                    let r = Button::new(name)
-                        .text_color(bc_text)
-                        .show(ui);
+                    let r = Button::new(name).text_color(bc_text).show(ui);
                     if r.hovered {
                         show_tooltip_for(
                             ui,
@@ -1250,7 +1248,7 @@ fn draw_scope(
         }
         let is_hover = fg
             .pointer
-            .map_or(false, |pt| rect.contains(pt) && fg.content.contains(pt));
+            .is_some_and(|pt| rect.contains(pt) && fg.content.contains(pt));
         if is_hover {
             c = lighten(c, 0.2);
             *hovered = Some(HoveredScope {
@@ -1284,7 +1282,11 @@ fn draw_scope(
             // reference — computed in gamma space, not linear).
             let [cr, cg, cb, _] = c.to_srgb_u8();
             let lum = 0.299 * cr as f32 + 0.587 * cg as f32 + 0.114 * cb as f32;
-            let tc = if lum > 140.0 { Color::BLACK } else { Color::WHITE };
+            let tc = if lum > 140.0 {
+                Color::BLACK
+            } else {
+                Color::WHITE
+            };
             let clip = rect.intersect(fg.content);
             p.paint_mut().push(PaintCmd::PushClip(clip));
             let tx = rect.min.x.max(fg.content.min.x) + 4.0 * fg.s;
@@ -1353,7 +1355,7 @@ fn table_view(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
         for (label, frac, right, key) in columns {
             let w = frac * avail_w;
             let cell = Rect::from_min_size(Pos2::new(x, header.min.y), Vec2::new(w, header_h));
-            let hover = pointer.map_or(false, |pt| cell.contains(pt));
+            let hover = pointer.is_some_and(|pt| cell.contains(pt));
             let sorted = state.sort_column == key;
             if clicked && hover {
                 if sorted {
@@ -1583,7 +1585,16 @@ fn budget_body(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
     let bar = ui.allocate(Vec2::new(avail_w, 14.0 * s));
     {
         let mut p = ui.painter();
-        budget_bar(&mut p, bar, dur, fb.total_budget_ms, frame_color, s, bv_track_bg, bv_marker);
+        budget_bar(
+            &mut p,
+            bar,
+            dur,
+            fb.total_budget_ms,
+            frame_color,
+            s,
+            bv_track_bg,
+            bv_marker,
+        );
     }
 
     ui.add_space(10.0 * s);
@@ -1617,7 +1628,16 @@ fn budget_body(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
             Pos2::new(row.min.x + label_w, row.min.y + 4.0 * s),
             Pos2::new(row.max.x - value_w, row.max.y - 4.0 * s),
         );
-        budget_bar(&mut p, bar, actual, category.budget_ms, color, s, bv_track_bg, bv_marker);
+        budget_bar(
+            &mut p,
+            bar,
+            actual,
+            category.budget_ms,
+            color,
+            s,
+            bv_track_bg,
+            bv_marker,
+        );
         let value = format!("{:.2} / {:.2} ms", actual, category.budget_ms);
         let vw = p.measure_text(&value, style.fonts.small, None).x;
         p.text(
@@ -1627,7 +1647,6 @@ fn budget_body(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
             color,
             None,
         );
-        drop(p);
         ui.add_space(2.0 * s);
     }
 
@@ -1679,7 +1698,6 @@ fn budget_body(ui: &mut Ui, s: f32, state: &mut ProfilerState) {
                 None,
             );
         }
-        drop(p);
         ui.add_space(gap);
     }
 }
@@ -1946,7 +1964,6 @@ fn threshold_row(
         );
         let mut p = ui.painter();
         p.rect_filled(sw, Rounding::same(2.0 * s), color);
-        drop(p);
         row_label(ui, label, font, tc);
         DragValue::new(value)
             .speed(speed)

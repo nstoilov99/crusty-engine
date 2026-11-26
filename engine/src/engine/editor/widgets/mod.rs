@@ -759,10 +759,7 @@ pub fn segmented_control(
         let px = style.fonts.small;
         let tw = ui.painter().measure_text(label, px, None).x;
         ui.painter().text(
-            Pos2::new(
-                seg.center().x - tw * 0.5,
-                seg.center().y - px * 0.62,
-            ),
+            Pos2::new(seg.center().x - tw * 0.5, seg.center().y - px * 0.62),
             label,
             px,
             text_color,
@@ -779,7 +776,11 @@ pub fn segmented_control(
         rect,
         rounding,
         style.metrics.border,
-        if enabled { pal.stroke } else { pal.stroke.with_alpha(0.5) },
+        if enabled {
+            pal.stroke
+        } else {
+            pal.stroke.with_alpha(0.5)
+        },
     );
     clicked
 }

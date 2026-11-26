@@ -113,7 +113,13 @@ impl Runner {
         let impls = n::std_impls();
         assert_eq!(impls.check_plan(&plan), vec![], "plan/impl cross-check");
         let instance = GraphInstance::new(&plan, EntityRef::SelfEntity, 1);
-        Self { plan, impls, instance, time: 0.0, dt }
+        Self {
+            plan,
+            impls,
+            instance,
+            time: 0.0,
+            dt,
+        }
     }
 
     /// One tick; returns what it printed.
@@ -124,7 +130,10 @@ impl Runner {
             &self.plan,
             &mut self.instance,
             &self.impls,
-            TickInput { dt: self.dt, time: self.time },
+            TickInput {
+                dt: self.dt,
+                time: self.time,
+            },
             &NoWorld,
             &mut fx,
         );
@@ -138,7 +147,10 @@ impl Runner {
             &self.plan,
             &mut self.instance,
             &self.impls,
-            TickInput { dt: self.dt, time: self.time },
+            TickInput {
+                dt: self.dt,
+                time: self.time,
+            },
             &NoWorld,
             &mut fx,
         )
@@ -199,16 +211,28 @@ fn delay_suspends_across_ticks_and_resumes_once() {
     // of waiting, 0.6s elapsed for a 0.5s request. Never early, and the
     // overshoot is under one frame.
     let mut r = Runner::new(&doc, 0.2);
-    assert_eq!(r.tick(), vec!["before"], "t=0.2: runs up to the Delay and parks");
+    assert_eq!(
+        r.tick(),
+        vec!["before"],
+        "t=0.2: runs up to the Delay and parks"
+    );
     assert_eq!(r.suspended(), 1, "the activation is parked, not finished");
     assert_eq!(r.tick(), Vec::<String>::new(), "t=0.4: still waiting");
-    assert_eq!(r.tick(), Vec::<String>::new(), "t=0.6: 0.4s elapsed — still early");
+    assert_eq!(
+        r.tick(),
+        Vec::<String>::new(),
+        "t=0.6: 0.4s elapsed — still early"
+    );
     assert_eq!(r.suspended(), 1);
     assert_eq!(r.tick(), vec!["after"], "t=0.8: due, and it resumes");
     assert_eq!(r.suspended(), 0);
 
     // Exactly once: nothing more, ever.
-    assert_eq!(r.ticks(5).concat(), Vec::<String>::new(), "no second resume");
+    assert_eq!(
+        r.ticks(5).concat(),
+        Vec::<String>::new(),
+        "no second resume"
+    );
     assert!(
         r.instance
             .threads
@@ -258,7 +282,11 @@ fn zero_delay_yields_to_the_next_tick() {
 #[test]
 fn a_delay_with_no_continuation_still_waits_then_finishes() {
     let mut doc = GraphDoc::default();
-    doc.nodes = vec![node(0, EVENT_BEGIN_PLAY_TYPE_ID), print(1, "before"), delay(2, 0.3)];
+    doc.nodes = vec![
+        node(0, EVENT_BEGIN_PLAY_TYPE_ID),
+        print(1, "before"),
+        delay(2, 0.3),
+    ];
     doc.edges = vec![
         edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN),
         edge(1, EXEC_OUT_PIN, 2, EXEC_IN_PIN),
@@ -289,10 +317,14 @@ fn delay_inside_a_for_loop_keeps_the_frame() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, n::FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))]),
-        print(2, ""),        // "enter N", before the wait
+        with(
+            1,
+            n::FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))],
+        ),
+        print(2, ""), // "enter N", before the wait
         delay(3, 0.25),
-        print(4, ""),        // "leave N", after the wait
+        print(4, ""), // "leave N", after the wait
         print(5, "done"),
         node(6, n::INT_TO_STRING),
         node(7, n::INT_TO_STRING),
@@ -337,8 +369,16 @@ fn delay_inside_a_for_loop_keeps_the_frame() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, n::FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))]),
-        with(2, n::FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))]),
+        with(
+            1,
+            n::FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))],
+        ),
+        with(
+            2,
+            n::FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))],
+        ),
         delay(3, 0.15),
         print(4, ""),
         print(5, "end"),
@@ -383,8 +423,16 @@ fn delay_inside_a_for_loop_keeps_the_frame() {
 fn concurrent_activations_of_one_delay_wait_independently() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
-        with(0, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("a".into()))]),
-        with(1, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("b".into()))]),
+        with(
+            0,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("a".into()))],
+        ),
+        with(
+            1,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("b".into()))],
+        ),
         delay(2, 0.25),
         print(3, "A"),
         delay(4, 0.45),
@@ -428,7 +476,11 @@ fn concurrent_activations_of_one_delay_wait_independently() {
     // with per-activation locals that must not bleed.
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
-        with(0, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("go".into()))]),
+        with(
+            0,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("go".into()))],
+        ),
         delay(1, 0.25),
         print(2, ""),
         node(3, n::INT_TO_STRING),
@@ -470,7 +522,11 @@ fn concurrent_activations_of_one_delay_wait_independently() {
 fn node_state_is_shared_but_frames_are_not() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
-        with(0, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("go".into()))]),
+        with(
+            0,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("go".into()))],
+        ),
         delay(1, 0.15),
         node(2, n::DO_ONCE),
         print(3, "passed"),
@@ -559,7 +615,11 @@ fn an_instance_serializes_mid_wait_and_resumes() {
     let var = |id: u64, ty: &str| with(id, ty, &[(VAR_PROP, PropValue::Str("total".into()))]);
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, n::FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))]),
+        with(
+            1,
+            n::FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))],
+        ),
         delay(2, 0.25),
         var(3, VAR_GET_TYPE_ID),
         node(4, n::ADD_INT),
@@ -595,7 +655,11 @@ fn an_instance_serializes_mid_wait_and_resumes() {
         .iter()
         .find(|t| matches!(t.state, ThreadState::Suspended(_)))
         .unwrap();
-    assert_eq!(parked.frames.len(), 1, "the loop frame is part of what is saved");
+    assert_eq!(
+        parked.frames.len(),
+        1,
+        "the loop frame is part of what is saved"
+    );
     assert!(parked.cursor.is_some(), "so is the resolved continuation");
 
     // Save, load, carry on.
@@ -629,8 +693,7 @@ fn an_instance_serializes_mid_wait_and_resumes() {
     );
     assert_eq!(whole, vec!["1", "3", "6", "done"], "and the work is right");
     assert_eq!(
-        resumed.instance.variables,
-        straight.instance.variables,
+        resumed.instance.variables, straight.instance.variables,
         "including the variables it accumulated across the waits"
     );
 }
@@ -649,7 +712,11 @@ fn a_suspended_activation_coexists_with_new_events_in_drain_order() {
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         delay(1, 0.25),
         print(2, "latent"),
-        with(3, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))]),
+        with(
+            3,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))],
+        ),
         print(4, "custom"),
         node(5, EVENT_TICK_TYPE_ID),
         print(6, "tick"),
@@ -667,7 +734,11 @@ fn a_suspended_activation_coexists_with_new_events_in_drain_order() {
     assert_eq!(r.tick(), vec!["begin", "tick"], "BeginPlay, then Tick");
     assert_eq!(r.suspended(), 1);
     assert_eq!(r.tick(), vec!["tick"], "BeginPlay does not fire again");
-    assert_eq!(r.tick(), vec!["tick"], "still waiting, still no second BeginPlay");
+    assert_eq!(
+        r.tick(),
+        vec!["tick"],
+        "still waiting, still no second BeginPlay"
+    );
 
     // Queue a custom event for the tick on which the latent also comes due
     // (fired at t=0.1, due at 0.35, so t=0.4): the latent must drain first.
@@ -699,7 +770,11 @@ fn a_suspended_activation_coexists_with_new_events_in_drain_order() {
 fn simultaneous_latents_wake_in_the_documented_order() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
-        with(0, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("go".into()))]),
+        with(
+            0,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("go".into()))],
+        ),
         delay(1, 0.15),
         print(2, ""),
         node(3, n::INT_TO_STRING),
@@ -726,7 +801,11 @@ fn simultaneous_latents_wake_in_the_documented_order() {
     r.tick(); // t=0.1: all three park, due at 0.25
     assert_eq!(r.suspended(), 3);
     assert_eq!(r.tick_report().resumed, 0, "t=0.2: not yet");
-    assert_eq!(r.tick_report().resumed, 3, "t=0.3: all three came due together");
+    assert_eq!(
+        r.tick_report().resumed,
+        3,
+        "t=0.3: all three came due together"
+    );
 
     let mut r2 = Runner::new(&doc, 0.1);
     for v in [1i32, 2, 3] {
@@ -755,7 +834,14 @@ fn a_resume_counts_against_the_tick_budget() {
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         delay(1, 0.15),
-        with(2, n::FOR_LOOP, &[("first", PropValue::Int(0)), ("last", PropValue::Int(i32::MAX))]),
+        with(
+            2,
+            n::FOR_LOOP,
+            &[
+                ("first", PropValue::Int(0)),
+                ("last", PropValue::Int(i32::MAX)),
+            ],
+        ),
         print(3, "x"),
     ];
     doc.edges = vec![

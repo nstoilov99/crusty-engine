@@ -163,7 +163,9 @@ pub fn register_std_events(reg: &mut NodeRegistry) -> Result<(), RegistryError> 
 /// order (which is slug order — `properties` is a `BTreeMap`, so the pin
 /// order on the canvas is stable). A `payload.<slug>` whose value is not a
 /// recognized type slug is skipped: stale data to fix, never a guessed pin.
-pub fn payload_pins(properties: &std::collections::BTreeMap<String, PropValue>) -> Vec<PinDescriptor> {
+pub fn payload_pins(
+    properties: &std::collections::BTreeMap<String, PropValue>,
+) -> Vec<PinDescriptor> {
     properties
         .iter()
         .filter_map(|(k, v)| {
@@ -204,11 +206,19 @@ mod tests {
                 "{} must have an exec output",
                 d.id
             );
-            assert!(EventPhase::of_type(&d.id).is_some(), "{} has no phase", d.id);
+            assert!(
+                EventPhase::of_type(&d.id).is_some(),
+                "{} has no phase",
+                d.id
+            );
             assert!(reg.get(&d.id).is_some());
         }
         assert_eq!(
-            reg.get(EVENT_TICK_TYPE_ID).unwrap().output("dt").unwrap().ty,
+            reg.get(EVENT_TICK_TYPE_ID)
+                .unwrap()
+                .output("dt")
+                .unwrap()
+                .ty,
             PinType::Float
         );
     }
@@ -242,7 +252,9 @@ mod tests {
         props.insert("event_name".to_string(), PropValue::Str("Hit".into()));
         let pins = payload_pins(&props);
         assert_eq!(
-            pins.iter().map(|p| (p.slug.as_str(), p.ty.clone())).collect::<Vec<_>>(),
+            pins.iter()
+                .map(|p| (p.slug.as_str(), p.ty.clone()))
+                .collect::<Vec<_>>(),
             vec![("amount", PinType::Int), ("who", PinType::Entity)],
             "slug order, and an unrecognized type slug is skipped not guessed"
         );

@@ -1,0 +1,7 @@
+# Workspace clippy configuration (read by cargo clippy from the workspace root).
+#
+# The editor and renderer legitimately take many parameters and hold nested
+# generic types; the codebase already allows these per-site. Set thresholds
+# that match the code instead of sprinkling more attributes.
+too-many-arguments-threshold = 20
+type-complexity-threshold = 1000

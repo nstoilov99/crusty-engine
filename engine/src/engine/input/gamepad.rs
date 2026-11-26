@@ -112,11 +112,11 @@ impl GamepadState {
                         }
                     }
                 }
-                gilrs::EventType::ButtonReleased(btn, _) => {
-                    if Some(event.id) == self.active_gamepad {
-                        if let Some(engine_btn) = map_button(btn) {
-                            self.buttons_pressed.remove(&engine_btn);
-                        }
+                gilrs::EventType::ButtonReleased(btn, _)
+                    if Some(event.id) == self.active_gamepad =>
+                {
+                    if let Some(engine_btn) = map_button(btn) {
+                        self.buttons_pressed.remove(&engine_btn);
                     }
                 }
                 _ => {}

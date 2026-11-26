@@ -179,6 +179,9 @@ mod tests {
         }
         assert!(worst < max_dh, "slope exceeds 45°: dh={worst}");
         assert!(worst < soft, "plateau skirt steeper than 40°: dh={worst}");
-        assert!(worst_open < open_dh, "open terrain steeper than 25°: dh={worst_open}");
+        assert!(
+            worst_open < open_dh,
+            "open terrain steeper than 25°: dh={worst_open}"
+        );
     }
 }

@@ -59,7 +59,11 @@ fn slugs_are_snake_case_and_unique() {
     assert_eq!(variable_slug("  spaced  out  "), "spaced_out");
     assert_eq!(variable_slug("Ammo (9mm)!"), "ammo_9mm");
     assert_eq!(variable_slug("HP"), "hp");
-    assert_eq!(variable_slug("!!!"), "var", "an unnameable name still gets a name");
+    assert_eq!(
+        variable_slug("!!!"),
+        "var",
+        "an unnameable name still gets a name"
+    );
     assert_eq!(variable_slug(""), "var");
 
     let reg = registry();
@@ -84,7 +88,10 @@ fn a_new_variable_starts_at_its_types_zero() {
         (PinType::Bool, Some(PropValue::Bool(false))),
         (PinType::String, Some(PropValue::Str(String::new()))),
         (PinType::Vec3, Some(PropValue::Vec3([0.0; 3]))),
-        (PinType::Array(Box::new(PinType::Int)), Some(PropValue::Array(Vec::new()))),
+        (
+            PinType::Array(Box::new(PinType::Int)),
+            Some(PropValue::Array(Vec::new())),
+        ),
         (PinType::Entity, None),
     ] {
         let slug = st.add_variable("v", ty.clone(), &reg);
@@ -107,7 +114,10 @@ fn retype_keeps_a_compatible_default_and_resets_the_rest() {
     let slug = st.add_variable("N", PinType::Float, &reg);
     st.set_variable_default(&slug, Some(PropValue::Float(2.7)), &reg);
     st.flush_var_default_edit(&reg);
-    assert_eq!(st.doc.variable(&slug).unwrap().default, Some(PropValue::Float(2.7)));
+    assert_eq!(
+        st.doc.variable(&slug).unwrap().default,
+        Some(PropValue::Float(2.7))
+    );
 
     // Float -> Int: incompatible, so it resets rather than truncating.
     assert!(st.retype_variable(&slug, PinType::Int, &reg));
@@ -134,7 +144,10 @@ fn retype_keeps_a_compatible_default_and_resets_the_rest() {
 
     // …and undo puts the original type *and* the original default back.
     st.undo(&reg);
-    assert_eq!(st.doc.variable(&arr).unwrap().ty, PinType::Array(Box::new(PinType::Int)));
+    assert_eq!(
+        st.doc.variable(&arr).unwrap().ty,
+        PinType::Array(Box::new(PinType::Int))
+    );
 }
 
 /// Retyping a variable with live nodes re-types their pins through
@@ -166,7 +179,11 @@ fn retype_breaks_a_wired_edge_and_undo_restores_it() {
         to_node: 1,
         to_pin: "a".to_string(),
     }];
-    assert_eq!(validate_doc(&st.doc, &reg), vec![], "Int into an Int pin is clean");
+    assert_eq!(
+        validate_doc(&st.doc, &reg),
+        vec![],
+        "Int into an Int pin is clean"
+    );
 
     let before = ron(&st);
     assert!(st.retype_variable(&slug, PinType::String, &reg));
@@ -174,13 +191,21 @@ fn retype_breaks_a_wired_edge_and_undo_restores_it() {
     assert!(
         errs.iter().any(|e| matches!(
             e,
-            GraphError::TypeMismatch { from_ty: PinType::String, to_ty: PinType::Int, .. }
+            GraphError::TypeMismatch {
+                from_ty: PinType::String,
+                to_ty: PinType::Int,
+                ..
+            }
         )),
         "the pin re-typed under the wire: {errs:?}"
     );
 
     st.undo(&reg);
-    assert_eq!(validate_doc(&st.doc, &reg), vec![], "undo clears the mismatch");
+    assert_eq!(
+        validate_doc(&st.doc, &reg),
+        vec![],
+        "undo clears the mismatch"
+    );
     assert_eq!(ron(&st), before, "and restores the document byte-for-byte");
 }
 
@@ -202,7 +227,11 @@ fn deleting_a_used_variable_degrades_then_undoes_cleanly() {
         var_node(2, VAR_GET_TYPE_ID, "other"),
     ];
 
-    assert_eq!(st.variable_usage_count(&slug), 2, "what the confirmation counts");
+    assert_eq!(
+        st.variable_usage_count(&slug),
+        2,
+        "what the confirmation counts"
+    );
     assert_eq!(st.variable_usage_count("nobody"), 0);
 
     let before = ron(&st);
@@ -215,8 +244,16 @@ fn deleting_a_used_variable_degrades_then_undoes_cleanly() {
             _ => None,
         })
         .collect();
-    assert_eq!(unknown, vec![0, 1], "both nodes report, and neither was deleted");
-    assert_eq!(st.doc.nodes.len(), 3, "an author's nodes are not silently removed");
+    assert_eq!(
+        unknown,
+        vec![0, 1],
+        "both nodes report, and neither was deleted"
+    );
+    assert_eq!(
+        st.doc.nodes.len(),
+        3,
+        "an author's nodes are not silently removed"
+    );
 
     st.undo(&reg);
     assert!(!validate_doc(&st.doc, &reg)
@@ -237,12 +274,20 @@ fn undoing_a_delete_restores_declaration_order() {
     let before = ron(&st);
     st.remove_variable("b", &reg);
     assert_eq!(
-        st.doc.variables.iter().map(|v| v.slug.as_str()).collect::<Vec<_>>(),
+        st.doc
+            .variables
+            .iter()
+            .map(|v| v.slug.as_str())
+            .collect::<Vec<_>>(),
         vec!["a", "c"]
     );
     st.undo(&reg);
     assert_eq!(
-        st.doc.variables.iter().map(|v| v.slug.as_str()).collect::<Vec<_>>(),
+        st.doc
+            .variables
+            .iter()
+            .map(|v| v.slug.as_str())
+            .collect::<Vec<_>>(),
         vec!["a", "b", "c"],
         "back in the middle, not appended"
     );
@@ -269,8 +314,14 @@ fn variable_default_edits_coalesce_per_gesture() {
     }
     st.flush_var_default_edit(&reg);
     assert_eq!(st.stack.undo_len(), depth + 1, "five steps, one entry");
-    assert_eq!(st.doc.variable(&a).unwrap().default, Some(PropValue::Int(5)));
-    assert_eq!(st.stack.undo_description().as_deref(), Some("Set Variable Default"));
+    assert_eq!(
+        st.doc.variable(&a).unwrap().default,
+        Some(PropValue::Int(5))
+    );
+    assert_eq!(
+        st.stack.undo_description().as_deref(),
+        Some("Set Variable Default")
+    );
 
     // Touching a *different* variable flushes the first gesture.
     st.set_variable_default(&b, Some(PropValue::Int(9)), &reg);
@@ -279,9 +330,15 @@ fn variable_default_edits_coalesce_per_gesture() {
 
     // Undo peels them one gesture at a time, not one value at a time.
     st.undo(&reg);
-    assert_eq!(st.doc.variable(&b).unwrap().default, Some(PropValue::Int(0)));
+    assert_eq!(
+        st.doc.variable(&b).unwrap().default,
+        Some(PropValue::Int(0))
+    );
     st.undo(&reg);
-    assert_eq!(st.doc.variable(&a).unwrap().default, Some(PropValue::Int(0)));
+    assert_eq!(
+        st.doc.variable(&a).unwrap().default,
+        Some(PropValue::Int(0))
+    );
 
     // A gesture that ends where it started records nothing.
     let depth = st.stack.undo_len();

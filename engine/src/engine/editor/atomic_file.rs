@@ -72,7 +72,10 @@ fn replace_file(tmp: &Path, dest: &Path) -> io::Result<()> {
         use windows_sys::Win32::Storage::FileSystem::ReplaceFileW;
 
         let wide = |p: &Path| -> Vec<u16> {
-            p.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+            p.as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
         };
         let (dest_w, tmp_w) = (wide(dest), wide(tmp));
 

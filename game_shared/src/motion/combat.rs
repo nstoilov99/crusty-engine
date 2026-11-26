@@ -70,7 +70,7 @@ pub fn hitscan(
         let Some(h) = capsule.cast_local_ray_and_get_normal(&ray, max_dist, true) else {
             continue;
         };
-        if best.map_or(true, |b| h.time_of_impact < b.distance) {
+        if best.is_none_or(|b| h.time_of_impact < b.distance) {
             best = Some(Hit {
                 distance: h.time_of_impact,
                 position: origin + dir * h.time_of_impact,

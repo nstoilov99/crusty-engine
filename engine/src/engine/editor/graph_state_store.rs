@@ -76,13 +76,21 @@ pub struct StoredView {
 
 impl StoredView {
     pub fn from_view(v: CanvasView) -> Self {
-        Self { pan_x: v.pan.x, pan_y: v.pan.y, zoom: v.zoom }
+        Self {
+            pan_x: v.pan.x,
+            pan_y: v.pan.y,
+            zoom: v.zoom,
+        }
     }
 
     pub fn to_view(self) -> CanvasView {
         CanvasView {
             pan: crusty_gui::math::Vec2::new(self.pan_x, self.pan_y),
-            zoom: if self.zoom.is_finite() && self.zoom > 0.0 { self.zoom } else { 1.0 },
+            zoom: if self.zoom.is_finite() && self.zoom > 0.0 {
+                self.zoom
+            } else {
+                1.0
+            },
         }
     }
 }
@@ -140,12 +148,18 @@ impl GraphStateStore {
 
     /// The watches remembered for a graph.
     pub fn watches_for(&self, rel: &str) -> Vec<StoredWatch> {
-        self.graphs.get(rel).map(|g| g.watches.clone()).unwrap_or_default()
+        self.graphs
+            .get(rel)
+            .map(|g| g.watches.clone())
+            .unwrap_or_default()
     }
 
     /// The breakpoints remembered for a graph.
     pub fn breakpoints_for(&self, rel: &str) -> Vec<StoredBreakpoint> {
-        self.graphs.get(rel).map(|g| g.breakpoints.clone()).unwrap_or_default()
+        self.graphs
+            .get(rel)
+            .map(|g| g.breakpoints.clone())
+            .unwrap_or_default()
     }
 
     /// Record a graph's view + bookmarks + watches + breakpoints. Called on tab
@@ -180,7 +194,10 @@ mod tests {
     use crusty_gui::math::Vec2;
 
     fn view(x: f32, z: f32) -> CanvasView {
-        CanvasView { pan: Vec2::new(x, 0.0), zoom: z }
+        CanvasView {
+            pan: Vec2::new(x, 0.0),
+            zoom: z,
+        }
     }
 
     /// **GS-3: watches are user-local debug state.** They round-trip through
@@ -189,7 +206,13 @@ mod tests {
     #[test]
     fn watches_round_trip_and_stay_out_of_an_unwatched_file() {
         let mut s = GraphStateStore::default();
-        s.store("graphs/a.graph", view(0.0, 1.0), &[None; 5], Vec::new(), Vec::new());
+        s.store(
+            "graphs/a.graph",
+            view(0.0, 1.0),
+            &[None; 5],
+            Vec::new(),
+            Vec::new(),
+        );
         let text = ron::ser::to_string_pretty(&s, Default::default()).unwrap();
         assert!(!text.contains("watches"), "no watches, no column");
 
@@ -198,8 +221,18 @@ mod tests {
             view(0.0, 1.0),
             &[None; 5],
             vec![
-                StoredWatch { node: 7, pin: "value".into(), output: true, last: Some("37.5".into()) },
-                StoredWatch { node: 9, pin: "a".into(), output: false, last: None },
+                StoredWatch {
+                    node: 7,
+                    pin: "value".into(),
+                    output: true,
+                    last: Some("37.5".into()),
+                },
+                StoredWatch {
+                    node: 9,
+                    pin: "a".into(),
+                    output: false,
+                    last: None,
+                },
             ],
             Vec::new(),
         );
@@ -209,7 +242,10 @@ mod tests {
         let w = back.watches_for("graphs/a.graph");
         assert_eq!(w.len(), 2);
         assert_eq!(w[0].last.as_deref(), Some("37.5"));
-        assert!(w[1].last.is_none(), "a watch that never saw a value stores none");
+        assert!(
+            w[1].last.is_none(),
+            "a watch that never saw a value stores none"
+        );
         assert!(back.watches_for("graphs/never-opened.graph").is_empty());
     }
 
@@ -220,7 +256,13 @@ mod tests {
     #[test]
     fn breakpoints_round_trip_and_stay_out_of_an_unmarked_file() {
         let mut s = GraphStateStore::default();
-        s.store("graphs/a.graph", view(0.0, 1.0), &[None; 5], Vec::new(), Vec::new());
+        s.store(
+            "graphs/a.graph",
+            view(0.0, 1.0),
+            &[None; 5],
+            Vec::new(),
+            Vec::new(),
+        );
         let bare = ron::ser::to_string_pretty(&s, Default::default()).unwrap();
         assert!(!bare.contains("breakpoints"), "no marks, no column");
 
@@ -230,8 +272,14 @@ mod tests {
             &[None; 5],
             Vec::new(),
             vec![
-                StoredBreakpoint { node: 7, enabled: true },
-                StoredBreakpoint { node: 9, enabled: false },
+                StoredBreakpoint {
+                    node: 7,
+                    enabled: true,
+                },
+                StoredBreakpoint {
+                    node: 9,
+                    enabled: false,
+                },
             ],
         );
         let text = ron::ser::to_string_pretty(&s, Default::default()).unwrap();
@@ -240,11 +288,20 @@ mod tests {
         let b = back.breakpoints_for("graphs/a.graph");
         assert_eq!(b.len(), 2);
         assert!(b[0].enabled, "armed survives");
-        assert!(!b[1].enabled, "and so does disabled — it is a state, not a deletion");
+        assert!(
+            !b[1].enabled,
+            "and so does disabled — it is a state, not a deletion"
+        );
         assert!(back.breakpoints_for("graphs/never-opened.graph").is_empty());
 
         // Clearing them puts the file back byte-for-byte.
-        s.store("graphs/a.graph", view(0.0, 1.0), &[None; 5], Vec::new(), Vec::new());
+        s.store(
+            "graphs/a.graph",
+            view(0.0, 1.0),
+            &[None; 5],
+            Vec::new(),
+            Vec::new(),
+        );
         assert_eq!(
             ron::ser::to_string_pretty(&s, Default::default()).unwrap(),
             bare,
@@ -257,7 +314,13 @@ mod tests {
         let mut s = GraphStateStore::default();
         let mut marks = [None; 5];
         marks[2] = Some(view(30.0, 0.5));
-        s.store("graphs/a.graph", view(10.0, 2.0), &marks, Vec::new(), Vec::new());
+        s.store(
+            "graphs/a.graph",
+            view(10.0, 2.0),
+            &marks,
+            Vec::new(),
+            Vec::new(),
+        );
 
         let text = ron::ser::to_string_pretty(&s, Default::default()).unwrap();
         let back: GraphStateStore = ron::from_str(&text).unwrap();
@@ -271,7 +334,10 @@ mod tests {
 
         // An unknown graph is simply absent — the tab frames its content.
         assert!(back.view_for("graphs/never.graph").is_none());
-        assert!(back.bookmarks_for("graphs/never.graph").iter().all(Option::is_none));
+        assert!(back
+            .bookmarks_for("graphs/never.graph")
+            .iter()
+            .all(Option::is_none));
     }
 
     #[test]
@@ -282,8 +348,20 @@ mod tests {
         std::fs::write(dir.join("graphs/kept.graph"), "()").unwrap();
 
         let mut s = GraphStateStore::default();
-        s.store("graphs/kept.graph", view(1.0, 1.0), &[None; 5], Vec::new(), Vec::new());
-        s.store("graphs/deleted.graph", view(2.0, 1.0), &[None; 5], Vec::new(), Vec::new());
+        s.store(
+            "graphs/kept.graph",
+            view(1.0, 1.0),
+            &[None; 5],
+            Vec::new(),
+            Vec::new(),
+        );
+        s.store(
+            "graphs/deleted.graph",
+            view(2.0, 1.0),
+            &[None; 5],
+            Vec::new(),
+            Vec::new(),
+        );
         assert_eq!(s.graphs.len(), 2);
 
         s.prune(&dir);
@@ -296,9 +374,17 @@ mod tests {
     /// A zero or NaN zoom in a hand-edited file must not brick the canvas.
     #[test]
     fn broken_stored_zoom_falls_back() {
-        let bad = StoredView { pan_x: 0.0, pan_y: 0.0, zoom: 0.0 };
+        let bad = StoredView {
+            pan_x: 0.0,
+            pan_y: 0.0,
+            zoom: 0.0,
+        };
         assert_eq!(bad.to_view().zoom, 1.0);
-        let nan = StoredView { pan_x: 0.0, pan_y: 0.0, zoom: f32::NAN };
+        let nan = StoredView {
+            pan_x: 0.0,
+            pan_y: 0.0,
+            zoom: f32::NAN,
+        };
         assert_eq!(nan.to_view().zoom, 1.0);
     }
 }

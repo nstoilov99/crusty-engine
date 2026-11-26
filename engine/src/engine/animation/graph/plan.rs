@@ -710,10 +710,7 @@ pub trait AnimGraphLoader {
     fn graph(&self, content_rel: &str) -> Option<GraphDoc>;
     /// A compiled `.blendspace`: `None` when the file does not exist,
     /// `Some(Err)` when it exists but fails to parse or compile.
-    fn blend_space(
-        &self,
-        content_rel: &str,
-    ) -> Option<Result<std::sync::Arc<BlendSpace>, String>> {
+    fn blend_space(&self, content_rel: &str) -> Option<Result<std::sync::Arc<BlendSpace>, String>> {
         let _ = content_rel;
         None
     }
@@ -801,7 +798,11 @@ pub(super) fn compile_doc(
     // never disagree; the caller's copy stays untouched (the editor
     // migrates its own on open).
     let mut current = std::borrow::Cow::Borrowed(doc);
-    if doc.nodes.iter().any(|n| n.type_id == ANIM_ANY_STATE_TYPE_ID) {
+    if doc
+        .nodes
+        .iter()
+        .any(|n| n.type_id == ANIM_ANY_STATE_TYPE_ID)
+    {
         upgrade_any_state(current.to_mut());
     }
     if root && super::pipeline::needs_pipeline_root(doc) {
@@ -906,18 +907,14 @@ fn compile_machine(
     // brought them in (refusal anchoring).
     let mut nested_params: Vec<(String, ParamDecl)> = Vec::new();
     for n in doc.nodes.iter().filter(|n| n.type_id == ANIM_STATE_TYPE_ID) {
-        let name = n
-            .title
-            .clone()
-            .unwrap_or_else(|| format!("State {}", n.id));
+        let name = n.title.clone().unwrap_or_else(|| format!("State {}", n.id));
         let nested = str_prop(&n.properties, GRAPH_PROP).filter(|s| !s.trim().is_empty());
         let space = str_prop(&n.properties, SPACE_PROP).filter(|s| !s.trim().is_empty());
         let source = match doc.regions.get(&n.id).filter(|r| !r.nodes.is_empty()) {
             Some(region) => PoseSource::Tree(compile_tree(region, &name, parameters)?),
             None if nested.is_some() => {
-                let child_rel = crate::engine::scripting::normalize_graph_path(
-                    nested.unwrap_or_default(),
-                );
+                let child_rel =
+                    crate::engine::scripting::normalize_graph_path(nested.unwrap_or_default());
                 if stack.contains(&child_rel) {
                     let chain: Vec<&str> = stack
                         .iter()
@@ -979,8 +976,7 @@ fn compile_machine(
     if states.is_empty() {
         return Err("an animation graph needs at least one state".to_string());
     }
-    let state_index =
-        |id: u64| -> Option<usize> { states.iter().position(|s| s.node_id == id) };
+    let state_index = |id: u64| -> Option<usize> { states.iter().position(|s| s.node_id == id) };
 
     // ENTRY: exactly one node, exactly one outgoing edge, into a state.
     let mut entries = doc.nodes.iter().filter(|n| n.type_id == ANIM_ENTRY_TYPE_ID);
@@ -1060,8 +1056,8 @@ fn compile_machine(
             .edges
             .iter()
             .find(|e| e.to_node == n.id && e.to_pin == TRANSITION_FROM_PIN);
-        let from_edge = from_edge
-            .ok_or_else(|| format!("transition {} has no source state", n.id))?;
+        let from_edge =
+            from_edge.ok_or_else(|| format!("transition {} has no source state", n.id))?;
         let alias = aliases
             .iter()
             .find(|(id, _)| *id == from_edge.from_node)
@@ -1244,8 +1240,7 @@ pub fn compile_rule_region(
 
     // Purity by whitelist, refused by name so the message is actionable.
     for n in &region.nodes {
-        if n.type_id != ANIM_RULE_RESULT_TYPE_ID && !RULE_NODE_TYPES.contains(&n.type_id.as_str())
-        {
+        if n.type_id != ANIM_RULE_RESULT_TYPE_ID && !RULE_NODE_TYPES.contains(&n.type_id.as_str()) {
             return Err(format!(
                 "transition {tid}: rule node {} ('{}') is not a rule node — a rule is \
                  pure boolean logic (parameter reads, comparisons, float math, and/or/not)",
@@ -1498,8 +1493,7 @@ fn compile_tree(
     parameters: &[ParamDecl],
 ) -> Result<PlanTree, String> {
     for n in &region.nodes {
-        if n.type_id != ANIM_POSE_RESULT_TYPE_ID && !TREE_NODE_TYPES.contains(&n.type_id.as_str())
-        {
+        if n.type_id != ANIM_POSE_RESULT_TYPE_ID && !TREE_NODE_TYPES.contains(&n.type_id.as_str()) {
             return Err(format!(
                 "state '{state}': tree node {} ('{}') is not a blend-tree node — a state's \
                  tree is clip nodes, 1D/2D blends and reroutes",
@@ -1541,9 +1535,7 @@ fn compile_tree(
         .edges
         .iter()
         .find(|e| e.to_node == result.id && e.to_pin == POSE_PIN)
-        .ok_or_else(|| {
-            format!("state '{state}': nothing is wired into the blend tree's RESULT")
-        })?;
+        .ok_or_else(|| format!("state '{state}': nothing is wired into the blend tree's RESULT"))?;
     let mut cx = TreeCx {
         region,
         parameters,

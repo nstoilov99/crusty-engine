@@ -45,9 +45,18 @@ pub struct MigrationRecord {
 pub enum MigrationError {
     /// Registered type is at `current` but no step is registered from
     /// `from` — an authoring bug in the node library, reported loudly.
-    MissingStep { type_id: String, from: u32, current: u32 },
+    MissingStep {
+        type_id: String,
+        from: u32,
+        current: u32,
+    },
     /// Instance was saved by a newer node library than this build.
-    NewerInstance { node: u64, type_id: String, saved: u32, current: u32 },
+    NewerInstance {
+        node: u64,
+        type_id: String,
+        saved: u32,
+        current: u32,
+    },
 }
 
 impl std::fmt::Display for MigrationError {
@@ -110,11 +119,18 @@ pub fn migrate_doc(
         let mut version = start_version;
         while version < current {
             let Some(step) = registry.migration(&type_id, version) else {
-                return Err(MigrationError::MissingStep { type_id, from: version, current });
+                return Err(MigrationError::MissingStep {
+                    type_id,
+                    from: version,
+                    current,
+                });
             };
             let renames = {
                 let node = &mut doc.nodes[i];
-                let mut ctx = MigrationCtx { props: &mut node.properties, renames: Vec::new() };
+                let mut ctx = MigrationCtx {
+                    props: &mut node.properties,
+                    renames: Vec::new(),
+                };
                 step(&mut ctx);
                 ctx.renames
             };
@@ -166,12 +182,10 @@ mod tests {
             name: "Migrating Damage".into(),
             category: "Dev".into(),
             version: 2,
-            inputs: vec![PinDescriptor::new(
-                "damage_per_second",
-                "Damage / s",
-                PinType::Float,
-            )
-            .with_default(PropValue::Float(1.0))],
+            inputs: vec![
+                PinDescriptor::new("damage_per_second", "Damage / s", PinType::Float)
+                    .with_default(PropValue::Float(1.0)),
+            ],
             outputs: vec![PinDescriptor::new("applied", "Applied", PinType::Float)],
             pure: true,
             realm: NodeRealm::Shared,
@@ -242,11 +256,17 @@ mod tests {
             position: [0.0, 0.0],
             properties: BTreeMap::new(),
             subgraph: None,
-        
-        tint: None, title: None,});
+
+            tint: None,
+            title: None,
+        });
         assert_eq!(
             migrate_doc(&mut doc, &reg),
-            Err(MigrationError::MissingStep { type_id: "gappy".into(), from: 2, current: 3 })
+            Err(MigrationError::MissingStep {
+                type_id: "gappy".into(),
+                from: 2,
+                current: 3
+            })
         );
     }
 
@@ -261,8 +281,10 @@ mod tests {
             position: [0.0, 0.0],
             properties: BTreeMap::new(),
             subgraph: None,
-        
-        tint: None, title: None,});
+
+            tint: None,
+            title: None,
+        });
         // Unknown type: not an error here (validate_doc reports it), and
         // the instance is untouched.
         assert_eq!(migrate_doc(&mut doc, &reg).unwrap(), vec![]);
@@ -271,7 +293,11 @@ mod tests {
         doc.nodes[0].type_id = "mig_damage".into();
         assert!(matches!(
             migrate_doc(&mut doc, &reg),
-            Err(MigrationError::NewerInstance { saved: 99, current: 2, .. })
+            Err(MigrationError::NewerInstance {
+                saved: 99,
+                current: 2,
+                ..
+            })
         ));
     }
 }

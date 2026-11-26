@@ -183,27 +183,31 @@ pub fn menu_bar_panel(ui: &mut Ui, bar_rect: Rect, ctx: MenuBarCtx) -> MenuActio
             ui.menu_button_width("Edit", 250.0, |ui| {
                 // A focused document editor (graph tab) supplies its own
                 // history + clipboard state; otherwise use the scene's.
-                let (undo_desc, can_undo, redo_desc, can_redo, sel, del, clip) = match &edit_override
-                {
-                    Some(o) => (
-                        Some(o.undo_label.clone()),
-                        o.can_undo,
-                        Some(o.redo_label.clone()),
-                        o.can_redo,
-                        o.has_selection,
-                        o.has_deletable,
-                        o.has_clipboard,
-                    ),
-                    None => (
-                        command_history.undo_description().map(|d| format!("Undo {d}")),
-                        is_edit_mode && command_history.can_undo(),
-                        command_history.redo_description().map(|d| format!("Redo {d}")),
-                        is_edit_mode && command_history.can_redo(),
-                        is_edit_mode && has_selection,
-                        is_edit_mode && has_selection,
-                        is_edit_mode && has_clipboard,
-                    ),
-                };
+                let (undo_desc, can_undo, redo_desc, can_redo, sel, del, clip) =
+                    match &edit_override {
+                        Some(o) => (
+                            Some(o.undo_label.clone()),
+                            o.can_undo,
+                            Some(o.redo_label.clone()),
+                            o.can_redo,
+                            o.has_selection,
+                            o.has_deletable,
+                            o.has_clipboard,
+                        ),
+                        None => (
+                            command_history
+                                .undo_description()
+                                .map(|d| format!("Undo {d}")),
+                            is_edit_mode && command_history.can_undo(),
+                            command_history
+                                .redo_description()
+                                .map(|d| format!("Redo {d}")),
+                            is_edit_mode && command_history.can_redo(),
+                            is_edit_mode && has_selection,
+                            is_edit_mode && has_selection,
+                            is_edit_mode && has_clipboard,
+                        ),
+                    };
                 ui.menu_group_header("History");
                 let undo_label = undo_desc.unwrap_or_else(|| "Undo".to_string());
                 if ui.menu_item_shortcut(undo_label, "Ctrl+Z", can_undo) {
@@ -500,7 +504,11 @@ fn build_game_menu(ui: &mut Ui, build_dialog: &mut BuildDialog, theme: &EditorTh
 
     match &build_dialog.state {
         BuildState::Idle => {
-            let label = if target == BuildTarget::MpServer { "Publish" } else { "Build" };
+            let label = if target == BuildTarget::MpServer {
+                "Publish"
+            } else {
+                "Build"
+            };
             if Button::new(label).show(ui).clicked {
                 build_dialog.start_build();
             }
@@ -560,10 +568,7 @@ fn render_play_controls(
     let y0 = bar.min.y + (bar.height() - bh) * 0.5;
     let slot = |i: usize| {
         let w = if i == 3 { caret_w } else { bw };
-        Rect::from_min_size(
-            Pos2::new(x0 + i as f32 * (bw + gap), y0),
-            Vec2::new(w, bh),
-        )
+        Rect::from_min_size(Pos2::new(x0 + i as f32 * (bw + gap), y0), Vec2::new(w, bh))
     };
 
     let dis = ui.style().palette.text_disabled;
@@ -729,12 +734,8 @@ fn render_play_settings_dropdown(
                         .width(w)
                         .show_ui(ui, |ui| {
                             for n in 1..=4u8 {
-                                SelectableValue::new(
-                                    &mut settings.player_count,
-                                    n,
-                                    n.to_string(),
-                                )
-                                .show(ui);
+                                SelectableValue::new(&mut settings.player_count, n, n.to_string())
+                                    .show(ui);
                             }
                         });
                 }

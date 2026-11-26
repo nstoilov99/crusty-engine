@@ -580,10 +580,7 @@ impl RenderThread {
                     None
                 };
 
-                #[cfg_attr(
-                    not(any(feature = "editor", feature = "hud")),
-                    allow(unused_mut)
-                )]
+                #[cfg_attr(not(any(feature = "editor", feature = "hud")), allow(unused_mut))]
                 let mut cbs = vec![deferred_cb];
                 #[cfg(any(feature = "editor", feature = "hud"))]
                 cbs.extend(crusty_cb);
@@ -788,6 +785,10 @@ mod tests {
                     ..Default::default()
                 }],
                 enabled_extensions: DeviceExtensions {
+                    // The deferred renderer's colour attachment ends in
+                    // `ImageLayout::PresentSrc`, which Vulkan only permits with
+                    // VK_KHR_swapchain enabled, exactly as the real app does.
+                    khr_swapchain: true,
                     ..DeviceExtensions::empty()
                 },
                 ..Default::default()

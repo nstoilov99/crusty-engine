@@ -36,9 +36,10 @@ impl TestPlugin {
     }
 
     fn depending(id: &str, deps: &[&str]) -> Self {
-        Self::new(PluginManifest::new(id, id).depends_on(deps.to_vec()), |_| {
-            Ok(())
-        })
+        Self::new(
+            PluginManifest::new(id, id).depends_on(deps.to_vec()),
+            |_| Ok(()),
+        )
     }
 }
 
@@ -162,7 +163,11 @@ fn dependency_cycle_fails_every_member() {
     let mut live = Live::new();
     live.build(&mut set, None);
 
-    assert_eq!(built_ids(&set), vec!["free"], "the acyclic plugin still builds");
+    assert_eq!(
+        built_ids(&set),
+        vec!["free"],
+        "the acyclic plugin still builds"
+    );
     assert_eq!(set.failures().len(), 2);
     for failure in set.failures() {
         assert_eq!(failure.phase, RegistrationPhase::Dependency);
@@ -296,7 +301,10 @@ fn partial_failure_discards_the_whole_stage() {
     assert_eq!(set.failures().len(), 1);
     assert_eq!(set.failures()[0].phase, RegistrationPhase::Build);
     assert_eq!(live.schedule.system_count(), 0, "no half-registered system");
-    assert!(!live.resources.contains::<ResA>(), "no half-registered resource");
+    assert!(
+        !live.resources.contains::<ResA>(),
+        "no half-registered resource"
+    );
     assert!(live.registry.get("ghost_node").is_none());
     assert_eq!(set.world_loaded_count(), 0);
 }
@@ -325,16 +333,22 @@ fn resource_collision_is_an_error_and_leaves_nothing_behind() {
 
     assert_eq!(set.failures()[0].phase, RegistrationPhase::Resources);
     assert_eq!(live.schedule.system_count(), 0);
-    assert!(!live.resources.contains::<ResB>(), "sibling insert rolled back too");
+    assert!(
+        !live.resources.contains::<ResB>(),
+        "sibling insert rolled back too"
+    );
 }
 
 #[test]
 fn second_plugin_cannot_replace_the_first_plugins_resource() {
     let mut set = PluginSet::new();
-    set.add(TestPlugin::new(PluginManifest::new("first", "First"), |ctx| {
-        ctx.insert_resource(ResA(1));
-        Ok(())
-    }));
+    set.add(TestPlugin::new(
+        PluginManifest::new("first", "First"),
+        |ctx| {
+            ctx.insert_resource(ResA(1));
+            Ok(())
+        },
+    ));
     set.add(TestPlugin::new(
         PluginManifest::new("second", "Second"),
         |ctx| {
@@ -367,7 +381,10 @@ fn node_id_collision_skips_the_descriptor_with_a_warning() {
 
     live.build(&mut set, None);
 
-    assert!(set.failures().is_empty(), "a duplicate id must not fail the plugin");
+    assert!(
+        set.failures().is_empty(),
+        "a duplicate id must not fail the plugin"
+    );
     let record = &set.records()[0];
     assert_eq!(record.warnings.len(), 1);
     assert!(record.warnings[0].contains("shared"));
@@ -404,10 +421,13 @@ fn migration_key_collision_fails_the_plugin_and_registers_nothing() {
 #[test]
 fn domain_pin_reregistration_is_identical_ok_else_first_wins() {
     let mut set = PluginSet::new();
-    set.add(TestPlugin::new(PluginManifest::new("first", "First"), |ctx| {
-        ctx.register_domain_pin_keyed("shader", 3);
-        Ok(())
-    }));
+    set.add(TestPlugin::new(
+        PluginManifest::new("first", "First"),
+        |ctx| {
+            ctx.register_domain_pin_keyed("shader", 3);
+            Ok(())
+        },
+    ));
     set.add(TestPlugin::new(
         PluginManifest::new("same", "Same"),
         |ctx| {
@@ -442,30 +462,40 @@ fn world_loaded_callbacks_run_on_demand_and_only_for_built_plugins() {
 
     let mut set = PluginSet::new();
     let r = Arc::clone(&runs);
-    set.add(TestPlugin::new(PluginManifest::new("live", "Live"), move |ctx| {
-        let r = Arc::clone(&r);
-        ctx.on_world_loaded(move |_w, _res| {
-            r.fetch_add(1, Ordering::SeqCst);
+    set.add(TestPlugin::new(
+        PluginManifest::new("live", "Live"),
+        move |ctx| {
+            let r = Arc::clone(&r);
+            ctx.on_world_loaded(move |_w, _res| {
+                r.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            });
             Ok(())
-        });
-        Ok(())
-    }));
+        },
+    ));
     let r = Arc::clone(&runs);
-    set.add(TestPlugin::new(PluginManifest::new("dead", "Dead"), move |ctx| {
-        let r = Arc::clone(&r);
-        ctx.on_world_loaded(move |_w, _res| {
-            r.fetch_add(100, Ordering::SeqCst);
-            Ok(())
-        });
-        Err(PluginError::build("nope"))
-    }));
+    set.add(TestPlugin::new(
+        PluginManifest::new("dead", "Dead"),
+        move |ctx| {
+            let r = Arc::clone(&r);
+            ctx.on_world_loaded(move |_w, _res| {
+                r.fetch_add(100, Ordering::SeqCst);
+                Ok(())
+            });
+            Err(PluginError::build("nope"))
+        },
+    ));
 
     let mut live = Live::new();
     live.build(&mut set, None);
 
     let mut world = hecs::World::new();
-    assert!(set.run_world_loaded(&mut world, &mut live.resources).is_empty());
-    assert!(set.run_world_loaded(&mut world, &mut live.resources).is_empty());
+    assert!(set
+        .run_world_loaded(&mut world, &mut live.resources)
+        .is_empty());
+    assert!(set
+        .run_world_loaded(&mut world, &mut live.resources)
+        .is_empty());
 
     assert_eq!(runs.load(Ordering::SeqCst), 2, "runs per content moment");
 }
@@ -480,14 +510,17 @@ fn world_loaded_failure_is_reported_per_plugin_and_does_not_stop_the_others() {
         Ok(())
     }));
     let r = Arc::clone(&later_ran);
-    set.add(TestPlugin::new(PluginManifest::new("good", "Good"), move |ctx| {
-        let r = Arc::clone(&r);
-        ctx.on_world_loaded(move |_w, _res| {
-            r.fetch_add(1, Ordering::SeqCst);
+    set.add(TestPlugin::new(
+        PluginManifest::new("good", "Good"),
+        move |ctx| {
+            let r = Arc::clone(&r);
+            ctx.on_world_loaded(move |_w, _res| {
+                r.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            });
             Ok(())
-        });
-        Ok(())
-    }));
+        },
+    ));
 
     let mut live = Live::new();
     live.build(&mut set, None);
@@ -498,7 +531,11 @@ fn world_loaded_failure_is_reported_per_plugin_and_does_not_stop_the_others() {
     assert_eq!(failures.len(), 1);
     assert_eq!(failures[0].id, "bad");
     assert_eq!(failures[0].phase, RegistrationPhase::WorldLoaded);
-    assert_eq!(later_ran.load(Ordering::SeqCst), 1, "later callbacks still run");
+    assert_eq!(
+        later_ran.load(Ordering::SeqCst),
+        1,
+        "later callbacks still run"
+    );
 }
 
 /// The Plugin Manager reads `failures()`; a content-hook failure that only
@@ -509,17 +546,20 @@ fn world_loaded_failure_is_recorded_in_the_sets_failure_list() {
 
     let mut set = PluginSet::new();
     let f = Arc::clone(&fail_next);
-    set.add(TestPlugin::new(PluginManifest::new("bad", "Bad"), move |ctx| {
-        let f = Arc::clone(&f);
-        ctx.on_world_loaded(move |_w, _r| {
-            if f.load(Ordering::SeqCst) > 0 {
-                Err(PluginError::build("content moment blew up"))
-            } else {
-                Ok(())
-            }
-        });
-        Ok(())
-    }));
+    set.add(TestPlugin::new(
+        PluginManifest::new("bad", "Bad"),
+        move |ctx| {
+            let f = Arc::clone(&f);
+            ctx.on_world_loaded(move |_w, _r| {
+                if f.load(Ordering::SeqCst) > 0 {
+                    Err(PluginError::build("content moment blew up"))
+                } else {
+                    Ok(())
+                }
+            });
+            Ok(())
+        },
+    ));
 
     let mut live = Live::new();
     live.build(&mut set, None);

@@ -151,7 +151,8 @@ impl System for CharacterMovementSystem {
                     if speed > MIN_STEP_SPEED {
                         let heading = glm::vec3(xy.x / speed, xy.y / speed, 0.0);
                         let knee = centre - glm::vec3(0.0, 0.0, feet - KNEE_ABOVE_FEET);
-                        let ahead = physics.raycast_filtered(knee, heading, STEP_PROBE_LEN, Some(handle));
+                        let ahead =
+                            physics.raycast_filtered(knee, heading, STEP_PROBE_LEN, Some(handle));
                         match ahead {
                             Some(h) if is_step_face(&h.normal) => {
                                 // A steep face at knee height: a step if the
@@ -166,7 +167,12 @@ impl System for CharacterMovementSystem {
                                     let above = centre + heading * STEP_PROBE_LEN
                                         - glm::vec3(0.0, 0.0, feet - cm.step_height - 0.01);
                                     let top = physics
-                                        .raycast_filtered(above, down, cm.step_height + 0.02, Some(handle))
+                                        .raycast_filtered(
+                                            above,
+                                            down,
+                                            cm.step_height + 0.02,
+                                            Some(handle),
+                                        )
                                         .map(|h| h.point.z)
                                         .unwrap_or(feet_z + cm.step_height);
                                     cm.step_lift_target = Some(top + STEP_CLEARANCE);
@@ -189,7 +195,11 @@ impl System for CharacterMovementSystem {
                             // against the slope-corrected feet height.
                             let rest = feet_on_slope(feet, radius, &hit.normal);
                             let ride = slope_vz(&xy, &follow, vel.z);
-                            let pull = if snap { snap_vz(hit.distance, rest, fixed_dt) } else { 0.0 };
+                            let pull = if snap {
+                                snap_vz(hit.distance, rest, fixed_dt)
+                            } else {
+                                0.0
+                            };
                             if ride == 0.0 && pull == 0.0 {
                                 // Flat and in contact: nothing to correct, so
                                 // do not fight the solver — keep whatever
@@ -306,6 +316,7 @@ pub fn capsule_dims(collider: Option<&Collider>) -> (f32, f32) {
 }
 
 /// Feet below the body centre: see [`capsule_dims`].
+#[cfg(test)] // only exercised by the unit tests below; callers use capsule_dims
 pub fn feet_below_centre(collider: Option<&Collider>) -> f32 {
     capsule_dims(collider).0
 }
@@ -393,17 +404,31 @@ mod tests {
 
     #[test]
     fn accelerates_toward_desired_and_snaps_when_close() {
-        let v = accelerate_toward(glm::vec2(0.0, 0.0), glm::vec2(4.0, 0.0), 20.0, 30.0, true, 0.1);
+        let v = accelerate_toward(
+            glm::vec2(0.0, 0.0),
+            glm::vec2(4.0, 0.0),
+            20.0,
+            30.0,
+            true,
+            0.1,
+        );
         assert!((v.x - 2.0).abs() < 1e-5 && v.y.abs() < 1e-5, "{v:?}");
         let v = accelerate_toward(v, glm::vec2(4.0, 0.0), 20.0, 30.0, true, 0.5);
-        assert_eq!(v, glm::vec2(4.0, 0.0), "reaches the target without overshoot");
+        assert_eq!(
+            v,
+            glm::vec2(4.0, 0.0),
+            "reaches the target without overshoot"
+        );
     }
 
     #[test]
     fn decelerates_on_ground_and_coasts_in_air() {
         let moving = glm::vec2(3.0, 0.0);
         let v = accelerate_toward(moving, glm::vec2(0.0, 0.0), 20.0, 30.0, true, 0.05);
-        assert!((v.x - 1.5).abs() < 1e-5, "decel 30 * 0.05 = 1.5 m/s off: {v:?}");
+        assert!(
+            (v.x - 1.5).abs() < 1e-5,
+            "decel 30 * 0.05 = 1.5 m/s off: {v:?}"
+        );
         let v = accelerate_toward(moving, glm::vec2(0.0, 0.0), 20.0, 30.0, false, 0.05);
         assert_eq!(v, moving, "no input in the air keeps the velocity");
         let v = accelerate_toward(moving, glm::vec2(0.0, 1.0), 20.0, 30.0, false, 0.05);
@@ -419,7 +444,10 @@ mod tests {
         let to = -170.0_f32.to_radians();
         let mid = turn_toward(from, to, 10.0_f32.to_radians());
         assert!((mid - 180.0_f32.to_radians()).abs() < 1e-5 || (mid + PI).abs() < 1e-5);
-        assert!((turn_toward(from, to, 1.0) - to).abs() < 1e-5, "reaches the target");
+        assert!(
+            (turn_toward(from, to, 1.0) - to).abs() < 1e-5,
+            "reaches the target"
+        );
     }
 
     #[test]
@@ -451,7 +479,11 @@ mod tests {
         let down = slope_vz(&glm::vec2(-4.5, 0.0), &ramp, 0.0);
         assert!((down + 4.5 * a.tan()).abs() < 1e-4, "downhill vz {down}");
         let wall = glm::vec3(-1.0, 0.0, 0.1);
-        assert_eq!(slope_vz(&glm::vec2(1.0, 0.0), &wall, -2.0), -2.0, "wall keeps vz");
+        assert_eq!(
+            slope_vz(&glm::vec2(1.0, 0.0), &wall, -2.0),
+            -2.0,
+            "wall keeps vz"
+        );
     }
 
     #[test]
@@ -461,22 +493,36 @@ mod tests {
         let a = 30.0_f32.to_radians();
         let ramp = glm::vec3(-a.sin(), 0.0, a.cos());
         let rest = feet_on_slope(0.9, 0.4, &ramp);
-        assert!((rest - (0.9 + 0.4 * (1.0 / a.cos() - 1.0))).abs() < 1e-5, "{rest}");
+        assert!(
+            (rest - (0.9 + 0.4 * (1.0 / a.cos() - 1.0))).abs() < 1e-5,
+            "{rest}"
+        );
         assert!(rest > 0.9 && rest < 1.0, "a few cm longer on 30°: {rest}");
         let wall = glm::vec3(-1.0, 0.0, 0.0);
         assert_eq!(feet_on_slope(0.9, 0.4, &wall), 0.9, "walls are not slopes");
         assert!(is_step_face(&wall));
         assert!(!is_step_face(&ramp), "a 30° ramp is walkable, not a step");
         assert!(!is_step_face(&flat));
-        assert_eq!(capsule_dims(None), (DEFAULT_FEET_BELOW_CENTRE, DEFAULT_CAPSULE_RADIUS));
+        assert_eq!(
+            capsule_dims(None),
+            (DEFAULT_FEET_BELOW_CENTRE, DEFAULT_CAPSULE_RADIUS)
+        );
         assert_eq!(capsule_dims(Some(&Collider::capsule(0.5, 0.4))), (0.9, 0.4));
     }
 
     #[test]
     fn ground_snap_closes_a_gap_and_rests_on_contact() {
         assert_eq!(snap_vz(0.9, 0.9, 0.016), 0.0, "in contact");
-        assert_eq!(snap_vz(0.85, 0.9, 0.016), 0.0, "penetrating: the solver handles it");
-        assert_eq!(snap_vz(0.915, 0.9, 0.016), 0.0, "1.5 cm is solver slack, not floating");
+        assert_eq!(
+            snap_vz(0.85, 0.9, 0.016),
+            0.0,
+            "penetrating: the solver handles it"
+        );
+        assert_eq!(
+            snap_vz(0.915, 0.9, 0.016),
+            0.0,
+            "1.5 cm is solver slack, not floating"
+        );
         let v = snap_vz(0.94, 0.9, 0.02);
         assert!((v + 2.0).abs() < 1e-4, "4 cm in 20 ms = -2 m/s: {v}");
         assert_eq!(snap_vz(1.2, 0.9, 0.01), -GROUND_SNAP_MAX_VZ, "rate-limited");
@@ -489,7 +535,11 @@ mod tests {
         assert_eq!(step_lift_vz(-0.02, dt), 0.0, "already above it");
         let v = step_lift_vz(0.02, dt);
         assert!((v - 1.2).abs() < 1e-4, "2 cm in one 60 Hz step: {v}");
-        assert_eq!(step_lift_vz(0.3, dt), STEP_ASSIST_VZ, "capped far below the top");
+        assert_eq!(
+            step_lift_vz(0.3, dt),
+            STEP_ASSIST_VZ,
+            "capped far below the top"
+        );
     }
 
     #[test]
@@ -498,6 +548,9 @@ mod tests {
         assert!(!wants_step_assist(false, 1.0, true, true), "airborne");
         assert!(!wants_step_assist(true, 0.05, true, true), "standing still");
         assert!(!wants_step_assist(true, 1.0, false, true), "nothing ahead");
-        assert!(!wants_step_assist(true, 1.0, true, false), "a wall, not a step");
+        assert!(
+            !wants_step_assist(true, 1.0, true, false),
+            "a wall, not a step"
+        );
     }
 }

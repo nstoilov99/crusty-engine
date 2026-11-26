@@ -570,10 +570,10 @@ impl ProfilerState {
         match self.sort_column {
             SortColumn::Location => stats.sort_by(|a, b| a.location.cmp(&b.location)),
             SortColumn::Name => stats.sort_by(|a, b| a.name.cmp(&b.name)),
-            SortColumn::TotalTime => stats.sort_by(|a, b| a.total_time_ns.cmp(&b.total_time_ns)),
-            SortColumn::CallCount => stats.sort_by(|a, b| a.call_count.cmp(&b.call_count)),
-            SortColumn::MeanTime => stats.sort_by(|a, b| a.mean_time_ns.cmp(&b.mean_time_ns)),
-            SortColumn::MaxTime => stats.sort_by(|a, b| a.max_time_ns.cmp(&b.max_time_ns)),
+            SortColumn::TotalTime => stats.sort_by_key(|a| a.total_time_ns),
+            SortColumn::CallCount => stats.sort_by_key(|a| a.call_count),
+            SortColumn::MeanTime => stats.sort_by_key(|a| a.mean_time_ns),
+            SortColumn::MaxTime => stats.sort_by_key(|a| a.max_time_ns),
         }
 
         if self.sort_direction == SortDirection::Descending {

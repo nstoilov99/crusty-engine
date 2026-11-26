@@ -57,11 +57,7 @@ fn small_button(ui: &mut Ui, text: &str) -> bool {
 
 fn small_red_button(ui: &mut Ui, text: &str) -> bool {
     let small = ui.style().fonts.small;
-    Button::new(text)
-        .size(small)
-        .danger()
-        .show(ui)
-        .clicked
+    Button::new(text).size(small).danger().show(ui).clicked
 }
 
 /// Stroke-framed group: full available width,
@@ -921,7 +917,9 @@ pub fn input_action_panel(
                 ui.add_space(4.0);
 
                 group(ui, "ia_props", |ui| {
-                    Label::new("Properties").color(super::theme::asset_color("cameras")).show(ui);
+                    Label::new("Properties")
+                        .color(super::theme::asset_color("cameras"))
+                        .show(ui);
                     ui.add_space(2.0);
                     Grid::new("ia_props_grid")
                         .spacing(Vec2::new(8.0, 4.0))
@@ -985,7 +983,12 @@ pub fn input_action_panel(
 
                 group(ui, "ia_triggers", |ui| {
                     ui.horizontal(|ui| {
-                        row_label(ui, "Triggers", style.fonts.body, super::theme::asset_color("physics"));
+                        row_label(
+                            ui,
+                            "Triggers",
+                            style.fonts.body,
+                            super::theme::asset_color("physics"),
+                        );
                         row_label(
                             ui,
                             &format!("({})", action.triggers.len()),
@@ -1005,7 +1008,12 @@ pub fn input_action_panel(
 
                 group(ui, "ia_modifiers", |ui| {
                     ui.horizontal(|ui| {
-                        row_label(ui, "Modifiers", style.fonts.body, super::theme::asset_color("animation"));
+                        row_label(
+                            ui,
+                            "Modifiers",
+                            style.fonts.body,
+                            super::theme::asset_color("animation"),
+                        );
                         row_label(
                             ui,
                             &format!("({})", action.modifiers.len()),
@@ -1136,7 +1144,12 @@ pub fn input_context_panel(
 
                 group(ui, "mc_entries", |ui| {
                     ui.horizontal(|ui| {
-                        row_label(ui, "Action Mappings", style.fonts.body, super::theme::asset_color("physics"));
+                        row_label(
+                            ui,
+                            "Action Mappings",
+                            style.fonts.body,
+                            super::theme::asset_color("physics"),
+                        );
                         row_label(
                             ui,
                             &format!("({})", mctx.entries.len()),
@@ -1191,9 +1204,7 @@ pub fn input_context_panel(
                                             );
 
                                             if is_listening {
-                                                Button::new("...")
-                                                    .primary()
-                                                    .show(ui);
+                                                Button::new("...").primary().show(ui);
                                             } else {
                                                 let r =
                                                     Button::new("\u{1F3A7}").size(14.0).show(ui);
@@ -1295,11 +1306,7 @@ pub fn input_context_panel(
                                         ui.available().max.x - w,
                                         ui.cursor().y,
                                     ));
-                                    if Button::new("Remove Entry")
-                                        .danger()
-                                        .show(ui)
-                                        .clicked
-                                    {
+                                    if Button::new("Remove Entry").danger().show(ui).clicked {
                                         remove_entry = Some(entry_idx);
                                         dirty = true;
                                     }

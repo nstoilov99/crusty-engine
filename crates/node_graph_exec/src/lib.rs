@@ -52,14 +52,14 @@ pub mod value;
 pub use debug::{BreakSet, DebugCommand, DebugCtl};
 pub use effect::{Effect, EffectSink, LogLevel, NoWorld, TransformSnapshot, WorldRead};
 pub use exec::{tick, tick_debug, tick_traced, tick_with_budget, TickReport, DEFAULT_BUDGET};
-pub use instance::{
-    Activation, ActivationId, Frame, GraphInstance, QueuedEvent, Rng, ThreadState,
-};
+pub use instance::{Activation, ActivationId, Frame, GraphInstance, QueuedEvent, Rng, ThreadState};
 pub use node::{
     EvalCtx, ExecError, FireCtx, FireResult, ImpureNode, LoopFrameView, NodeImpl, NodeImpls,
     PureNode, Suspension, TickInput,
 };
-pub use plan::{compile, compile_with_curves, CompileError, Entry, InputSource, Plan, PlanNode, VarSlot};
+pub use plan::{
+    compile, compile_with_curves, CompileError, Entry, InputSource, Plan, PlanNode, VarSlot,
+};
 pub use trace::{NoTrace, TraceSink};
 pub use value::{EntityRef, Value};
 

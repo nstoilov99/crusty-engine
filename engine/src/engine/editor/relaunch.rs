@@ -132,9 +132,15 @@ mod tests {
 
     #[test]
     fn absent_or_malformed_wait_parent_is_none() {
-        assert_eq!(parse_wait_parent(&args(&["--editor-benchmark-tools"])), None);
+        assert_eq!(
+            parse_wait_parent(&args(&["--editor-benchmark-tools"])),
+            None
+        );
         assert_eq!(parse_wait_parent(&args(&["--wait-parent"])), None);
-        assert_eq!(parse_wait_parent(&args(&["--wait-parent", "not-a-pid"])), None);
+        assert_eq!(
+            parse_wait_parent(&args(&["--wait-parent", "not-a-pid"])),
+            None
+        );
         assert_eq!(parse_wait_parent(&[]), None);
     }
 
@@ -169,10 +175,7 @@ mod tests {
         let waited = start.elapsed();
 
         // The wait returned; the process must be finished by now.
-        let exited = dummy
-            .try_wait()
-            .expect("try_wait")
-            .is_some();
+        let exited = dummy.try_wait().expect("try_wait").is_some();
         assert!(
             exited,
             "wait_for_parent returned while the parent was still running"

@@ -93,7 +93,10 @@ mod tests {
             .iter()
             .map(|s| s.to_string())
             .collect();
-        assert_eq!(arg_value(&args, "--scene").as_deref(), Some("scenes/a.scene"));
+        assert_eq!(
+            arg_value(&args, "--scene").as_deref(),
+            Some("scenes/a.scene")
+        );
         assert_eq!(arg_value(&args, "--bench-secs").as_deref(), Some("5"));
         assert_eq!(arg_value(&args, "--stress-anim"), None);
     }

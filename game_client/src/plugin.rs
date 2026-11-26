@@ -134,9 +134,9 @@ mod tests {
         use rust_engine::engine::animation::graph::{AnimGraphRunner, AnimGraphRuntime, IkTargets};
         use rust_engine::engine::animation::{AnimationPlayer, SkeletonInstance};
         use rust_engine::engine::ecs::components::{Transform, TransformDirty};
+        use rust_engine::engine::ecs::hierarchy::TransformCache;
         use rust_engine::engine::ecs::hierarchy::{Children, HierarchyChanged, Parent};
         use rust_engine::engine::ecs::resources::Time;
-        use rust_engine::engine::ecs::hierarchy::TransformCache;
         use rust_engine::engine::physics::{PhysicsWorld, RigidBody};
 
         let mut schedule = Schedule::new();

@@ -251,6 +251,7 @@ impl HierarchyPanel {
     /// Add a new entity kind by:
     ///   1. Dropping `engine/icons/hierarchy/<your_name>.svg`,
     ///   2. Adding a branch here returning `("your_name", tint)`.
+    ///
     /// No registry edit needed — the icon set is auto-discovered at startup.
     pub(crate) fn entity_icon_stem(world: &World, entity: Entity) -> (&'static str, Color) {
         if world.get::<&Camera>(entity).is_ok() {

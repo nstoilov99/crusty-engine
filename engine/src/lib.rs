@@ -1,3 +1,7 @@
+// Tests and builders in this crate construct a Default value and then set a few
+// fields; that reads better than giant struct literals, so the lint is off.
+#![allow(clippy::field_reassign_with_default)]
+
 // Lets the node graph derive macros (`node_graph_macros`) reference engine
 // types via `::rust_engine::...` even when applied inside this crate.
 extern crate self as rust_engine;

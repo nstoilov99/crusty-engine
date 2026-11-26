@@ -196,7 +196,11 @@ pub fn default_tree(profile: LayoutProfile) -> DockNode {
             leaf(EditorTab::GraphVariables),
             DockNode::split_h(
                 0.70,
-                DockNode::split_v(0.75, docs, strip(EditorTab::AssetBrowser, EditorTab::Console)),
+                DockNode::split_v(
+                    0.75,
+                    docs,
+                    strip(EditorTab::AssetBrowser, EditorTab::Console),
+                ),
                 DockNode::split_v(
                     0.5,
                     leaf(EditorTab::AnimPreview),
@@ -211,13 +215,21 @@ pub fn default_tree(profile: LayoutProfile) -> DockNode {
             leaf(EditorTab::GraphVariables),
             DockNode::split_h(
                 0.75,
-                DockNode::split_v(0.75, docs, strip(EditorTab::AssetBrowser, EditorTab::Console)),
+                DockNode::split_v(
+                    0.75,
+                    docs,
+                    strip(EditorTab::AssetBrowser, EditorTab::Console),
+                ),
                 leaf(EditorTab::GraphDetails),
             ),
         ),
         // These tabs embed their own details/preview: documents over Assets/Console.
         LayoutProfile::BlendSpace | LayoutProfile::Curve | LayoutProfile::Mesh => {
-            DockNode::split_v(0.75, docs, strip(EditorTab::AssetBrowser, EditorTab::Console))
+            DockNode::split_v(
+                0.75,
+                docs,
+                strip(EditorTab::AssetBrowser, EditorTab::Console),
+            )
         }
     }
 }
@@ -304,15 +316,19 @@ impl CrustyDockLayout {
         let mut outgoing = std::mem::replace(&mut self.tree, DockNode::leaf(DOCUMENTS_TAB));
         let docs = detach_documents(&mut outgoing);
         let state = std::mem::take(&mut self.state);
-        self.profiles
-            .insert(self.active, ProfileLayout { tree: outgoing, state });
-
-        let ProfileLayout { mut tree, state } = self.profiles.remove(&to).unwrap_or_else(|| {
+        self.profiles.insert(
+            self.active,
             ProfileLayout {
+                tree: outgoing,
+                state,
+            },
+        );
+
+        let ProfileLayout { mut tree, state } =
+            self.profiles.remove(&to).unwrap_or_else(|| ProfileLayout {
                 tree: default_tree(to),
                 state: DockState::default(),
-            }
-        });
+            });
         // A stored tree without a marker (hand-edited file) can't host the
         // strip; the default can.
         if !attach_documents(&mut tree, &docs, Some(focus)) {
@@ -432,7 +448,9 @@ fn leaf_mut<'a>(node: &'a mut DockNode, index: &mut usize) -> Option<&'a mut Lea
                 None
             }
         }
-        DockNode::Split(s) => leaf_mut(&mut s.first, index).or_else(|| leaf_mut(&mut s.second, index)),
+        DockNode::Split(s) => {
+            leaf_mut(&mut s.first, index).or_else(|| leaf_mut(&mut s.second, index))
+        }
     }
 }
 
@@ -463,7 +481,11 @@ pub fn document_tabs(tree: &DockNode) -> Vec<String> {
     collect_leaves(tree, &mut leaves);
     let strip = documents_leaf_index(tree);
     fn docs_of(leaf: &Leaf) -> Vec<String> {
-        leaf.tabs.iter().filter(|t| is_document_id(t)).cloned().collect()
+        leaf.tabs
+            .iter()
+            .filter(|t| is_document_id(t))
+            .cloned()
+            .collect()
     }
     let mut out: Vec<String> = strip.map(|i| docs_of(leaves[i])).unwrap_or_default();
     for (i, leaf) in leaves.iter().enumerate() {
@@ -511,9 +533,15 @@ fn attach_documents(tree: &mut DockNode, docs: &[String], focus: Option<&str>) -
     let Some(leaf) = tab_leaf_mut(tree, DOCUMENTS_TAB) else {
         return false;
     };
-    let at = leaf.tabs.iter().position(|t| t == DOCUMENTS_TAB).unwrap_or(0);
+    let at = leaf
+        .tabs
+        .iter()
+        .position(|t| t == DOCUMENTS_TAB)
+        .unwrap_or(0);
     leaf.tabs.splice(at..at + 1, docs.iter().cloned());
-    let focus_at = focus.and_then(|f| docs.iter().position(|d| d == f)).unwrap_or(0);
+    let focus_at = focus
+        .and_then(|f| docs.iter().position(|d| d == f))
+        .unwrap_or(0);
     leaf.active = at + focus_at;
     true
 }
@@ -715,9 +743,7 @@ pub fn leaf_tabs(tree: &DockNode, tab: &str) -> Option<(Vec<String>, usize)> {
             .iter()
             .position(|t| t == tab)
             .map(|i| (leaf.tabs.clone(), i)),
-        DockNode::Split(s) => {
-            leaf_tabs(&s.first, tab).or_else(|| leaf_tabs(&s.second, tab))
-        }
+        DockNode::Split(s) => leaf_tabs(&s.first, tab).or_else(|| leaf_tabs(&s.second, tab)),
     }
 }
 
@@ -888,7 +914,11 @@ mod tests {
         ] {
             let mut ids = Vec::new();
             default_tree(p).collect_tabs(&mut ids);
-            assert_eq!(ids.iter().filter(|t| *t == DOCUMENTS_TAB).count(), 1, "{p:?}");
+            assert_eq!(
+                ids.iter().filter(|t| *t == DOCUMENTS_TAB).count(),
+                1,
+                "{p:?}"
+            );
         }
     }
 
@@ -900,13 +930,21 @@ mod tests {
     fn graph_defaults_pin_the_spec_trees() {
         use crusty_gui::dock::SplitDirection::{self, Horizontal as H, Vertical as V};
         fn split(n: &DockNode, dir: SplitDirection, ratio: f32) -> (&DockNode, &DockNode) {
-            let DockNode::Split(s) = n else { panic!("expected a split, got {n:?}") };
+            let DockNode::Split(s) = n else {
+                panic!("expected a split, got {n:?}")
+            };
             assert_eq!(s.direction, dir);
-            assert!((s.ratio - ratio).abs() < 1e-6, "ratio {} != {ratio}", s.ratio);
+            assert!(
+                (s.ratio - ratio).abs() < 1e-6,
+                "ratio {} != {ratio}",
+                s.ratio
+            );
             (&s.first, &s.second)
         }
         fn tabs(n: &DockNode) -> Vec<&str> {
-            let DockNode::Leaf(l) = n else { panic!("expected a leaf, got {n:?}") };
+            let DockNode::Leaf(l) = n else {
+                panic!("expected a leaf, got {n:?}")
+            };
             l.tabs.iter().map(String::as_str).collect()
         }
         let bottom = ["assets", "console"];
@@ -944,7 +982,11 @@ mod tests {
         assert_eq!(tabs(inspector), ["inspector"]);
 
         // Embedded-panel documents: docs over Assets/Console only.
-        for p in [LayoutProfile::BlendSpace, LayoutProfile::Curve, LayoutProfile::Mesh] {
+        for p in [
+            LayoutProfile::BlendSpace,
+            LayoutProfile::Curve,
+            LayoutProfile::Mesh,
+        ] {
             let t = default_tree(p);
             let (docs, below) = split(&t, V, 0.75);
             assert_eq!(tabs(docs), [DOCUMENTS_TAB]);
@@ -957,8 +999,14 @@ mod tests {
         let layout = scene_with_graph();
         let (tabs, _) = leaf_tabs(&layout.tree, "viewport:0").unwrap();
         assert_eq!(tabs, ["viewport:0", "graph:graphs/a.animgraph"]);
-        assert_eq!(layout.active_document().as_deref(), Some("graph:graphs/a.animgraph"));
-        assert_eq!(layout.state.focused_tab.as_deref(), Some("graph:graphs/a.animgraph"));
+        assert_eq!(
+            layout.active_document().as_deref(),
+            Some("graph:graphs/a.animgraph")
+        );
+        assert_eq!(
+            layout.state.focused_tab.as_deref(),
+            Some("graph:graphs/a.animgraph")
+        );
     }
 
     #[test]
@@ -972,7 +1020,9 @@ mod tests {
         layout.swap_profile(LayoutProfile::AnimGraph, graph);
         assert_eq!(layout.active, LayoutProfile::AnimGraph);
         assert!(!layout.tree.contains_tab(DOCUMENTS_TAB));
-        assert!(layout.profiles[&LayoutProfile::Scene].tree.contains_tab(DOCUMENTS_TAB));
+        assert!(layout.profiles[&LayoutProfile::Scene]
+            .tree
+            .contains_tab(DOCUMENTS_TAB));
         assert!(!layout.profiles.contains_key(&LayoutProfile::AnimGraph));
         assert!(layout.tree.contains_tab("graph_variables"));
         assert!(layout.tree.contains_tab("anim_preview"));
@@ -1013,24 +1063,31 @@ mod tests {
             .push("mesh:m.glb".into());
         assert_eq!(
             document_tabs(&layout.tree),
-            ["viewport:0", "graph:graphs/a.animgraph", "mesh:m.glb", "curve:c.curve"]
+            [
+                "viewport:0",
+                "graph:graphs/a.animgraph",
+                "mesh:m.glb",
+                "curve:c.curve"
+            ]
         );
 
         layout.swap_profile(LayoutProfile::Curve, "curve:c.curve");
         let (tabs, idx) = leaf_tabs(&layout.tree, "curve:c.curve").unwrap();
         assert_eq!(
             tabs,
-            ["viewport:0", "graph:graphs/a.animgraph", "mesh:m.glb", "curve:c.curve"]
+            [
+                "viewport:0",
+                "graph:graphs/a.animgraph",
+                "mesh:m.glb",
+                "curve:c.curve"
+            ]
         );
         assert_eq!(idx, 3);
         // The stray leaves kept their panels and lost only the documents.
         let scene = &layout.profiles[&LayoutProfile::Scene].tree;
         assert_eq!(leaf_tabs(scene, "inspector").unwrap().0, ["inspector"]);
         assert_eq!(leaf_tabs(scene, "hierarchy").unwrap().0, ["hierarchy"]);
-        assert_eq!(
-            leaf_tabs(scene, DOCUMENTS_TAB).unwrap().0,
-            [DOCUMENTS_TAB]
-        );
+        assert_eq!(leaf_tabs(scene, DOCUMENTS_TAB).unwrap().0, [DOCUMENTS_TAB]);
     }
 
     #[test]
@@ -1133,14 +1190,35 @@ mod tests {
     #[test]
     fn profiles_of_tabs() {
         let d = |t: &EditorTab| profile_of(t, None);
-        assert_eq!(d(&EditorTab::Viewport(SceneId(1))), Some(LayoutProfile::Scene));
-        assert_eq!(d(&EditorTab::InputActionEditor("a".into())), Some(LayoutProfile::Scene));
-        assert_eq!(d(&EditorTab::MeshEditor("m".into())), Some(LayoutProfile::Mesh));
-        assert_eq!(d(&EditorTab::CurveEditor("c".into())), Some(LayoutProfile::Curve));
-        assert_eq!(d(&EditorTab::BlendSpace("b".into())), Some(LayoutProfile::BlendSpace));
-        assert_eq!(d(&EditorTab::GraphEditor("g".into())), Some(LayoutProfile::ScriptGraph));
         assert_eq!(
-            profile_of(&EditorTab::GraphEditor("g".into()), Some(GraphDomain::Animation)),
+            d(&EditorTab::Viewport(SceneId(1))),
+            Some(LayoutProfile::Scene)
+        );
+        assert_eq!(
+            d(&EditorTab::InputActionEditor("a".into())),
+            Some(LayoutProfile::Scene)
+        );
+        assert_eq!(
+            d(&EditorTab::MeshEditor("m".into())),
+            Some(LayoutProfile::Mesh)
+        );
+        assert_eq!(
+            d(&EditorTab::CurveEditor("c".into())),
+            Some(LayoutProfile::Curve)
+        );
+        assert_eq!(
+            d(&EditorTab::BlendSpace("b".into())),
+            Some(LayoutProfile::BlendSpace)
+        );
+        assert_eq!(
+            d(&EditorTab::GraphEditor("g".into())),
+            Some(LayoutProfile::ScriptGraph)
+        );
+        assert_eq!(
+            profile_of(
+                &EditorTab::GraphEditor("g".into()),
+                Some(GraphDomain::Animation)
+            ),
             Some(LayoutProfile::AnimGraph)
         );
         for side in [

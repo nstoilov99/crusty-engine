@@ -130,7 +130,10 @@ impl Tangent {
     pub const ALL: [Tangent; 4] = [
         Tangent::Auto,
         Tangent::User { tangent: 0.0 },
-        Tangent::Break { in_tan: 0.0, out_tan: 0.0 },
+        Tangent::Break {
+            in_tan: 0.0,
+            out_tan: 0.0,
+        },
         Tangent::Flat,
     ];
 
@@ -179,7 +182,12 @@ pub struct Key {
 
 impl Key {
     pub fn new(t: f32, value: f32) -> Self {
-        Self { t, value, interp: Interp::Linear, tangent: Tangent::Auto }
+        Self {
+            t,
+            value,
+            interp: Interp::Linear,
+            tangent: Tangent::Auto,
+        }
     }
 }
 
@@ -197,7 +205,11 @@ pub struct Track {
 
 impl Track {
     pub fn new(slug: &str, label: &str) -> Self {
-        Self { slug: slug.to_string(), label: label.to_string(), keys: Vec::new() }
+        Self {
+            slug: slug.to_string(),
+            label: label.to_string(),
+            keys: Vec::new(),
+        }
     }
 
     /// Last key time — this track's own length.
@@ -338,7 +350,10 @@ pub struct CurveDoc {
 
 impl Default for CurveDoc {
     fn default() -> Self {
-        Self { version: CURVE_DOC_VERSION, tracks: Vec::new() }
+        Self {
+            version: CURVE_DOC_VERSION,
+            tracks: Vec::new(),
+        }
     }
 }
 
@@ -421,7 +436,10 @@ pub enum CurveIoError {
     Serialize(String),
     /// Written by a newer build than this one. Refused rather than guessed at:
     /// the same rule `.graph` documents follow.
-    FutureVersion { found: u32, supported: u32 },
+    FutureVersion {
+        found: u32,
+        supported: u32,
+    },
 }
 
 impl std::fmt::Display for CurveIoError {
@@ -449,16 +467,14 @@ struct Envelope {
 }
 
 pub fn parse_curve(text: &str) -> Result<CurveDoc, CurveIoError> {
-    let probe: Envelope =
-        ron::from_str(text).map_err(|e| CurveIoError::Parse(e.to_string()))?;
+    let probe: Envelope = ron::from_str(text).map_err(|e| CurveIoError::Parse(e.to_string()))?;
     if probe.version > CURVE_DOC_VERSION {
         return Err(CurveIoError::FutureVersion {
             found: probe.version,
             supported: CURVE_DOC_VERSION,
         });
     }
-    let mut doc: CurveDoc =
-        ron::from_str(text).map_err(|e| CurveIoError::Parse(e.to_string()))?;
+    let mut doc: CurveDoc = ron::from_str(text).map_err(|e| CurveIoError::Parse(e.to_string()))?;
     migrate_container(&mut doc, probe.version);
     // Unsorted input is tolerated and fixed here, once, so nothing downstream
     // has to defend against it.
@@ -516,7 +532,12 @@ mod tests {
             label: "T".into(),
             keys: keys
                 .iter()
-                .map(|(t, v, i)| Key { t: *t, value: *v, interp: *i, tangent: Tangent::Auto })
+                .map(|(t, v, i)| Key {
+                    t: *t,
+                    value: *v,
+                    interp: *i,
+                    tangent: Tangent::Auto,
+                })
                 .collect(),
         }
     }
@@ -536,8 +557,16 @@ mod tests {
     #[test]
     fn sampling_clamps_outside_the_key_range() {
         let t = track(&[(1.0, 10.0, Interp::Linear), (3.0, 30.0, Interp::Linear)]);
-        assert_eq!(t.sample(0.0), 10.0, "before the first key holds the first value");
-        assert_eq!(t.sample(5.0), 30.0, "after the last key holds the last value");
+        assert_eq!(
+            t.sample(0.0),
+            10.0,
+            "before the first key holds the first value"
+        );
+        assert_eq!(
+            t.sample(5.0),
+            30.0,
+            "after the last key holds the last value"
+        );
         assert_eq!(t.duration(), 3.0);
     }
 
@@ -612,7 +641,11 @@ mod tests {
         )"#;
         let doc = parse_curve(text).expect("parse");
         let ts: Vec<f32> = doc.tracks[0].keys.iter().map(|k| k.t).collect();
-        assert_eq!(ts, vec![0.0, 1.0, 2.0], "unsorted input is canonicalized on load");
+        assert_eq!(
+            ts,
+            vec![0.0, 1.0, 2.0],
+            "unsorted input is canonicalized on load"
+        );
         assert_eq!(doc.duration(), 2.0);
 
         let mut stacked = track(&[
@@ -621,7 +654,11 @@ mod tests {
             (2.0, 9.0, Interp::Linear),
         ]);
         stacked.canonicalize();
-        assert_eq!(stacked.sample(1.0), 9.0, "stacked keys are a step; the later one wins");
+        assert_eq!(
+            stacked.sample(1.0),
+            9.0,
+            "stacked keys are a step; the later one wins"
+        );
     }
 
     #[test]
@@ -634,7 +671,11 @@ mod tests {
         let text = serialize_curve(&doc).expect("serialize");
         let back = parse_curve(&text).expect("parse");
         assert_eq!(back, doc);
-        assert_eq!(serialize_curve(&back).unwrap(), text, "saving twice does not churn");
+        assert_eq!(
+            serialize_curve(&back).unwrap(),
+            text,
+            "saving twice does not churn"
+        );
     }
 
     // -- v2 tangents -------------------------------------------------------
@@ -663,7 +704,10 @@ mod tests {
         let doc = parse_curve(V1).expect("a v1 file still loads");
         assert_eq!(doc.version, CURVE_DOC_VERSION, "…as v2");
         assert!(
-            doc.tracks[0].keys.iter().all(|k| k.tangent == Tangent::Auto),
+            doc.tracks[0]
+                .keys
+                .iter()
+                .all(|k| k.tangent == Tangent::Auto),
             "every migrated key is Auto — the mode v1 had without a name for it"
         );
 
@@ -719,7 +763,10 @@ mod tests {
         // And the file it writes back is the v1 file with a new version line:
         // an all-Auto document costs no bytes, because the field is skipped.
         let text = serialize_curve(&doc).expect("serialize");
-        assert!(!text.contains("tangent"), "an Auto key writes no tangent:\n{text}");
+        assert!(
+            !text.contains("tangent"),
+            "an Auto key writes no tangent:\n{text}"
+        );
         // The golden, both ways: the only difference between what v2 writes
         // and a v1 file of the same curve is the version line — so the same
         // bytes with `version: 1` still parse, and to the same document.
@@ -738,14 +785,25 @@ mod tests {
             (1.0, 1.0, Interp::Cubic),
             (2.0, 0.0, Interp::Cubic),
         ]);
-        t.keys[1].tangent = Tangent::Break { in_tan: 3.0, out_tan: -7.5 };
+        t.keys[1].tangent = Tangent::Break {
+            in_tan: 3.0,
+            out_tan: -7.5,
+        };
         doc.tracks = vec![t];
 
         let text = serialize_curve(&doc).expect("serialize");
-        assert_eq!(text.matches("tangent").count(), 1, "one shaped key, one field:\n{text}");
+        assert_eq!(
+            text.matches("tangent").count(),
+            1,
+            "one shaped key, one field:\n{text}"
+        );
         let back = parse_curve(&text).expect("parse");
         assert_eq!(back, doc);
-        assert_eq!(serialize_curve(&back).unwrap(), text, "saving twice does not churn");
+        assert_eq!(
+            serialize_curve(&back).unwrap(),
+            text,
+            "saving twice does not churn"
+        );
     }
 
     /// Each mode's arithmetic, at the key where it is unambiguous: the slope
@@ -763,7 +821,10 @@ mod tests {
 
         // Auto: the time-scaled finite difference across the neighbours.
         assert!((t.out_tangent(1) - (2.0 - 0.0) / (4.0 - 0.0)).abs() < 1e-6);
-        assert!((t.in_tangent(1) - t.out_tangent(1)).abs() < 1e-6, "Auto is one slope");
+        assert!(
+            (t.in_tangent(1) - t.out_tangent(1)).abs() < 1e-6,
+            "Auto is one slope"
+        );
 
         // Flat: zero, both sides.
         t.keys[1].tangent = Tangent::Flat;
@@ -772,8 +833,14 @@ mod tests {
 
         // Linear: the chord to each neighbour — different on each side.
         t.keys[1].tangent = Tangent::Linear;
-        assert!((t.in_tangent(1) - 2.0).abs() < 1e-6, "chord from key 0: (2-0)/(1-0)");
-        assert!((t.out_tangent(1) - 0.0).abs() < 1e-6, "chord to key 2: (2-2)/(4-1)");
+        assert!(
+            (t.in_tangent(1) - 2.0).abs() < 1e-6,
+            "chord from key 0: (2-0)/(1-0)"
+        );
+        assert!(
+            (t.out_tangent(1) - 0.0).abs() < 1e-6,
+            "chord to key 2: (2-2)/(4-1)"
+        );
 
         // User: one number, both sides.
         t.keys[1].tangent = Tangent::User { tangent: -1.25 };
@@ -781,7 +848,10 @@ mod tests {
         assert_eq!(t.out_tangent(1), -1.25);
 
         // Break: two, and they may disagree — that is the point.
-        t.keys[1].tangent = Tangent::Break { in_tan: 5.0, out_tan: -5.0 };
+        t.keys[1].tangent = Tangent::Break {
+            in_tan: 5.0,
+            out_tan: -5.0,
+        };
         assert_eq!(t.in_tangent(1), 5.0);
         assert_eq!(t.out_tangent(1), -5.0);
 
@@ -805,7 +875,11 @@ mod tests {
         t.keys[1].tangent = Tangent::Linear;
         for i in 0..=20 {
             let x = i as f32 * 0.1;
-            assert!((t.sample(x) - x * 3.0).abs() < 1e-4, "t={x}: {}", t.sample(x));
+            assert!(
+                (t.sample(x) - x * 3.0).abs() < 1e-4,
+                "t={x}: {}",
+                t.sample(x)
+            );
         }
     }
 
@@ -849,7 +923,10 @@ mod tests {
             (1.0, 1.0, Interp::Cubic),
             (2.0, 1.0, Interp::Cubic),
         ]);
-        t.keys[1].tangent = Tangent::Break { in_tan: 4.0, out_tan: -4.0 };
+        t.keys[1].tangent = Tangent::Break {
+            in_tan: 4.0,
+            out_tan: -4.0,
+        };
         // Value is continuous — a corner is not a jump.
         let e = 1e-3;
         assert!((t.sample(1.0 - e) - t.sample(1.0 + e)).abs() < 1e-2);
@@ -868,7 +945,10 @@ mod tests {
         for interp in [Interp::Linear, Interp::Constant] {
             let plain = track(&[(0.0, 0.0, interp), (2.0, 10.0, interp)]);
             let mut shaped = plain.clone();
-            shaped.keys[0].tangent = Tangent::Break { in_tan: -99.0, out_tan: 42.0 };
+            shaped.keys[0].tangent = Tangent::Break {
+                in_tan: -99.0,
+                out_tan: 42.0,
+            };
             shaped.keys[1].tangent = Tangent::Flat;
             for i in 0..=20 {
                 let t = i as f32 * 0.1;

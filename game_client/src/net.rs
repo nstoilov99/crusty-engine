@@ -74,8 +74,14 @@ impl NetConfig {
 /// defaults are already folded into the config's `Default`.
 fn resolve_addr(positionals: &[String], cfg: &NetConfig) -> ModuleAddr {
     ModuleAddr {
-        host: positionals.first().cloned().unwrap_or_else(|| cfg.host.clone()),
-        module: positionals.get(1).cloned().unwrap_or_else(|| cfg.module.clone()),
+        host: positionals
+            .first()
+            .cloned()
+            .unwrap_or_else(|| cfg.host.clone()),
+        module: positionals
+            .get(1)
+            .cloned()
+            .unwrap_or_else(|| cfg.module.clone()),
     }
 }
 
@@ -259,7 +265,8 @@ impl NetSession {
                     grounded,
                     alive,
                 } => {
-                    self.prediction.on_ack(epoch, seq, pos, vel, yaw, grounded, alive);
+                    self.prediction
+                        .on_ack(epoch, seq, pos, vel, yaw, grounded, alive);
                     self.last_ack = Some((epoch, seq));
                 }
                 NetEvent::ClockSample(s) => self.clock.add_sample(s.offset_us, s.rtt_us),
@@ -276,8 +283,14 @@ impl NetSession {
 
         if self.client.connection_state() == ConnectionState::InWorld {
             self.handle_combat_keys(tab_pressed, cast_slot);
-            self.prediction
-                .update(dt, move_dir, self.yaw, sprint, jump_pressed, &mut self.outgoing);
+            self.prediction.update(
+                dt,
+                move_dir,
+                self.yaw,
+                sprint,
+                jump_pressed,
+                &mut self.outgoing,
+            );
             for input in self.outgoing.drain(..) {
                 self.client.send_input(&input);
             }
@@ -301,20 +314,23 @@ impl NetSession {
     /// re-checks legality against the id sent with each cast.
     fn handle_combat_keys(&mut self, tab_pressed: bool, cast_slot: Option<usize>) {
         let candidates = self.replication.targetables();
-        if self.target.is_some_and(|t| !candidates.iter().any(|(id, _)| *id == t)) {
+        if self
+            .target
+            .is_some_and(|t| !candidates.iter().any(|(id, _)| *id == t))
+        {
             self.target = None;
         }
         if tab_pressed && !candidates.is_empty() {
-            let own = self
-                .prediction
-                .visual_pose()
-                .map_or([0.0; 3], |(p, _)| p);
+            let own = self.prediction.visual_pose().map_or([0.0; 3], |(p, _)| p);
             let d2 = |p: [f32; 3]| {
                 (p[0] - own[0]).powi(2) + (p[1] - own[1]).powi(2) + (p[2] - own[2]).powi(2)
             };
             let mut sorted = candidates;
             sorted.sort_by(|a, b| d2(a.1).total_cmp(&d2(b.1)));
-            let next = match self.target.and_then(|t| sorted.iter().position(|(id, _)| *id == t)) {
+            let next = match self
+                .target
+                .and_then(|t| sorted.iter().position(|(id, _)| *id == t))
+            {
                 Some(i) => sorted[(i + 1) % sorted.len()].0,
                 None => sorted[0].0,
             };
@@ -381,7 +397,9 @@ impl NetSession {
     /// Predicted local-player position (Z-up), once in world.
     #[cfg(not(feature = "editor"))]
     pub fn local_pos(&self) -> Option<glam::Vec3> {
-        self.prediction.visual_pose().map(|(p, _)| glam::Vec3::from(p))
+        self.prediction
+            .visual_pose()
+            .map(|(p, _)| glam::Vec3::from(p))
     }
 
     /// Per-frame HUD snapshot (M7 D7). `&mut` only for the monotonic clamp.
@@ -526,18 +544,30 @@ mod net_config_tests {
         };
         // Both positionals: CLI wins outright.
         let a = resolve_addr(&args(&["http://cli:3000", "cli-module"]), &cfg);
-        assert_eq!((a.host.as_str(), a.module.as_str()), ("http://cli:3000", "cli-module"));
+        assert_eq!(
+            (a.host.as_str(), a.module.as_str()),
+            ("http://cli:3000", "cli-module")
+        );
         // Host only: module still comes from the config.
         let a = resolve_addr(&args(&["http://cli:3000"]), &cfg);
-        assert_eq!((a.host.as_str(), a.module.as_str()), ("http://cli:3000", "cfg-module"));
+        assert_eq!(
+            (a.host.as_str(), a.module.as_str()),
+            ("http://cli:3000", "cfg-module")
+        );
         // Bare --connect: both from the config.
         let a = resolve_addr(&[], &cfg);
-        assert_eq!((a.host.as_str(), a.module.as_str()), ("http://cfg:3000", "cfg-module"));
+        assert_eq!(
+            (a.host.as_str(), a.module.as_str()),
+            ("http://cfg:3000", "cfg-module")
+        );
     }
 
     #[test]
     fn resolve_defaults_without_config() {
         let a = resolve_addr(&[], &NetConfig::default());
-        assert_eq!((a.host.as_str(), a.module.as_str()), (DEFAULT_HOST, DEFAULT_MODULE));
+        assert_eq!(
+            (a.host.as_str(), a.module.as_str()),
+            (DEFAULT_HOST, DEFAULT_MODULE)
+        );
     }
 }

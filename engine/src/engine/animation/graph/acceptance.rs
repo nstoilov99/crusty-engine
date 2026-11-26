@@ -312,11 +312,7 @@ fn resolver<'a>(
 }
 
 /// Mutable properties of node `nid` inside the region owned by `owner`.
-fn region_node_props(
-    doc: &mut GraphDoc,
-    owner: u64,
-    nid: u64,
-) -> &mut BTreeMap<String, PropValue> {
+fn region_node_props(doc: &mut GraphDoc, owner: u64, nid: u64) -> &mut BTreeMap<String, PropValue> {
     &mut doc
         .regions
         .get_mut(&owner)
@@ -375,22 +371,32 @@ fn the_committed_demo_document_loads_and_compiles() {
         .expect("the demo animgraph loads");
     // Through the disk loader: Walk plays the shipped blend space (ticket
     // 06), so the file agrees with `content/blendspaces/` too.
-    let load = super::DiskAnimAssets { content_root: content };
+    let load = super::DiskAnimAssets {
+        content_root: content,
+    };
     let plan = plan::compile_anim_graph_with(&doc, "graphs/defeated.animgraph", &load)
-        .expect("the demo animgraph compiles").plan;
+        .expect("the demo animgraph compiles")
+        .plan;
     assert_eq!(plan.states[plan.entry].name, "Idle");
     assert_eq!(plan.states[plan.entry].speed, 0.0, "Idle holds a pose");
     let walk = plan.states.iter().find(|s| s.name == "Walk").expect("Walk");
     match &walk.source {
         plan::PoseSource::Tree(plan::PlanTree::Space(space)) => {
-            assert_eq!(space.params, vec!["Speed".to_string()], "the axis binds Speed");
+            assert_eq!(
+                space.params,
+                vec!["Speed".to_string()],
+                "the axis binds Speed"
+            );
             assert_eq!(space.samples.len(), 3);
         }
         other => panic!("Walk should play the blend space, got {other:?}"),
     }
     assert_eq!(plan.transitions.len(), 1);
     assert_eq!(plan.transitions[0].duration, 0.4);
-    let rule = plan.transitions[0].rule.as_ref().expect("the walk rule compiled");
+    let rule = plan.transitions[0]
+        .rule
+        .as_ref()
+        .expect("the walk rule compiled");
     assert_eq!(rule.expr, RuleExpr::ParamBool("walk".into()));
     assert!(rule.triggers.is_empty());
 }
@@ -422,7 +428,11 @@ fn run_demo_rig(aim: f32, ticks: usize) -> (hecs::World, hecs::Entity, Vec<Local
         system.run(&mut world, &mut resources);
         let rt = world.get::<&AnimGraphRuntime>(rig).expect("armed");
         assert!(rt.disabled.is_none(), "{:?}", rt.disabled);
-        world.get::<&SkeletonInstance>(rig).unwrap().local_transforms.clone()
+        world
+            .get::<&SkeletonInstance>(rig)
+            .unwrap()
+            .local_transforms
+            .clone()
     };
     for _ in 0..ticks {
         let mut rt = world.get::<&mut AnimGraphRuntime>(rig).expect("armed");
@@ -446,13 +456,22 @@ fn the_locomotion_demo_rig_arms_and_poses_on_the_real_skeleton() {
         .zip(&bind)
         .filter(|(a, b)| a.rotation != b.rotation || a.translation != b.translation)
         .count();
-    assert!(moved > 10, "only {moved} bones left the bind pose after 30 ticks");
+    assert!(
+        moved > 10,
+        "only {moved} bones left the bind pose after 30 ticks"
+    );
     // The renderer reads the palette, not the locals: it must have left the
     // bind pose too (an all-identity palette is exactly the T-pose on screen).
     let non_identity = skel
         .palette
         .iter()
-        .filter(|m| (**m - Mat4::IDENTITY).abs().to_cols_array().iter().any(|v| *v > 1e-4))
+        .filter(|m| {
+            (**m - Mat4::IDENTITY)
+                .abs()
+                .to_cols_array()
+                .iter()
+                .any(|v| *v > 1e-4)
+        })
         .count();
     assert!(
         non_identity > 10,
@@ -481,10 +500,18 @@ fn the_demo_layer_moves_the_spine_subtree_and_nothing_below_it() {
         (t.translation, t.rotation, t.scale)
     };
     for bone in ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Head"] {
-        assert_ne!(local(&base, bone), local(&aim, bone), "{bone} holds the layered idle");
+        assert_ne!(
+            local(&base, bone),
+            local(&aim, bone),
+            "{bone} holds the layered idle"
+        );
     }
     let leg = "mixamorig:LeftUpLeg";
-    assert_eq!(local(&base, leg), local(&aim, leg), "the legs are the base's");
+    assert_eq!(
+        local(&base, leg),
+        local(&aim, leg),
+        "the legs are the base's"
+    );
 }
 
 /// Task 41.6 P4: the locomotion demo graph, read from disk. This pins
@@ -497,9 +524,11 @@ fn the_locomotion_demo_document_loads_and_compiles() {
     let content = demo_content();
     let path = "graphs/locomotion_demo.animgraph";
     let doc = node_graph_types::load_graph(&content.join(path)).expect("the demo animgraph loads");
-    let load = super::DiskAnimAssets { content_root: content };
-    let compiled = plan::compile_anim_graph_with(&doc, path, &load)
-        .expect("the demo animgraph compiles");
+    let load = super::DiskAnimAssets {
+        content_root: content,
+    };
+    let compiled =
+        plan::compile_anim_graph_with(&doc, path, &load).expect("the demo animgraph compiles");
     assert!(compiled.warnings.is_empty(), "{:?}", compiled.warnings);
     let plan = compiled.plan;
 
@@ -509,8 +538,18 @@ fn the_locomotion_demo_document_loads_and_compiles() {
         .find(|p| p.slug == "aim")
         .expect("aim declared");
     assert_eq!(aim.ty, plan::AnimParamType::Float);
-    assert_eq!(aim.default, super::machine::ParamValue::Float(0.0), "invisible until raised");
-    let node_of = |ty: &str| doc.nodes.iter().find(|n| n.type_id == ty).map(|n| n.id).expect(ty);
+    assert_eq!(
+        aim.default,
+        super::machine::ParamValue::Float(0.0),
+        "invisible until raised"
+    );
+    let node_of = |ty: &str| {
+        doc.nodes
+            .iter()
+            .find(|n| n.type_id == ty)
+            .map(|n| n.id)
+            .expect(ty)
+    };
     assert_eq!(plan.root_clips.len(), 1);
     assert_eq!(plan.root_clips[0].clip.clip, "anims/Idle_1.anim");
     assert_eq!(plan.root_clips[0].speed, 1.0);
@@ -582,12 +621,19 @@ fn the_locomotion_demo_document_loads_and_compiles() {
 fn compiles_states_transition_and_parameters() {
     let plan = compile_anim_graph(&two_state_doc()).expect("compiles").plan;
     assert_eq!(plan.states.len(), 2);
-    assert_eq!(plan.states[plan.entry].name, "Idle", "ENTRY wires the start state");
+    assert_eq!(
+        plan.states[plan.entry].name, "Idle",
+        "ENTRY wires the start state"
+    );
     let t = &plan.transitions[0];
     assert_eq!((t.duration, t.priority), (0.5, 0));
     let rule = t.rule.as_ref().expect("the wired rule compiled");
     assert_eq!(rule.expr, RuleExpr::ParamBool("walk".into()));
-    assert_eq!(t.from, TransitionFrom::State(plan.entry), "Idle is the source");
+    assert_eq!(
+        t.from,
+        TransitionFrom::State(plan.entry),
+        "Idle is the source"
+    );
     assert_eq!(plan.states[t.to].name, "Walk");
     assert_eq!(plan.parameters.len(), 1);
     assert_eq!(plan.clip_refs(), vec!["anims/idle.anim", "anims/walk.anim"]);
@@ -613,7 +659,9 @@ fn compile_refusals_are_author_errors() {
     // A rule reading an undeclared parameter.
     let mut doc = two_state_doc();
     doc.variables.clear();
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("not declared"));
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("not declared"));
 
     // A parameter type outside the animation blackboard.
     let mut doc = two_state_doc();
@@ -625,7 +673,9 @@ fn compile_refusals_are_author_errors() {
     // A transition wired on one side only.
     let mut doc = two_state_doc();
     doc.edges.retain(|e| e.to_pin != plan::TRANSITION_FROM_PIN);
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("no source state"));
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("no source state"));
 }
 
 // ---------------------------------------------------------------------------
@@ -669,7 +719,10 @@ fn parameter_flip_starts_a_crossfade_that_follows_the_stated_duration() {
     }
     for (i, w) in weights.iter().enumerate() {
         let expected = 0.2 * (i + 1) as f32;
-        assert!((w - expected).abs() < 1e-4, "weight {w} at step {i}, expected {expected}");
+        assert!(
+            (w - expected).abs() < 1e-4,
+            "weight {w} at step {i}, expected {expected}"
+        );
     }
 
     // One more tick reaches the duration; the fade retires and the machine
@@ -691,8 +744,10 @@ fn ordinary_transitions_wait_out_a_running_crossfade() {
         None,
         &[(plan::DURATION_PROP, PropValue::Float(0.5))],
     ));
-    doc.edges.push(edge(3, plan::STATE_OUT_PIN, 5, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(5, plan::TRANSITION_TO_PIN, 2, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(3, plan::STATE_OUT_PIN, 5, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(5, plan::TRANSITION_TO_PIN, 2, plan::STATE_IN_PIN));
     doc.regions.insert(5, param_rule("walk"));
     let plan = compile_anim_graph(&doc).expect("compiles").plan;
     let mut params = AnimParams::from_decls(&plan.parameters);
@@ -703,8 +758,16 @@ fn ordinary_transitions_wait_out_a_running_crossfade() {
     let from = m.crossfade().expect("fading").from;
     m.tick(&plan, &mut params, 0.1);
     m.tick(&plan, &mut params, 0.1);
-    assert_eq!(plan.states[m.current_state()].name, "Walk", "still Walk mid-fade");
-    assert_eq!(m.crossfade().expect("still fading").from, from, "no re-transition");
+    assert_eq!(
+        plan.states[m.current_state()].name,
+        "Walk",
+        "still Walk mid-fade"
+    );
+    assert_eq!(
+        m.crossfade().expect("still fading").from,
+        from,
+        "no re-transition"
+    );
 }
 
 #[test]
@@ -728,15 +791,18 @@ fn priority_resolves_deterministically_and_zero_duration_switches_instantly() {
         None,
         &[(plan::PRIORITY_PROP, PropValue::Int(1))],
     ));
-    doc.edges.push(edge(2, plan::STATE_OUT_PIN, 7, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(7, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(2, plan::STATE_OUT_PIN, 7, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(7, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
 
     let plan = compile_anim_graph(&doc).expect("compiles").plan;
     let mut params = AnimParams::from_decls(&plan.parameters);
     let mut m = AnimMachine::new(&plan);
     m.tick(&plan, &mut params, 0.1);
     assert_eq!(
-        plan.states[m.current_state()].name, "Third",
+        plan.states[m.current_state()].name,
+        "Third",
         "priority 1 beats priority 2"
     );
     assert!(
@@ -750,8 +816,14 @@ fn parameter_writes_are_typed_and_declared_only() {
     let plan = compile_anim_graph(&two_state_doc()).expect("compiles").plan;
     let mut params = AnimParams::from_decls(&plan.parameters);
     assert!(params.set_bool("walk", true));
-    assert!(!params.set_float("walk", 1.0), "a Bool refuses a Float write");
-    assert!(!params.set_bool("run", true), "undeclared slugs are refused");
+    assert!(
+        !params.set_float("walk", 1.0),
+        "a Bool refuses a Float write"
+    );
+    assert!(
+        !params.set_bool("run", true),
+        "undeclared slugs are refused"
+    );
     assert_eq!(params.get_bool("walk"), Some(true));
 }
 
@@ -772,8 +844,10 @@ fn duplicating_a_transition_carries_its_rule_and_deleting_never_orphans_it() {
     doc.nodes.push(copy);
     let rule = doc.regions.get(&4).cloned().expect("the original rule");
     doc.regions.insert(dup, rule);
-    doc.edges.push(edge(2, plan::STATE_OUT_PIN, dup, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(dup, plan::TRANSITION_TO_PIN, 3, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(2, plan::STATE_OUT_PIN, dup, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(dup, plan::TRANSITION_TO_PIN, 3, plan::STATE_IN_PIN));
 
     // The copy compiles to the same rule as the original…
     let compiled = compile_anim_graph(&doc).expect("compiles").plan;
@@ -786,8 +860,8 @@ fn duplicating_a_transition_carries_its_rule_and_deleting_never_orphans_it() {
 
     // …and deleting a transition takes exactly its own rule with it.
     assert!(doc.remove_node(dup));
-    assert!(doc.regions.get(&dup).is_none(), "no orphaned rule");
-    assert!(doc.regions.get(&4).is_some(), "the original is untouched");
+    assert!(!doc.regions.contains_key(&dup), "no orphaned rule");
+    assert!(doc.regions.contains_key(&4), "the original is untouched");
     assert_eq!(compile_anim_graph(&doc).unwrap().plan.transitions.len(), 1);
 }
 
@@ -799,9 +873,16 @@ fn rule_purity_is_enforced() {
     // types that do not exist yet) outright.
     for bad in ["print", "branch", "emit_event", "delay", "srv_apply_damage"] {
         let mut doc = two_state_doc();
-        doc.regions.get_mut(&4).unwrap().nodes.push(node(9, bad, None));
+        doc.regions
+            .get_mut(&4)
+            .unwrap()
+            .nodes
+            .push(node(9, bad, None));
         let err = compile_anim_graph(&doc).unwrap_err();
-        assert!(err.contains(bad) && err.contains("not a rule node"), "{err}");
+        assert!(
+            err.contains(bad) && err.contains("not a rule node"),
+            "{err}"
+        );
     }
 
     // Exactly one RESULT sink.
@@ -818,7 +899,9 @@ fn rule_purity_is_enforced() {
     // A non-empty rule with no RESULT at all.
     let mut doc = two_state_doc();
     let region = doc.regions.get_mut(&4).unwrap();
-    region.nodes.retain(|n| n.type_id != plan::ANIM_RULE_RESULT_TYPE_ID);
+    region
+        .nodes
+        .retain(|n| n.type_id != plan::ANIM_RULE_RESULT_TYPE_ID);
     region.edges.clear();
     assert!(compile_anim_graph(&doc).unwrap_err().contains("no RESULT"));
 
@@ -840,7 +923,9 @@ fn rule_purity_is_enforced() {
     let mut doc = two_state_doc();
     let region = doc.regions.get_mut(&4).unwrap();
     region.nodes.push(node(2, NOT, None));
-    region.edges.push(edge(2, "result", 1, plan::RULE_RESULT_PIN));
+    region
+        .edges
+        .push(edge(2, "result", 1, plan::RULE_RESULT_PIN));
     assert!(compile_anim_graph(&doc)
         .unwrap_err()
         .contains("has 2 wires"));
@@ -857,7 +942,10 @@ fn rule_type_mismatches_are_refused() {
         edge(2, "result", 1, plan::RULE_RESULT_PIN),
     ];
     let err = compile_anim_graph(&doc).unwrap_err();
-    assert!(err.contains("produces a Bool where a Float is expected"), "{err}");
+    assert!(
+        err.contains("produces a Bool where a Float is expected"),
+        "{err}"
+    );
 
     // A Float parameter wired straight into the Bool RESULT.
     let mut doc = two_state_doc();
@@ -872,7 +960,10 @@ fn rule_type_mismatches_are_refused() {
         .properties
         .insert(VAR_PROP.into(), PropValue::Str("speed".into()));
     let err = compile_anim_graph(&doc).unwrap_err();
-    assert!(err.contains("produces a Float where a Bool is expected"), "{err}");
+    assert!(
+        err.contains("produces a Float where a Bool is expected"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -886,14 +977,18 @@ fn an_unwired_rule_input_is_always_true() {
     let mut m = AnimMachine::new(&plan);
     m.tick(&plan, &mut params, 0.1);
     assert_eq!(
-        plan.states[m.current_state()].name, "Walk",
+        plan.states[m.current_state()].name,
+        "Walk",
         "fires with no parameter written at all"
     );
 
     // No region at all reads the same way.
     let mut doc = two_state_doc();
     doc.regions.remove(&4);
-    assert_eq!(compile_anim_graph(&doc).unwrap().plan.transitions[0].rule, None);
+    assert_eq!(
+        compile_anim_graph(&doc).unwrap().plan.transitions[0].rule,
+        None
+    );
 }
 
 #[test]
@@ -912,7 +1007,12 @@ fn a_compound_rule_fires_exactly_when_its_expression_passes() {
         4,
         GraphRegion {
             nodes: vec![
-                with(0, VAR_GET_TYPE_ID, None, &[(VAR_PROP, PropValue::Str("speed".into()))]),
+                with(
+                    0,
+                    VAR_GET_TYPE_ID,
+                    None,
+                    &[(VAR_PROP, PropValue::Str("speed".into()))],
+                ),
                 with(1, MUL_FLOAT, None, &[("b", PropValue::Float(2.0))]),
                 with(
                     2,
@@ -923,7 +1023,12 @@ fn a_compound_rule_fires_exactly_when_its_expression_passes() {
                         ("b", PropValue::Float(6.0)),
                     ],
                 ),
-                with(3, VAR_GET_TYPE_ID, None, &[(VAR_PROP, PropValue::Str("walk".into()))]),
+                with(
+                    3,
+                    VAR_GET_TYPE_ID,
+                    None,
+                    &[(VAR_PROP, PropValue::Str("walk".into()))],
+                ),
                 // Region-local id 4 collides with the transition's own doc id
                 // on purpose: the namespaces are separate.
                 node(4, AND, None),
@@ -970,11 +1075,17 @@ fn trigger_writes_are_typed_and_declared_only() {
     let mut params = AnimParams::from_decls(&plan.parameters);
 
     assert!(!params.fire_trigger("walk"), "a Bool refuses a fire");
-    assert!(!params.set_bool("go", true), "a Trigger refuses a Bool write");
+    assert!(
+        !params.set_bool("go", true),
+        "a Trigger refuses a Bool write"
+    );
     assert!(!params.fire_trigger("jump"), "undeclared slugs are refused");
     assert_eq!(params.trigger_set("go"), Some(false), "unset until fired");
     assert!(params.fire_trigger("go"));
-    assert!(params.fire_trigger("go"), "re-firing while set is one buffered shot");
+    assert!(
+        params.fire_trigger("go"),
+        "re-firing while set is one buffered shot"
+    );
     assert_eq!(params.trigger_set("go"), Some(true));
     assert_eq!(params.get_bool("go"), None, "a trigger is not a Bool");
 }
@@ -990,8 +1101,10 @@ fn a_trigger_buffers_across_frames_and_is_consumed_exactly_once() {
         None,
         &[(plan::DURATION_PROP, PropValue::Float(0.0))],
     ));
-    doc.edges.push(edge(3, plan::STATE_OUT_PIN, 5, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(5, plan::TRANSITION_TO_PIN, 2, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(3, plan::STATE_OUT_PIN, 5, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(5, plan::TRANSITION_TO_PIN, 2, plan::STATE_IN_PIN));
     doc.regions.insert(5, param_rule("go"));
 
     let plan = compile_anim_graph(&doc).expect("compiles").plan;
@@ -1015,7 +1128,8 @@ fn a_trigger_buffers_across_frames_and_is_consumed_exactly_once() {
     m.tick(&plan, &mut params, 0.1);
     m.tick(&plan, &mut params, 0.1);
     assert_eq!(
-        plan.states[m.current_state()].name, "Walk",
+        plan.states[m.current_state()].name,
+        "Walk",
         "blocked by the running fade"
     );
     assert_eq!(params.trigger_set("go"), Some(true), "buffered, not lost");
@@ -1024,7 +1138,11 @@ fn a_trigger_buffers_across_frames_and_is_consumed_exactly_once() {
     // fire consumes the trigger.
     m.tick(&plan, &mut params, 0.3);
     assert_eq!(plan.states[m.current_state()].name, "Idle");
-    assert_eq!(params.trigger_set("go"), Some(false), "consumed by the fire");
+    assert_eq!(
+        params.trigger_set("go"),
+        Some(false),
+        "consumed by the fire"
+    );
 
     // Consumed means spent: nothing re-fires on later frames.
     m.tick(&plan, &mut params, 0.1);
@@ -1052,8 +1170,10 @@ fn only_the_firing_transition_consumes_a_trigger() {
         None,
         &[(plan::PRIORITY_PROP, PropValue::Int(5))],
     ));
-    doc.edges.push(edge(2, plan::STATE_OUT_PIN, 7, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(7, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(2, plan::STATE_OUT_PIN, 7, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(7, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
     doc.regions.insert(7, param_rule("go"));
 
     let plan = compile_anim_graph(&doc).expect("compiles").plan;
@@ -1061,7 +1181,11 @@ fn only_the_firing_transition_consumes_a_trigger() {
     let mut m = AnimMachine::new(&plan);
     params.fire_trigger("go");
     m.tick(&plan, &mut params, 0.1);
-    assert_eq!(plan.states[m.current_state()].name, "Walk", "priority 0 won");
+    assert_eq!(
+        plan.states[m.current_state()].name,
+        "Walk",
+        "priority 0 won"
+    );
     assert_eq!(
         params.trigger_set("go"),
         Some(true),
@@ -1084,7 +1208,8 @@ fn alias_doc() -> GraphDoc {
         Some("Dead"),
         &[(plan::CLIP_PROP, PropValue::Asset("anims/idle.anim".into()))],
     ));
-    doc.nodes.push(node(7, plan::ANIM_STATE_ALIAS_TYPE_ID, Some("Global")));
+    doc.nodes
+        .push(node(7, plan::ANIM_STATE_ALIAS_TYPE_ID, Some("Global")));
     doc.nodes.push(with(
         8,
         plan::ANIM_TRANSITION_TYPE_ID,
@@ -1094,8 +1219,10 @@ fn alias_doc() -> GraphDoc {
             (plan::PRIORITY_PROP, PropValue::Int(-1)),
         ],
     ));
-    doc.edges.push(edge(7, plan::STATE_OUT_PIN, 8, plan::TRANSITION_FROM_PIN));
-    doc.edges.push(edge(8, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
+    doc.edges
+        .push(edge(7, plan::STATE_OUT_PIN, 8, plan::TRANSITION_FROM_PIN));
+    doc.edges
+        .push(edge(8, plan::TRANSITION_TO_PIN, 6, plan::STATE_IN_PIN));
     doc.regions.insert(8, param_rule("died"));
     doc
 }
@@ -1165,11 +1292,17 @@ fn a_listed_alias_expands_to_its_states_only() {
             PropValue::Int(2),
         ],
     )))
-    .expect("compiles").plan;
+    .expect("compiles")
+    .plan;
     assert_eq!(sources_of_8(&plan), ["Idle", "Walk"]);
 
-    let plan = compile_anim_graph(&with_alias(listed_alias(7, "Walking", &[PropValue::Int(3)])))
-        .expect("compiles").plan;
+    let plan = compile_anim_graph(&with_alias(listed_alias(
+        7,
+        "Walking",
+        &[PropValue::Int(3)],
+    )))
+    .expect("compiles")
+    .plan;
     assert_eq!(sources_of_8(&plan), ["Walk"]);
 
     // `global` wins over the list.
@@ -1177,15 +1310,22 @@ fn a_listed_alias_expands_to_its_states_only() {
     global
         .properties
         .insert(plan::ALIAS_GLOBAL_PROP.into(), PropValue::Bool(true));
-    let plan = compile_anim_graph(&with_alias(global)).expect("compiles").plan;
+    let plan = compile_anim_graph(&with_alias(global))
+        .expect("compiles")
+        .plan;
     assert_eq!(sources_of_8(&plan), ["Idle", "Walk"]);
 }
 
 #[test]
 fn an_alias_with_nothing_to_expand_to_compiles_to_nothing() {
     // Only the transition's own target is aliased: no copies, no error.
-    let plan = compile_anim_graph(&with_alias(listed_alias(7, "Dead only", &[PropValue::Int(6)])))
-        .expect("compiles").plan;
+    let plan = compile_anim_graph(&with_alias(listed_alias(
+        7,
+        "Dead only",
+        &[PropValue::Int(6)],
+    )))
+    .expect("compiles")
+    .plan;
     assert!(sources_of_8(&plan).is_empty());
     assert_eq!(plan.transitions.len(), 1, "the ordinary Idle → Walk stays");
 }
@@ -1193,7 +1333,10 @@ fn an_alias_with_nothing_to_expand_to_compiles_to_nothing() {
 #[test]
 fn alias_refusals_name_the_alias() {
     let err = |alias: NodeInst| compile_anim_graph(&with_alias(alias)).unwrap_err();
-    assert_eq!(err(listed_alias(7, "Empty", &[])), "alias 'Empty' has no states");
+    assert_eq!(
+        err(listed_alias(7, "Empty", &[])),
+        "alias 'Empty' has no states"
+    );
     assert_eq!(
         err(listed_alias(7, "Empty", &[PropValue::Int(-1)])),
         "alias 'Empty' has no states",
@@ -1202,10 +1345,8 @@ fn alias_refusals_name_the_alias() {
     let mut untitled = listed_alias(7, "", &[]);
     untitled.title = None;
     assert_eq!(err(untitled), "alias 'Alias' has no states", "default name");
-    assert!(
-        err(listed_alias(7, "Stale", &[PropValue::Int(99)]))
-            .starts_with("alias 'Stale' references a missing state"),
-    );
+    assert!(err(listed_alias(7, "Stale", &[PropValue::Int(99)]))
+        .starts_with("alias 'Stale' references a missing state"),);
     assert!(
         err(listed_alias(7, "Stale", &[PropValue::Int(8)]))
             .starts_with("alias 'Stale' references a missing state"),
@@ -1230,7 +1371,11 @@ fn an_alias_transition_fires_from_each_aliased_state() {
     params.fire_trigger("died");
     m.tick(&plan, &mut params, 0.1);
     assert_eq!(plan.states[m.current_state()].name, "Dead");
-    assert_eq!(params.trigger_set("died"), Some(false), "consumed by the fire");
+    assert_eq!(
+        params.trigger_set("died"),
+        Some(false),
+        "consumed by the fire"
+    );
 
     // From Walk — nor a Walk → Dead one.
     let mut params = AnimParams::from_decls(&plan.parameters);
@@ -1285,7 +1430,11 @@ fn an_alias_transition_does_not_interrupt_a_running_crossfade() {
     let fade = m.crossfade().expect("a fresh fade into Dead");
     assert_eq!(plan.states[fade.from].name, "Walk");
     assert_eq!(fade.duration, 0.2);
-    assert_eq!(params.trigger_set("died"), Some(false), "consumed by the fire");
+    assert_eq!(
+        params.trigger_set("died"),
+        Some(false),
+        "consumed by the fire"
+    );
 }
 
 #[test]
@@ -1475,9 +1624,19 @@ fn blend2d_blends_the_directionally_adjacent_children() {
         (0.0, -1.0, 40.0, "cardinal south is pure"),
         (0.7, 0.7, 15.0, "north-east splits east/north 50/50"),
         (-0.7, 0.7, 25.0, "north-west splits north/west 50/50"),
-        (0.7, -0.7, 25.0, "south-east splits south/east across the wrap"),
+        (
+            0.7,
+            -0.7,
+            25.0,
+            "south-east splits south/east across the wrap",
+        ),
         (0.1, 0.1, 15.0, "magnitude does not matter, only direction"),
-        (0.0, 0.0, 10.0, "a zero input has no direction — holds the first child"),
+        (
+            0.0,
+            0.0,
+            10.0,
+            "a zero input has no direction — holds the first child",
+        ),
     ] {
         params.set_float("dir_x", x);
         params.set_float("dir_y", y);
@@ -1667,7 +1826,9 @@ fn blend_tree_compile_refusals_are_author_errors() {
     // A non-empty tree with no RESULT at all.
     let mut doc = blend1d_doc();
     let region = doc.regions.get_mut(&2).unwrap();
-    region.nodes.retain(|n| n.type_id != plan::ANIM_POSE_RESULT_TYPE_ID);
+    region
+        .nodes
+        .retain(|n| n.type_id != plan::ANIM_POSE_RESULT_TYPE_ID);
     region.edges.clear();
     assert!(compile_anim_graph(&doc).unwrap_err().contains("no RESULT"));
 
@@ -1690,7 +1851,9 @@ fn blend_tree_compile_refusals_are_author_errors() {
         .unwrap()
         .edges
         .push(edge(0, plan::POSE_PIN, 3, plan::POSE_PIN));
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("has 2 wires"));
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("has 2 wires"));
 
     // Fewer than two wired children.
     let mut doc = blend1d_doc();
@@ -1711,16 +1874,17 @@ fn blend_tree_compile_refusals_are_author_errors() {
 
     // Two children sharing a threshold.
     let mut doc = blend1d_doc();
-    region_node_props(&mut doc, 2, 2)
-        .insert("threshold_1".into(), PropValue::Float(0.0));
+    region_node_props(&mut doc, 2, 2).insert("threshold_1".into(), PropValue::Float(0.0));
     assert!(compile_anim_graph(&doc)
         .unwrap_err()
         .contains("sharing a threshold"));
 
     // The driving parameter must exist…
     let mut doc = blend1d_doc();
-    region_node_props(&mut doc, 2, 2)
-        .insert(plan::BLEND_PARAM_PROP.into(), PropValue::Str("missing".into()));
+    region_node_props(&mut doc, 2, 2).insert(
+        plan::BLEND_PARAM_PROP.into(),
+        PropValue::Str("missing".into()),
+    );
     assert!(compile_anim_graph(&doc)
         .unwrap_err()
         .contains("not declared"));
@@ -1742,24 +1906,22 @@ fn blend_tree_compile_refusals_are_author_errors() {
     // A clip node that names no clip.
     let mut doc = blend1d_doc();
     region_node_props(&mut doc, 2, 0).remove(plan::CLIP_PROP);
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("names no clip"));
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("names no clip"));
 
     // 2D: a child with a zero direction…
     let mut doc = blend2d_doc();
-    region_node_props(&mut doc, 2, 4)
-        .insert("x_1".into(), PropValue::Float(0.0));
-    region_node_props(&mut doc, 2, 4)
-        .insert("y_1".into(), PropValue::Float(0.0));
+    region_node_props(&mut doc, 2, 4).insert("x_1".into(), PropValue::Float(0.0));
+    region_node_props(&mut doc, 2, 4).insert("y_1".into(), PropValue::Float(0.0));
     assert!(compile_anim_graph(&doc)
         .unwrap_err()
         .contains("zero direction"));
 
     // …and two children sharing a direction (collinear counts).
     let mut doc = blend2d_doc();
-    region_node_props(&mut doc, 2, 4)
-        .insert("x_1".into(), PropValue::Float(2.0));
-    region_node_props(&mut doc, 2, 4)
-        .insert("y_1".into(), PropValue::Float(0.0));
+    region_node_props(&mut doc, 2, 4).insert("x_1".into(), PropValue::Float(2.0));
+    region_node_props(&mut doc, 2, 4).insert("y_1".into(), PropValue::Float(0.0));
     assert!(compile_anim_graph(&doc)
         .unwrap_err()
         .contains("sharing a direction"));
@@ -1777,7 +1939,10 @@ fn a_blend_tree_round_trips_and_dies_with_its_state() {
 
     let mut doc = doc;
     assert!(doc.remove_node(2));
-    assert!(doc.regions.get(&2).is_none(), "the tree died with its state");
+    assert!(
+        !doc.regions.contains_key(&2),
+        "the tree died with its state"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1906,7 +2071,10 @@ fn the_system_arms_ticks_and_restarts_on_invalidation() {
         assert_eq!(rt.plan.states[rt.machine.current_state()].name, "Walk");
         let sk = h.world.get::<&SkeletonInstance>(e).unwrap();
         let x = sk.local_transforms[0].translation.x;
-        assert!((x - 4.0).abs() < 1e-3, "blended pose reached the skeleton: {x}");
+        assert!(
+            (x - 4.0).abs() < 1e-3,
+            "blended pose reached the skeleton: {x}"
+        );
     }
 
     // Edit the document (retitle a state) and save: the cache invalidates,
@@ -1927,11 +2095,15 @@ fn the_system_arms_ticks_and_restarts_on_invalidation() {
         let rt = h.world.get::<&AnimGraphRuntime>(e).expect("re-armed");
         assert_eq!(
             rt.generation,
-            h.resources.get::<AnimGraphPlanCache>().unwrap().generation(),
+            h.resources
+                .get::<AnimGraphPlanCache>()
+                .unwrap()
+                .generation(),
             "the runtime rides the new generation"
         );
         assert_eq!(
-            rt.plan.states[rt.machine.current_state()].name, "IdleV2",
+            rt.plan.states[rt.machine.current_state()].name,
+            "IdleV2",
             "the edited document is what runs"
         );
     }
@@ -1992,7 +2164,12 @@ fn arming_attaches_a_skeleton_from_the_entitys_mesh() {
         h.world.get::<&SkeletonInstance>(e).is_ok(),
         "a skinned mesh without an instance gets one at arm time"
     );
-    assert!(h.world.get::<&AnimGraphRuntime>(e).unwrap().disabled.is_none());
+    assert!(h
+        .world
+        .get::<&AnimGraphRuntime>(e)
+        .unwrap()
+        .disabled
+        .is_none());
 }
 
 /// The inspector's three edit surfaces — re-pointing the graph path,
@@ -2031,12 +2208,18 @@ fn runner_edits_re_arm_and_removal_drops_the_runtime() {
     // Disable: the reference survives, the machine does not.
     h.world.get::<&mut AnimGraphRunner>(e).unwrap().enabled = false;
     h.tick();
-    assert!(h.world.get::<&AnimGraphRuntime>(e).is_err(), "disable drops the machine");
+    assert!(
+        h.world.get::<&AnimGraphRuntime>(e).is_err(),
+        "disable drops the machine"
+    );
 
     // Re-enable re-arms; removing the component drops the runtime for good.
     h.world.get::<&mut AnimGraphRunner>(e).unwrap().enabled = true;
     h.tick();
-    assert!(h.world.get::<&AnimGraphRuntime>(e).is_ok(), "re-enable re-arms");
+    assert!(
+        h.world.get::<&AnimGraphRuntime>(e).is_ok(),
+        "re-enable re-arms"
+    );
     h.world.remove_one::<AnimGraphRunner>(e).unwrap();
     h.tick();
     assert!(
@@ -2066,9 +2249,10 @@ fn entities_without_a_graph_keep_the_single_clip_player() {
     ));
     let mut plain_player = AnimationPlayer::new(constant_clip("Plain", 7.0));
     plain_player.play();
-    let plain = h
-        .world
-        .spawn((plain_player, SkeletonInstance::from_bones(synthetic_bones())));
+    let plain = h.world.spawn((
+        plain_player,
+        SkeletonInstance::from_bones(synthetic_bones()),
+    ));
 
     h.tick(); // arm the graph entity
     let mut legacy = AnimationUpdateSystem;
@@ -2082,17 +2266,20 @@ fn entities_without_a_graph_keep_the_single_clip_player() {
 
     // …while the graph-driven entity's stray player was left alone.
     let stray_time = h.world.get::<&AnimationPlayer>(graphed).unwrap().time;
-    assert_eq!(stray_time, 0.0, "the graph owns this skeleton; the player is inert");
+    assert_eq!(
+        stray_time, 0.0,
+        "the graph owns this skeleton; the player is inert"
+    );
 }
 
 #[test]
 fn a_missing_clip_refuses_to_arm_with_a_reason() {
     let assets = MapAssets::default();
     let mut doc = two_state_doc();
-    doc.node_mut(3)
-        .unwrap()
-        .properties
-        .insert(plan::CLIP_PROP.into(), PropValue::Asset("anims/missing.anim".into()));
+    doc.node_mut(3).unwrap().properties.insert(
+        plan::CLIP_PROP.into(),
+        PropValue::Asset("anims/missing.anim".into()),
+    );
     assets.graphs.lock().unwrap().insert(GRAPH.into(), doc);
     let mut h = Harness::new(assets);
 
@@ -2103,7 +2290,10 @@ fn a_missing_clip_refuses_to_arm_with_a_reason() {
     h.tick();
     let rt = h.world.get::<&AnimGraphRuntime>(e).unwrap();
     let why = rt.disabled.as_deref().expect("refused");
-    assert!(why.contains("Walk") && why.contains("missing.anim"), "{why}");
+    assert!(
+        why.contains("Walk") && why.contains("missing.anim"),
+        "{why}"
+    );
 }
 
 /// A world without the clip cache used to arm silently and then never
@@ -2155,7 +2345,11 @@ fn edit_mode_holds_the_machine_clock_and_play_releases_it() {
     }
     let rt = h.world.get::<&AnimGraphRuntime>(e).unwrap();
     assert!(rt.disabled.is_none(), "{:?}", rt.disabled);
-    assert_eq!(rt.machine.time(), 0.0, "Edit mode must not advance the clock");
+    assert_eq!(
+        rt.machine.time(),
+        0.0,
+        "Edit mode must not advance the clock"
+    );
     drop(rt);
 
     h.resources.get_mut::<EditorState>().unwrap().play_mode = PlayMode::Playing;
@@ -2163,7 +2357,11 @@ fn edit_mode_holds_the_machine_clock_and_play_releases_it() {
         h.tick();
     }
     let rt = h.world.get::<&AnimGraphRuntime>(e).unwrap();
-    assert!(rt.machine.time() > 0.4, "Play advances the clock ({})", rt.machine.time());
+    assert!(
+        rt.machine.time() > 0.4,
+        "Play advances the clock ({})",
+        rt.machine.time()
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2194,7 +2392,10 @@ fn slot_doc() -> GraphDoc {
         plan::ANIM_PLAY_ONCE_TYPE_ID,
         Some("Attack"),
         &[
-            (plan::CLIP_PROP, PropValue::Asset("anims/attack.anim".into())),
+            (
+                plan::CLIP_PROP,
+                PropValue::Asset("anims/attack.anim".into()),
+            ),
             (plan::SLOT_TRIGGER_PROP, PropValue::Str("attack".into())),
         ],
     ));
@@ -2254,25 +2455,37 @@ fn play_once_compile_refusals_are_author_errors() {
     let mut doc = slot_doc();
     doc.node_mut(9).unwrap().properties.remove(plan::CLIP_PROP);
     let err = compile_anim_graph(&doc).unwrap_err();
-    assert!(err.contains("Attack") && err.contains("names no clip"), "{err}");
+    assert!(
+        err.contains("Attack") && err.contains("names no clip"),
+        "{err}"
+    );
 
     // No trigger.
-    let mut doc = slot_doc();
-    doc.node_mut(9).unwrap().properties.remove(plan::SLOT_TRIGGER_PROP);
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("names no trigger"));
-
-    // An undeclared trigger.
-    let mut doc = slot_doc();
-    doc.variables.retain(|v| v.slug != "attack");
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("not declared"));
-
-    // A declared parameter that is not a Trigger.
     let mut doc = slot_doc();
     doc.node_mut(9)
         .unwrap()
         .properties
-        .insert(plan::SLOT_TRIGGER_PROP.into(), PropValue::Str("walk".into()));
-    assert!(compile_anim_graph(&doc).unwrap_err().contains("not a Trigger"));
+        .remove(plan::SLOT_TRIGGER_PROP);
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("names no trigger"));
+
+    // An undeclared trigger.
+    let mut doc = slot_doc();
+    doc.variables.retain(|v| v.slug != "attack");
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("not declared"));
+
+    // A declared parameter that is not a Trigger.
+    let mut doc = slot_doc();
+    doc.node_mut(9).unwrap().properties.insert(
+        plan::SLOT_TRIGGER_PROP.into(),
+        PropValue::Str("walk".into()),
+    );
+    assert!(compile_anim_graph(&doc)
+        .unwrap_err()
+        .contains("not a Trigger"));
 }
 
 #[test]
@@ -2293,7 +2506,14 @@ fn play_once_overlays_the_base_and_returns_when_the_clip_finishes() {
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.1, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.1,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2324,7 +2544,11 @@ fn play_once_overlays_the_base_and_returns_when_the_clip_finishes() {
     // The clock passes the clip end (0.3s): the base result returns, and the
     // machine underneath never noticed — same state, clock kept running.
     frame!();
-    assert_eq!(slot.weight(&plan), 0.0, "finished: the overlay contributes nothing");
+    assert_eq!(
+        slot.weight(&plan),
+        0.0,
+        "finished: the overlay contributes nothing"
+    );
     assert_eq!(pose[0].translation.x, 0.0, "back to the base result");
     assert_eq!(plan.states[m.current_state()].name, "Idle");
 
@@ -2363,7 +2587,14 @@ fn slot_fades_ramp_the_overlay_weight() {
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.1, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.1,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2424,7 +2655,14 @@ fn the_channel_is_single_a_later_start_replaces_and_buffered_triggers_wait() {
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.1, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.1,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2434,7 +2672,11 @@ fn the_channel_is_single_a_later_start_replaces_and_buffered_triggers_wait() {
     params.fire_trigger("hurt");
     frame!();
     assert_eq!(slot.playing(), Some(0), "plan order takes the channel");
-    assert_eq!(params.trigger_set("attack"), Some(false), "consumed by the start");
+    assert_eq!(
+        params.trigger_set("attack"),
+        Some(false),
+        "consumed by the start"
+    );
     assert_eq!(
         params.trigger_set("hurt"),
         Some(true),
@@ -2446,7 +2688,10 @@ fn the_channel_is_single_a_later_start_replaces_and_buffered_triggers_wait() {
     frame!();
     assert_eq!(slot.playing(), Some(1));
     assert_eq!(params.trigger_set("hurt"), Some(false));
-    assert_eq!(pose[0].translation.x, 20.0, "the replacement plays from its top");
+    assert_eq!(
+        pose[0].translation.x, 20.0,
+        "the replacement plays from its top"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2477,19 +2722,40 @@ fn anim_events_fire_once_per_crossing_and_refire_each_cycle() {
     let (mut loops, mut mids) = (0, 0);
     for _ in 0..9 {
         tick_frame(
-            &plan, &mut m, &mut slot, &mut params, &clip_for, 0.2, &mut pose, &mut scratch,
+            &plan,
+            &mut m,
+            &mut slot,
+            &mut params,
+            &clip_for,
+            0.2,
+            &mut pose,
+            &mut scratch,
             &mut events,
         );
         assert!(count(&events, "loop") <= 1 && count(&events, "mid") <= 1);
         loops += count(&events, "loop");
         mids += count(&events, "mid");
-        assert!(events.iter().all(|e| e.weight == 1.0), "at rest, full weight");
+        assert!(
+            events.iter().all(|e| e.weight == 1.0),
+            "at rest, full weight"
+        );
     }
-    assert_eq!((loops, mids), (2, 2), "one fire per crossing, refired per cycle");
+    assert_eq!(
+        (loops, mids),
+        (2, 2),
+        "one fire per crossing, refired per cycle"
+    );
 
     // A held clock (speed 0 would do the same) crosses nothing.
     tick_frame(
-        &plan, &mut m, &mut slot, &mut params, &clip_for, 0.0, &mut pose, &mut scratch,
+        &plan,
+        &mut m,
+        &mut slot,
+        &mut params,
+        &clip_for,
+        0.0,
+        &mut pose,
+        &mut scratch,
         &mut events,
     );
     assert!(events.is_empty(), "a zero-length span fires nothing");
@@ -2501,8 +2767,14 @@ fn no_events_fire_from_a_fully_blended_out_clip() {
     // fire. Same 1.0s duration keeps the sync phase equal to either clock.
     let plan = compile_anim_graph(&blend1d_doc()).expect("compiles").plan;
     let clips = [
-        ("anims/walk.anim", marked_clip("Walk", 2.0, 1.0, &[(0.5, "wstep")])),
-        ("anims/run.anim", marked_clip("Run", 10.0, 1.0, &[(0.5, "rstep")])),
+        (
+            "anims/walk.anim",
+            marked_clip("Walk", 2.0, 1.0, &[(0.5, "wstep")]),
+        ),
+        (
+            "anims/run.anim",
+            marked_clip("Run", 10.0, 1.0, &[(0.5, "rstep")]),
+        ),
     ];
     let clip_for = resolver(&clips);
     let mut scratch = PoseScratch::new();
@@ -2510,9 +2782,9 @@ fn no_events_fire_from_a_fully_blended_out_clip() {
     let mut events = Vec::new();
 
     for (speed, wstep, rstep, w_expected) in [
-        (0.0, 1, 0, 1.0),  // pure Walk: Run is fully blended out — silent
-        (6.0, 0, 1, 1.0),  // pure Run: Walk is silent
-        (3.0, 1, 1, 0.5),  // 50/50: both fire, at their blend weight
+        (0.0, 1, 0, 1.0), // pure Walk: Run is fully blended out — silent
+        (6.0, 0, 1, 1.0), // pure Run: Walk is silent
+        (3.0, 1, 1, 0.5), // 50/50: both fire, at their blend weight
     ] {
         let mut params = AnimParams::from_decls(&plan.parameters);
         let mut m = AnimMachine::new(&plan);
@@ -2521,7 +2793,14 @@ fn no_events_fire_from_a_fully_blended_out_clip() {
         let (mut ws, mut rs) = (0, 0);
         for _ in 0..5 {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.2, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.2,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             );
             ws += count(&events, "wstep");
@@ -2546,7 +2825,10 @@ fn blend_child_events_follow_the_sync_group_phase() {
     let plan = compile_anim_graph(&blend1d_doc()).expect("compiles").plan;
     let clips = [
         ("anims/walk.anim", marked_clip("Walk", 2.0, 1.0, &[])),
-        ("anims/run.anim", marked_clip("Run", 10.0, 0.4, &[(0.2, "rstep")])),
+        (
+            "anims/run.anim",
+            marked_clip("Run", 10.0, 0.4, &[(0.2, "rstep")]),
+        ),
     ];
     let clip_for = resolver(&clips);
     let mut params = AnimParams::from_decls(&plan.parameters);
@@ -2560,7 +2842,14 @@ fn blend_child_events_follow_the_sync_group_phase() {
     let mut fired_at = Vec::new();
     for _ in 0..5 {
         tick_frame(
-            &plan, &mut m, &mut slot, &mut params, &clip_for, 0.2, &mut pose, &mut scratch,
+            &plan,
+            &mut m,
+            &mut slot,
+            &mut params,
+            &clip_for,
+            0.2,
+            &mut pose,
+            &mut scratch,
             &mut events,
         );
         if count(&events, "rstep") > 0 {
@@ -2577,8 +2866,14 @@ fn a_crossfade_keeps_the_outgoing_state_audible_and_an_instant_switch_does_not()
     // Idle marker at 0.45, Walk marker at 0.25 (both 1.0s clips).
     let make_clips = || {
         [
-            ("anims/idle.anim", marked_clip("Idle", 0.0, 1.0, &[(0.45, "istep")])),
-            ("anims/walk.anim", marked_clip("Walk", 5.0, 1.0, &[(0.25, "wstep")])),
+            (
+                "anims/idle.anim",
+                marked_clip("Idle", 0.0, 1.0, &[(0.45, "istep")]),
+            ),
+            (
+                "anims/walk.anim",
+                marked_clip("Walk", 5.0, 1.0, &[(0.25, "wstep")]),
+            ),
         ]
     };
 
@@ -2596,7 +2891,14 @@ fn a_crossfade_keeps_the_outgoing_state_audible_and_an_instant_switch_does_not()
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.2, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.2,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2608,13 +2910,29 @@ fn a_crossfade_keeps_the_outgoing_state_audible_and_an_instant_switch_does_not()
     assert_eq!(plan.states[m.current_state()].name, "Walk");
     assert!(events.is_empty());
     frame!(); // Walk [0, 0.2), Idle [0.4, 0.6)
-    assert_eq!(count(&events, "istep"), 1, "the outgoing state still fires mid-fade");
+    assert_eq!(
+        count(&events, "istep"),
+        1,
+        "the outgoing state still fires mid-fade"
+    );
     let istep = events.iter().find(|e| e.name == "istep").unwrap();
-    assert!((istep.weight - 0.6).abs() < 1e-4, "at its fading weight, got {}", istep.weight);
+    assert!(
+        (istep.weight - 0.6).abs() < 1e-4,
+        "at its fading weight, got {}",
+        istep.weight
+    );
     frame!(); // Walk [0.2, 0.4), Idle [0.6, 0.8)
-    assert_eq!(count(&events, "wstep"), 1, "the target fires on its own clock");
+    assert_eq!(
+        count(&events, "wstep"),
+        1,
+        "the target fires on its own clock"
+    );
     let wstep = events.iter().find(|e| e.name == "wstep").unwrap();
-    assert!((wstep.weight - 0.8).abs() < 1e-4, "at the fade-in weight, got {}", wstep.weight);
+    assert!(
+        (wstep.weight - 0.8).abs() < 1e-4,
+        "at the fade-in weight, got {}",
+        wstep.weight
+    );
 
     // With an instant transition: the outgoing state's final sliver was never
     // rendered, so it fires nothing.
@@ -2632,7 +2950,14 @@ fn a_crossfade_keeps_the_outgoing_state_audible_and_an_instant_switch_does_not()
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.4, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.4,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2645,7 +2970,10 @@ fn a_crossfade_keeps_the_outgoing_state_audible_and_an_instant_switch_does_not()
     // sliver is invisible, so nothing fires.
     frame!();
     assert_eq!(plan.states[m.current_state()].name, "Walk");
-    assert!(events.is_empty(), "no events from a state an instant switch discarded");
+    assert!(
+        events.is_empty(),
+        "no events from a state an instant switch discarded"
+    );
     // Walk's own clock starts at zero and fires its marker as it reaches it.
     frame!();
     assert_eq!(count(&events, "wstep"), 1);
@@ -2656,15 +2984,21 @@ fn a_full_weight_overlay_silences_the_base_and_fires_its_own_markers_once() {
     // Idle loops 0.2s with a step marker each cycle; the attack overlay
     // (0.5s, no fades) carries a hit frame at 0.45.
     let mut doc = slot_doc();
-    doc.node_mut(2)
-        .unwrap()
-        .properties
-        .insert(plan::CLIP_PROP.into(), PropValue::Asset("anims/tap.anim".into()));
+    doc.node_mut(2).unwrap().properties.insert(
+        plan::CLIP_PROP.into(),
+        PropValue::Asset("anims/tap.anim".into()),
+    );
     let plan = compile_anim_graph(&doc).expect("compiles").plan;
     let clips = [
-        ("anims/tap.anim", marked_clip("Tap", 0.0, 0.2, &[(0.05, "istep")])),
+        (
+            "anims/tap.anim",
+            marked_clip("Tap", 0.0, 0.2, &[(0.05, "istep")]),
+        ),
         ("anims/walk.anim", constant_clip("Walk", 5.0)),
-        ("anims/attack.anim", marked_clip("Attack", 10.0, 0.5, &[(0.45, "hit")])),
+        (
+            "anims/attack.anim",
+            marked_clip("Attack", 10.0, 0.5, &[(0.45, "hit")]),
+        ),
     ];
     let clip_for = resolver(&clips);
     let mut params = AnimParams::from_decls(&plan.parameters);
@@ -2676,7 +3010,14 @@ fn a_full_weight_overlay_silences_the_base_and_fires_its_own_markers_once() {
     macro_rules! frame {
         () => {
             tick_frame(
-                &plan, &mut m, &mut slot, &mut params, &clip_for, 0.2, &mut pose, &mut scratch,
+                &plan,
+                &mut m,
+                &mut slot,
+                &mut params,
+                &clip_for,
+                0.2,
+                &mut pose,
+                &mut scratch,
                 &mut events,
             )
         };
@@ -2695,13 +3036,20 @@ fn a_full_weight_overlay_silences_the_base_and_fires_its_own_markers_once() {
         hits += count(&events, "hit");
         base_while_overlaid += count(&events, "istep");
     }
-    assert_eq!(base_while_overlaid, 0, "no footsteps from an invisible walk");
+    assert_eq!(
+        base_while_overlaid, 0,
+        "no footsteps from an invisible walk"
+    );
     assert_eq!(hits, 0, "the hit frame is later in the clip");
 
     // The tick that crosses the hit frame also passes the clip end: the hit
     // fires (at the envelope of its own moment), and the base is back.
     frame!();
-    assert_eq!(count(&events, "hit"), 1, "the overlay's marker fires exactly once");
+    assert_eq!(
+        count(&events, "hit"),
+        1,
+        "the overlay's marker fires exactly once"
+    );
     assert_eq!(count(&events, "istep"), 1, "the base is audible again");
     assert_eq!(pose[0].translation.x, 0.0, "and visible again");
 
@@ -2823,29 +3171,40 @@ fn a_nested_state_compiles_the_referenced_graph_into_the_plan() {
     let load = |rel: &str| (rel == CHILD).then(two_state_doc);
     let compiled =
         plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &load)
-            .expect("compiles").plan;
+            .expect("compiles")
+            .plan;
 
     let plan::PoseSource::Machine { graph, plan: child } = &compiled.states[1].source else {
-        panic!("expected a nested machine, got {:?}", compiled.states[1].source);
+        panic!(
+            "expected a nested machine, got {:?}",
+            compiled.states[1].source
+        );
     };
     assert_eq!(graph, CHILD);
     assert_eq!(child.states.len(), 2, "the whole child machine compiled in");
 
     // A nested document still holding a legacy Any State node compiles as
     // its upgraded self too — whatever loader served it.
-    let stale = |rel: &str| {
-        (rel == CHILD).then(|| with_alias(node(7, plan::ANIM_ANY_STATE_TYPE_ID, None)))
-    };
+    let stale =
+        |rel: &str| (rel == CHILD).then(|| with_alias(node(7, plan::ANIM_ANY_STATE_TYPE_ID, None)));
     let upgraded =
         plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &stale)
-            .expect("compiles").plan;
-    let plan::PoseSource::Machine { plan: stale_child, .. } = &upgraded.states[1].source else {
+            .expect("compiles")
+            .plan;
+    let plan::PoseSource::Machine {
+        plan: stale_child, ..
+    } = &upgraded.states[1].source
+    else {
         panic!("expected a nested machine");
     };
     assert_eq!(sources_of_8(stale_child), ["Idle", "Walk"]);
 
     // One shared blackboard: the host's declarations, then the child's.
-    let slugs: Vec<&str> = compiled.parameters.iter().map(|p| p.slug.as_str()).collect();
+    let slugs: Vec<&str> = compiled
+        .parameters
+        .iter()
+        .map(|p| p.slug.as_str())
+        .collect();
     assert_eq!(slugs, ["go", "stop", "walk"]);
 
     // Clip references and arm-time checks see across files.
@@ -2895,20 +3254,24 @@ fn nested_refusals_cycles_and_parameter_conflicts() {
     let err = plan::compile_anim_graph_with(&a, "graphs/a.animgraph", &load).unwrap_err();
     assert!(err.contains("nesting cycle"), "{err}");
     assert!(
-        err.contains(
-            "graphs/a.animgraph \u{2192} graphs/b.animgraph \u{2192} graphs/a.animgraph"
-        ),
+        err.contains("graphs/a.animgraph \u{2192} graphs/b.animgraph \u{2192} graphs/a.animgraph"),
         "the chain names every hop: {err}"
     );
 
     // A nested graph's own refusal wraps with the referencing state + file.
     let mut broken = two_state_doc();
-    broken.node_mut(2).unwrap().properties.remove(plan::CLIP_PROP);
+    broken
+        .node_mut(2)
+        .unwrap()
+        .properties
+        .remove(plan::CLIP_PROP);
     let load = move |rel: &str| (rel == CHILD).then(|| broken.clone());
-    let err =
-        plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &load)
-            .unwrap_err();
-    assert!(err.starts_with("state 'Loco': in 'graphs/loco.animgraph':"), "{err}");
+    let err = plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &load)
+        .unwrap_err();
+    assert!(
+        err.starts_with("state 'Loco': in 'graphs/loco.animgraph':"),
+        "{err}"
+    );
 
     // A parameter declared with different types across the files refuses:
     // one blackboard drives the whole machine.
@@ -2929,7 +3292,8 @@ fn a_nested_machine_is_the_states_pose_source() {
     let load = |rel: &str| (rel == CHILD).then(two_state_doc);
     let compiled =
         plan::compile_anim_graph_with(&nested_host_doc(0.4), "graphs/host.animgraph", &load)
-            .expect("compiles").plan;
+            .expect("compiles")
+            .plan;
     let clips = nested_clips();
     let clip_for = resolver(&clips);
     let mut params = AnimParams::from_decls(&compiled.parameters);
@@ -2953,7 +3317,10 @@ fn a_nested_machine_is_the_states_pose_source() {
     assert_eq!(sample(&m, &params), 20.0);
     m.tick(&compiled, &mut params, 0.2); // 0.2 of 0.4 → weight 0.5
     let x = sample(&m, &params);
-    assert!((x - 11.0).abs() < 1e-3, "50/50 Base(20) vs child Idle(2): {x}");
+    assert!(
+        (x - 11.0).abs() < 1e-3,
+        "50/50 Base(20) vs child Idle(2): {x}"
+    );
     m.tick(&compiled, &mut params, 0.2); // fade done
     assert_eq!(sample(&m, &params), 2.0, "pure child Idle");
 
@@ -2963,7 +3330,10 @@ fn a_nested_machine_is_the_states_pose_source() {
     assert_eq!(sample(&m, &params), 2.0, "child fade starts at weight 0");
     m.tick(&compiled, &mut params, 0.25); // 0.25 of 0.5 → weight 0.5
     let x = sample(&m, &params);
-    assert!((x - 6.0).abs() < 1e-3, "50/50 Idle(2) vs Walk(10) inside the child: {x}");
+    assert!(
+        (x - 6.0).abs() < 1e-3,
+        "50/50 Idle(2) vs Walk(10) inside the child: {x}"
+    );
     m.tick(&compiled, &mut params, 0.5); // child fade done
     assert_eq!(sample(&m, &params), 10.0, "pure child Walk");
 }
@@ -2973,7 +3343,8 @@ fn reentering_a_nested_state_restarts_it_at_the_childs_entry() {
     let load = |rel: &str| (rel == CHILD).then(two_state_doc);
     let compiled =
         plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &load)
-            .expect("compiles").plan;
+            .expect("compiles")
+            .plan;
     let clips = nested_clips();
     let clip_for = resolver(&clips);
     let mut params = AnimParams::from_decls(&compiled.parameters);
@@ -3015,7 +3386,8 @@ fn a_nested_transition_consumes_triggers_from_the_shared_blackboard() {
     let load = move |rel: &str| (rel == CHILD).then(|| child.clone());
     let compiled =
         plan::compile_anim_graph_with(&nested_host_doc(0.0), "graphs/host.animgraph", &load)
-            .expect("compiles").plan;
+            .expect("compiles")
+            .plan;
     assert!(
         compiled
             .parameters
@@ -3041,7 +3413,15 @@ fn a_nested_transition_consumes_triggers_from_the_shared_blackboard() {
     let mut pose = vec![LocalBoneTransform::default(); 2];
     let mut scratch = PoseScratch::new();
     m.tick(&compiled, &mut params, 1.0); // the child's 0.5s fade finishes
-    evaluate_pose(&m, &compiled, &params, &clip_for, &mut pose, &mut scratch, 0);
+    evaluate_pose(
+        &m,
+        &compiled,
+        &params,
+        &clip_for,
+        &mut pose,
+        &mut scratch,
+        0,
+    );
     assert_eq!(pose[0].translation.x, 10.0, "the child is in Walk");
 }
 
@@ -3096,7 +3476,8 @@ fn editing_a_nested_graph_restarts_hosts_through_wholesale_invalidation() {
     {
         let rt = h.world.get::<&AnimGraphRuntime>(e).expect("re-armed");
         assert_eq!(
-            rt.plan.states[rt.machine.current_state()].name, "Base",
+            rt.plan.states[rt.machine.current_state()].name,
+            "Base",
             "restart lands at the host's ENTRY"
         );
         let plan::PoseSource::Machine { plan: child, .. } = &rt.plan.states[1].source else {
@@ -3108,7 +3489,6 @@ fn editing_a_nested_graph_restarts_hosts_through_wholesale_invalidation() {
         );
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // Blend spaces as a state's pose source (Task 41.5 ticket 02)
@@ -3161,7 +3541,9 @@ impl plan::AnimGraphLoader for SpaceLoader {
     }
 
     fn blend_space(&self, rel: &str) -> Option<Result<Arc<BlendSpace>, String>> {
-        self.spaces.get(rel).map(|d| BlendSpace::compile(d).map(Arc::new))
+        self.spaces
+            .get(rel)
+            .map(|d| BlendSpace::compile(d).map(Arc::new))
     }
 }
 
@@ -3198,7 +3580,9 @@ where
 
 #[test]
 fn a_state_plays_a_blend_space_following_its_parameter() {
-    let plan = compile_with_space(&space_doc(&[]), walk_run_space()).expect("compiles").plan;
+    let plan = compile_with_space(&space_doc(&[]), walk_run_space())
+        .expect("compiles")
+        .plan;
     let plan::PoseSource::Tree(plan::PlanTree::Space(sp)) = &plan.states[0].source else {
         panic!("expected a blend space, got {:?}", plan.states[0].source);
     };
@@ -3228,7 +3612,10 @@ fn a_state_plays_a_blend_space_following_its_parameter() {
         params.set_float("speed", speed);
         m.tick(&plan, &mut params, 0.1); // smoothing off: the input snaps
         let x = bone_x(&m, &plan, &params, &clip_for);
-        assert!((x - expected).abs() < 1e-4, "speed {speed}: pose {x} expected {expected}");
+        assert!(
+            (x - expected).abs() < 1e-4,
+            "speed {speed}: pose {x} expected {expected}"
+        );
     }
 }
 
@@ -3236,7 +3623,10 @@ fn a_state_plays_a_blend_space_following_its_parameter() {
 fn a_two_axis_space_blends_three_samples_and_clamps_to_its_hull() {
     let mut space = BlendSpaceDoc::default();
     space.axis_count = 2;
-    space.axes = [BlendAxis::new("speed", 0.0, 4.0), BlendAxis::new("turn", 0.0, 4.0)];
+    space.axes = [
+        BlendAxis::new("speed", 0.0, 4.0),
+        BlendAxis::new("turn", 0.0, 4.0),
+    ];
     space.samples = vec![
         BlendSample::new(0.0, 0.0, "anims/walk.anim"),
         BlendSample::new(4.0, 0.0, "anims/run.anim"),
@@ -3256,13 +3646,21 @@ fn a_two_axis_space_blends_three_samples_and_clamps_to_its_hull() {
         (4.0, 0.0, 10.0, "exact on the Run sample"),
         (1.0, 1.0, 8.5, "barycentric: ½ Walk + ¼ Run + ¼ Idle"),
         (2.0, 0.0, 6.0, "on an edge: the far vertex drops out"),
-        (9.0, 9.0, 15.0, "outside: axis clamp then nearest hull point (2, 2)"),
+        (
+            9.0,
+            9.0,
+            15.0,
+            "outside: axis clamp then nearest hull point (2, 2)",
+        ),
     ] {
         params.set_float("speed", x);
         params.set_float("turn", y);
         m.tick(&plan, &mut params, 0.1);
         let got = bone_x(&m, &plan, &params, &clip_for);
-        assert!((got - expected).abs() < 1e-3, "({x}, {y}): pose {got} expected {expected} — {why}");
+        assert!(
+            (got - expected).abs() < 1e-3,
+            "({x}, {y}): pose {got} expected {expected} — {why}"
+        );
     }
 }
 
@@ -3271,7 +3669,9 @@ fn blend_space_samples_stay_phase_matched_while_the_input_moves() {
     // Walk (1.0s) and Run (0.4s) each report their own phase; one sync group
     // means both read the same number however the weights shift. The
     // reference is the first sample (Walk): expected phase = t mod 1.
-    let plan = compile_with_space(&space_doc(&[]), walk_run_space()).expect("compiles").plan;
+    let plan = compile_with_space(&space_doc(&[]), walk_run_space())
+        .expect("compiles")
+        .plan;
     let clips = [
         ("anims/walk.anim", phase_clip("Walk", 1.0)),
         ("anims/run.anim", phase_clip("Run", 0.4)),
@@ -3283,16 +3683,24 @@ fn blend_space_samples_stay_phase_matched_while_the_input_moves() {
         m.tick(&plan, &mut params, 0.05);
         let x = bone_x(&m, &plan, &params, &clip_for);
         let expected = m.time().rem_euclid(1.0);
-        assert!((x - expected).abs() < 1e-3, "step {step}: pose {x} expected phase {expected}");
+        assert!(
+            (x - expected).abs() < 1e-3,
+            "step {step}: pose {x} expected phase {expected}"
+        );
     }
     let unsynced = m.time().rem_euclid(0.4) / 0.4;
-    assert!((unsynced - m.time().rem_euclid(1.0)).abs() > 0.1, "the check has teeth");
+    assert!(
+        (unsynced - m.time().rem_euclid(1.0)).abs() > 0.1,
+        "the check has teeth"
+    );
 
     // A sample's rate scale is its speed relative to the reference: Run at
     // 2× cycles twice per Walk cycle, still locked to it.
     let mut space = walk_run_space();
     space.samples[1].rate_scale = 2.0;
-    let plan = compile_with_space(&space_doc(&[]), space).expect("compiles").plan;
+    let plan = compile_with_space(&space_doc(&[]), space)
+        .expect("compiles")
+        .plan;
     let (mut m, mut params) = armed(&plan);
     params.set_float("speed", 6.0);
     for _ in 0..7 {
@@ -3349,7 +3757,10 @@ fn input_smoothing_converges_over_ticks_and_resets_on_entry() {
     for step in 0..40 {
         m.tick(&plan, &mut params, 0.1);
         let v = bone_x(&m, &plan, &params, &clip_for);
-        assert!(v < last, "step {step}: {v} did not move toward Walk from {last}");
+        assert!(
+            v < last,
+            "step {step}: {v} did not move toward Walk from {last}"
+        );
         if step == 0 {
             // 1 − e^(−0.1/0.5) ≈ 0.18 of the way: 10 → ~8.55.
             assert!((v - 8.55).abs() < 0.05, "first step {v}");
@@ -3363,7 +3774,9 @@ fn input_smoothing_converges_over_ticks_and_resets_on_entry() {
 fn space_precedence_beats_clip_and_yields_to_graph() {
     // `space` + `clip`: the space plays.
     let doc = space_doc(&[(plan::CLIP_PROP, PropValue::Asset("anims/idle.anim".into()))]);
-    let plan = compile_with_space(&doc, walk_run_space()).expect("compiles").plan;
+    let plan = compile_with_space(&doc, walk_run_space())
+        .expect("compiles")
+        .plan;
     assert!(matches!(
         plan.states[0].source,
         plan::PoseSource::Tree(plan::PlanTree::Space(_))
@@ -3376,8 +3789,13 @@ fn space_precedence_beats_clip_and_yields_to_graph() {
         spaces: BTreeMap::new(),
         graphs: [(CHILD.to_string(), two_state_doc())].into(),
     };
-    let plan = plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &loader).expect("compiles").plan;
-    assert!(matches!(plan.states[0].source, plan::PoseSource::Machine { .. }));
+    let plan = plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &loader)
+        .expect("compiles")
+        .plan;
+    assert!(matches!(
+        plan.states[0].source,
+        plan::PoseSource::Machine { .. }
+    ));
 }
 
 #[test]
@@ -3395,8 +3813,8 @@ fn blend_space_refusals_are_anchored_to_the_state() {
     };
 
     // Missing file.
-    let err = plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &SpaceLoader::default())
-        .unwrap_err();
+    let err =
+        plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &SpaceLoader::default()).unwrap_err();
     check(err, "blend space 'blendspaces/loco.blendspace' not found");
 
     // Empty samples (the space's own compile refusal, wrapped).
@@ -3420,14 +3838,21 @@ fn blend_space_refusals_are_anchored_to_the_state() {
     let mut bool_doc = space_doc(&[]);
     bool_doc.variables = vec![bool_decl("speed")];
     let err = compile_with_space(&bool_doc, walk_run_space()).unwrap_err();
-    assert!(err.contains("parameter 'speed' is not a declared Float"), "{err}");
+    assert!(
+        err.contains("parameter 'speed' is not a declared Float"),
+        "{err}"
+    );
 
     // A missing sample clip is an arm-time refusal (clips load with the
     // plan, never at compile), named by sample index.
     let mut space = walk_run_space();
     space.samples[1].clip = "anims/nope.anim".into();
     let assets = MapAssets::default();
-    assets.graphs.lock().unwrap().insert(SPACE_GRAPH.into(), doc.clone());
+    assets
+        .graphs
+        .lock()
+        .unwrap()
+        .insert(SPACE_GRAPH.into(), doc.clone());
     assets
         .spaces
         .lock()
@@ -3453,12 +3878,15 @@ fn blend_space_refusals_are_anchored_to_the_state() {
 #[test]
 fn saving_a_blend_space_invalidates_the_plan_and_the_next_arm_recompiles() {
     let assets = MapAssets::default();
-    assets.graphs.lock().unwrap().insert(SPACE_GRAPH.into(), space_doc(&[]));
     assets
-        .spaces
+        .graphs
         .lock()
         .unwrap()
-        .insert(SPACE.into(), serialize_blend_space(&walk_run_space()).unwrap());
+        .insert(SPACE_GRAPH.into(), space_doc(&[]));
+    assets.spaces.lock().unwrap().insert(
+        SPACE.into(),
+        serialize_blend_space(&walk_run_space()).unwrap(),
+    );
     let mut h = Harness::new(assets.clone());
     let e = h.world.spawn((
         AnimGraphRunner::new(SPACE_GRAPH),
@@ -3479,7 +3907,10 @@ fn saving_a_blend_space_invalidates_the_plan_and_the_next_arm_recompiles() {
             .set_float("speed", v);
     };
     let x = |h: &Harness| {
-        h.world.get::<&SkeletonInstance>(e).unwrap().local_transforms[0]
+        h.world
+            .get::<&SkeletonInstance>(e)
+            .unwrap()
+            .local_transforms[0]
             .translation
             .x
     };
@@ -3526,7 +3957,9 @@ fn the_demo_blend_space_compiles_from_a_state() {
         spaces: [("blendspaces/locomotion.blendspace".to_string(), space)].into(),
         graphs: BTreeMap::new(),
     };
-    let plan = plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &loader).expect("compiles").plan;
+    let plan = plan::compile_anim_graph_with(&doc, SPACE_GRAPH, &loader)
+        .expect("compiles")
+        .plan;
     let plan::PoseSource::Tree(plan::PlanTree::Space(sp)) = &plan.states[0].source else {
         panic!("expected a blend space");
     };
@@ -3600,7 +4033,10 @@ fn a_throttled_play_once_still_fires_once_and_visibly_plays() {
         h.tick();
     }
     let quiet = revision_of(&h, e) - r0;
-    assert!(quiet <= 1, "slowest bucket evaluates ~once per 8 frames, got {quiet}");
+    assert!(
+        quiet <= 1,
+        "slowest bucket evaluates ~once per 8 frames, got {quiet}"
+    );
 
     // Fire the play-once while throttled. Clip len 0.35 s at 0.1 s ticks:
     // starts, crosses its 0.25 s marker, finishes and retires within 6.
@@ -3614,7 +4050,10 @@ fn a_throttled_play_once_still_fires_once_and_visibly_plays() {
     let mut saw_attack_pose = false;
     for _ in 0..6 {
         h.tick();
-        swings += count(&h.world.get::<&AnimGraphRuntime>(e).unwrap().events, "swing");
+        swings += count(
+            &h.world.get::<&AnimGraphRuntime>(e).unwrap().events,
+            "swing",
+        );
         let sk = h.world.get::<&SkeletonInstance>(e).unwrap();
         if (sk.local_transforms[0].translation.x - 30.0).abs() < 1e-3 {
             saw_attack_pose = true; // the overlay reached the skeleton
@@ -3651,7 +4090,11 @@ fn an_active_crossfade_forces_evaluation_every_frame() {
     for _ in 0..6 {
         h.tick();
     }
-    assert_eq!(revision_of(&h, e) - r0, 6, "every crossfade frame evaluated");
+    assert_eq!(
+        revision_of(&h, e) - r0,
+        6,
+        "every crossfade frame evaluated"
+    );
 
     // Fade over (walk clip has no markers): throttling resumes.
     let r1 = revision_of(&h, e);
@@ -3659,7 +4102,10 @@ fn an_active_crossfade_forces_evaluation_every_frame() {
         h.tick();
     }
     let after = revision_of(&h, e) - r1;
-    assert!(after <= 1, "the crossfade over, throttling resumes: {after}");
+    assert!(
+        after <= 1,
+        "the crossfade over, throttling resumes: {after}"
+    );
 }
 
 /// (c) Event parity: a throttled run emits the identical per-tick event
@@ -3669,7 +4115,11 @@ fn an_active_crossfade_forces_evaluation_every_frame() {
 fn throttled_and_full_rate_runs_emit_identical_events() {
     fn run(throttled: bool) -> (Vec<Vec<AnimEventFire>>, u64) {
         let assets = MapAssets::default();
-        assets.graphs.lock().unwrap().insert(GRAPH.into(), slot_doc());
+        assets
+            .graphs
+            .lock()
+            .unwrap()
+            .insert(GRAPH.into(), slot_doc());
         let mut h = Harness::new(assets);
         if throttled {
             h.resources.insert(view_looking_forward());
@@ -3702,7 +4152,10 @@ fn throttled_and_full_rate_runs_emit_identical_events() {
     }
     let (full, full_revs) = run(false);
     let (thr, thr_revs) = run(true);
-    assert_eq!(thr, full, "event order and content identical under throttling");
+    assert_eq!(
+        thr, full,
+        "event order and content identical under throttling"
+    );
     assert!(
         thr_revs < full_revs,
         "the throttled run really skipped evaluations ({thr_revs} vs {full_revs})"
@@ -3727,7 +4180,11 @@ fn bucket_boundaries_have_hysteresis() {
         let x = if i % 2 == 0 { 36.0 } else { 34.0 };
         h.world.get::<&mut Transform>(e).unwrap().position = nalgebra_glm::vec3(x, 0.0, 0.0);
         h.tick();
-        assert_eq!(bucket_of(&h, e), 1, "oscillating across 35 m flipped the bucket");
+        assert_eq!(
+            bucket_of(&h, e),
+            1,
+            "oscillating across 35 m flipped the bucket"
+        );
     }
 
     // Decisive moves cross the hysteresis band (× / ÷ 1.15) and stick.
@@ -3755,7 +4212,10 @@ fn entering_the_frustum_forces_an_immediate_evaluation() {
     h.world.get::<&mut Transform>(e).unwrap().position = nalgebra_glm::vec3(30.0, 0.0, 0.0);
     let r0 = revision_of(&h, e);
     h.tick();
-    assert!(revision_of(&h, e) > r0, "first visible frame evaluated immediately");
+    assert!(
+        revision_of(&h, e) > r0,
+        "first visible frame evaluated immediately"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -3827,7 +4287,9 @@ fn two_bone_props(bones: &str) -> Vec<(&'static str, PropValue)> {
 
 #[test]
 fn ik_chains_compile_into_the_plan() {
-    let p = compile_anim_graph(&ik_doc(&two_bone_props("upper, lower, hand"))).expect("compiles").plan;
+    let p = compile_anim_graph(&ik_doc(&two_bone_props("upper, lower, hand")))
+        .expect("compiles")
+        .plan;
     assert_eq!(p.ik_chains.len(), 1);
     let c = &p.ik_chains[0];
     assert_eq!(c.name, "arm");
@@ -3839,10 +4301,14 @@ fn ik_chains_compile_into_the_plan() {
     // radians in the plan.
     let p = compile_anim_graph(&ik_doc(&[
         (plan::IK_BONES_PROP, PropValue::Str("hand".into())),
-        (plan::IK_SOLVER_PROP, PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into())),
+        (
+            plan::IK_SOLVER_PROP,
+            PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into()),
+        ),
         (plan::IK_WEIGHT_PARAM_PROP, PropValue::Str("ik".into())),
     ]))
-    .expect("compiles").plan;
+    .expect("compiles")
+    .plan;
     match p.ik_chains[0].solver {
         plan::PlanIkSolver::LookAt { axis, max_angle } => {
             assert!((axis - Vec3::Z).length() < 1e-6);
@@ -3864,7 +4330,10 @@ fn non_finite_speeds_refuse_at_compile() {
         .properties
         .insert(plan::SPEED_PROP.into(), PropValue::Float(f32::NAN));
     let e = compile_anim_graph(&doc).unwrap_err();
-    assert!(e.contains("state 'Idle'") && e.contains("not a finite number"), "{e}");
+    assert!(
+        e.contains("state 'Idle'") && e.contains("not a finite number"),
+        "{e}"
+    );
 
     let mut doc = ik_doc(&[]);
     doc.nodes.pop();
@@ -3880,7 +4349,10 @@ fn non_finite_speeds_refuse_at_compile() {
         ],
     ));
     let e = compile_anim_graph(&doc).unwrap_err();
-    assert!(e.contains("play-once slot 'Hit'") && e.contains("not a finite number"), "{e}");
+    assert!(
+        e.contains("play-once slot 'Hit'") && e.contains("not a finite number"),
+        "{e}"
+    );
 }
 
 #[test]
@@ -3900,11 +4372,20 @@ fn ik_chains_refuse_bad_configs_with_anchored_messages() {
     ]);
     assert!(e.contains("unknown solver 'fabrik'"), "{e}");
 
-    let e = err(&[(plan::IK_BONES_PROP, PropValue::Str("upper, lower, hand".into()))]);
-    assert!(e.contains("IK chain 'arm' names no weight parameter"), "{e}");
+    let e = err(&[(
+        plan::IK_BONES_PROP,
+        PropValue::Str("upper, lower, hand".into()),
+    )]);
+    assert!(
+        e.contains("IK chain 'arm' names no weight parameter"),
+        "{e}"
+    );
 
     let e = err(&[
-        (plan::IK_BONES_PROP, PropValue::Str("upper, lower, hand".into())),
+        (
+            plan::IK_BONES_PROP,
+            PropValue::Str("upper, lower, hand".into()),
+        ),
         (plan::IK_WEIGHT_PARAM_PROP, PropValue::Str("nope".into())),
     ]);
     assert!(
@@ -4066,7 +4547,10 @@ fn ik_rewalks_descendants_below_the_chain() {
     let expected = (hand * Mat4::from_translation(Vec3::new(0.0, 0.5, 0.0)))
         .to_scale_rotation_translation()
         .2;
-    assert!((tool - expected).length() < 1e-3, "tool {tool} vs {expected}");
+    assert!(
+        (tool - expected).length() < 1e-3,
+        "tool {tool} vs {expected}"
+    );
     assert!(
         (tool - Vec3::new(0.0, 2.5, 0.0)).length() > 0.3,
         "the tool really moved off its rest position"
@@ -4079,7 +4563,10 @@ fn ik_rewalks_descendants_below_the_chain() {
 fn look_at_runs_end_to_end() {
     let mut h = ik_harness(&[
         (plan::IK_BONES_PROP, PropValue::Str("hand".into())),
-        (plan::IK_SOLVER_PROP, PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into())),
+        (
+            plan::IK_SOLVER_PROP,
+            PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into()),
+        ),
         (plan::IK_WEIGHT_PARAM_PROP, PropValue::Str("ik".into())),
     ]);
     let mut targets = IkTargets::default();
@@ -4122,7 +4609,10 @@ fn look_at_runs_end_to_end() {
 /// bone (the 4-bone test skeleton has nothing above it).
 fn foot_props() -> Vec<(&'static str, PropValue)> {
     vec![
-        (plan::IK_BONES_PROP, PropValue::Str("upper, lower, hand".into())),
+        (
+            plan::IK_BONES_PROP,
+            PropValue::Str("upper, lower, hand".into()),
+        ),
         (plan::IK_WEIGHT_PARAM_PROP, PropValue::Str("ik".into())),
         (plan::IK_FOOT_PROP, PropValue::Bool(true)),
         (plan::IK_PELVIS_PROP, PropValue::Str("upper".into())),
@@ -4131,7 +4621,9 @@ fn foot_props() -> Vec<(&'static str, PropValue)> {
 
 #[test]
 fn foot_placement_compiles_and_refuses_bad_configs() {
-    let p = compile_anim_graph(&ik_doc(&foot_props())).expect("compiles").plan;
+    let p = compile_anim_graph(&ik_doc(&foot_props()))
+        .expect("compiles")
+        .plan;
     let f = p.ik_chains[0].foot.as_ref().expect("foot config compiled");
     assert!((f.ankle_offset - 0.1).abs() < 1e-6, "default ankle offset");
     assert_eq!(f.pelvis_bone, "upper");
@@ -4139,7 +4631,10 @@ fn foot_placement_compiles_and_refuses_bad_configs() {
     // Foot placement plants a tip bone — look-at has none.
     let e = compile_anim_graph(&ik_doc(&[
         (plan::IK_BONES_PROP, PropValue::Str("hand".into())),
-        (plan::IK_SOLVER_PROP, PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into())),
+        (
+            plan::IK_SOLVER_PROP,
+            PropValue::Enum(plan::IK_SOLVER_LOOK_AT.into()),
+        ),
         (plan::IK_WEIGHT_PARAM_PROP, PropValue::Str("ik".into())),
         (plan::IK_FOOT_PROP, PropValue::Bool(true)),
     ]))
@@ -4154,12 +4649,8 @@ fn foot_placement_compiles_and_refuses_bad_configs() {
     let mut props = foot_props();
     props.retain(|(k, _)| *k != plan::IK_PELVIS_PROP);
     props.push((plan::IK_PELVIS_PROP, PropValue::Str("lower".into())));
-    doc.nodes.push(with(
-        6,
-        plan::ANIM_IK_CHAIN_TYPE_ID,
-        Some("foot_r"),
-        &props,
-    ));
+    doc.nodes
+        .push(with(6, plan::ANIM_IK_CHAIN_TYPE_ID, Some("foot_r"), &props));
     let e = compile_anim_graph(&doc).unwrap_err();
     assert!(e.contains("different pelvis bones"), "{e}");
 }
@@ -4196,7 +4687,11 @@ fn armed_foot_entity(h: &mut Harness) -> hecs::Entity {
     {
         let rt = h.world.get::<&AnimGraphRuntime>(e).expect("armed");
         assert!(rt.disabled.is_none(), "{:?}", rt.disabled);
-        assert_eq!(rt.pelvis.map(|p| p.bone), Some(0), "pelvis armed on 'upper'");
+        assert_eq!(
+            rt.pelvis.map(|p| p.bone),
+            Some(0),
+            "pelvis armed on 'upper'"
+        );
         assert_eq!(
             rt.ik[0].animated_tip,
             Some(Vec3::new(0.0, 2.0, 0.0)),
@@ -4278,7 +4773,10 @@ fn flat_ground_at_the_entity_plane_leaves_the_pose_unchanged() {
     h.tick();
     for (i, b) in before.iter().enumerate() {
         let after = bone_pos(&h, e, i);
-        assert!((after - *b).length() < 1e-4, "bone {i} moved: {b} -> {after}");
+        assert!(
+            (after - *b).length() < 1e-4,
+            "bone {i} moved: {b} -> {after}"
+        );
     }
 }
 
@@ -4348,11 +4846,13 @@ fn a_held_point_out_of_reach_falls_back_and_requests_release() {
         (tip - Vec3::new(0.0, 1.5, 0.0)).length() < 1e-3,
         "held point in reach is planted: {tip}"
     );
-    assert!(!h.world.get::<&AnimGraphRuntime>(e).unwrap().ik[0]
-        .foot
-        .as_ref()
-        .unwrap()
-        .release_requested);
+    assert!(
+        !h.world.get::<&AnimGraphRuntime>(e).unwrap().ik[0]
+            .foot
+            .as_ref()
+            .unwrap()
+            .release_requested
+    );
 }
 
 /// The P6 forced-eval source, pinned per plan risk §7.3: a foot lock/unlock
@@ -4368,8 +4868,8 @@ fn a_foot_lock_edge_forces_evaluation_while_throttled() {
         SkeletonInstance::from_bones(synthetic_bones()),
     ));
     h.tick(); // arm
-    // Move into Walk (marker-less) so the Idle clip's `step` event cannot
-    // force evaluations inside the measurement windows below.
+              // Move into Walk (marker-less) so the Idle clip's `step` event cannot
+              // force evaluations inside the measurement windows below.
     h.world
         .get::<&mut AnimGraphRuntime>(e)
         .unwrap()
@@ -4542,7 +5042,11 @@ fn write_shipped_animgraphs_as_pipeline_roots() {
 /// the first chain; the row shifts one step right, the Clip sits above the
 /// Layer. A no-op once a Layer exists.
 fn add_demo_upper_body_layer(doc: &mut GraphDoc) {
-    if doc.nodes.iter().any(|n| n.type_id == ANIM_PIPE_LAYER_TYPE_ID) {
+    if doc
+        .nodes
+        .iter()
+        .any(|n| n.type_id == ANIM_PIPE_LAYER_TYPE_ID)
+    {
         return;
     }
     let id_of = |d: &GraphDoc, ty: &str| d.nodes.iter().find(|n| n.type_id == ty).expect(ty).id;
@@ -4600,13 +5104,20 @@ fn the_shipped_graphs_are_saved_pipeline_root_documents() {
     let content = demo_content();
     for (path, doc, load) in shipped_animgraphs() {
         assert!(!needs_pipeline_root(&doc), "{path} is a v4 document");
-        assert!(!upgrade_pipeline_root(&mut doc.clone()), "{path}: no re-upgrade");
+        assert!(
+            !upgrade_pipeline_root(&mut doc.clone()),
+            "{path}: no re-upgrade"
+        );
         // Line endings are the platform's (ron writes CRLF on Windows and
         // `.animgraph` is not in `.gitattributes`): compare normalised.
         let lf = |s: String| s.replace("\r\n", "\n");
         let text = lf(std::fs::read_to_string(content.join(&path)).unwrap());
         assert!(text.starts_with("(\n    version: 4,"), "{path}");
-        assert_eq!(lf(serialize_graph(&doc).unwrap()), text, "{path}: canonical on disk");
+        assert_eq!(
+            lf(serialize_graph(&doc).unwrap()),
+            text,
+            "{path}: canonical on disk"
+        );
         let count = |ty: &str| doc.nodes.iter().filter(|n| n.type_id == ty).count();
         assert_eq!(count(ANIM_PIPE_MACHINE_TYPE_ID), 1, "{path}");
         assert_eq!(count(ANIM_PIPE_OUTPUT_TYPE_ID), 1, "{path}");
@@ -4618,7 +5129,10 @@ fn the_shipped_graphs_are_saved_pipeline_root_documents() {
         assert_eq!(p.machines[0].source, MachineSource::Inline);
         assert_eq!(p.inline_machine, 0);
         assert!(p.slots.is_empty(), "{path}");
-        assert_eq!(p.pipeline.ik_order, (0..p.ik_chains.len()).collect::<Vec<_>>());
+        assert_eq!(
+            p.pipeline.ik_order,
+            (0..p.ik_chains.len()).collect::<Vec<_>>()
+        );
         if !path.contains("locomotion_demo") {
             assert_eq!(count(ANIM_PIPE_LAYER_TYPE_ID), 0, "{path}");
             assert!(p.root_clips.is_empty(), "{path}");
@@ -4674,7 +5188,10 @@ fn the_upgrade_re_lays_out_moved_nodes_and_tags_their_annotations() {
     let text = serialize_graph(&doc).unwrap();
     assert!(text.contains("version: 4"), "{text}");
     assert_eq!(text.matches("family").count(), 2, "{text}");
-    assert_eq!(parse_graph(&text).unwrap(), node_graph_types::io::canonical_form(&doc));
+    assert_eq!(
+        parse_graph(&text).unwrap(),
+        node_graph_types::io::canonical_form(&doc)
+    );
 
     let compiled = compile_anim_graph(&doc).expect("compiles").plan;
     assert_eq!(compiled.pipeline.slot_order, vec![0]);
@@ -4806,11 +5323,24 @@ fn slot_and_ik_orders_follow_the_wires() {
         pose_edge(40, 25, PIPE_IN_PIN),
     ]);
     let p = compile_anim_graph(&doc).expect("compiles").plan;
-    let slot_names: Vec<&str> = p.pipeline.slot_order.iter().map(|i| p.slots[*i].name.as_str()).collect();
-    let ik_names: Vec<&str> = p.pipeline.ik_order.iter().map(|i| p.ik_chains[*i].name.as_str()).collect();
+    let slot_names: Vec<&str> = p
+        .pipeline
+        .slot_order
+        .iter()
+        .map(|i| p.slots[*i].name.as_str())
+        .collect();
+    let ik_names: Vec<&str> = p
+        .pipeline
+        .ik_order
+        .iter()
+        .map(|i| p.ik_chains[*i].name.as_str())
+        .collect();
     assert_eq!(slot_names, vec!["A", "B"]);
     assert_eq!(ik_names, vec!["first", "second"]);
-    assert_eq!(p.slots[0].name, "B", "the plan's index space is still by id");
+    assert_eq!(
+        p.slots[0].name, "B",
+        "the plan's index space is still by id"
+    );
     assert_eq!(p.ik_chains[0].name, "second");
     // Post-order: the outer overlay is the *later* slot (B).
     let PlanPose::Overlay { slot, input, .. } = &p.pipeline.root else {
@@ -4852,7 +5382,11 @@ fn nested_slots_and_chains_lift_after_the_hosts_with_a_warning() {
         plan::compile_anim_graph_with(&host, "graphs/host.animgraph", &load).expect("compiles");
     let p = &compiled.plan;
     let chain_names: Vec<&str> = p.ik_chains.iter().map(|c| c.name.as_str()).collect();
-    assert_eq!(chain_names, vec!["child_ik", "host_ik"], "index space by id");
+    assert_eq!(
+        chain_names,
+        vec!["child_ik", "host_ik"],
+        "index space by id"
+    );
     assert_eq!(p.pipeline.ik_order, vec![1, 0], "host first, then lifted");
     assert_eq!(p.slots.len(), 1);
     assert_eq!(p.slots[0].name, "ChildAttack");
@@ -4876,7 +5410,11 @@ fn nested_slots_and_chains_lift_after_the_hosts_with_a_warning() {
         "{}",
         w.message
     );
-    assert!(w.message.contains("play-once slot ChildAttack"), "{}", w.message);
+    assert!(
+        w.message.contains("play-once slot ChildAttack"),
+        "{}",
+        w.message
+    );
     assert!(w.message.contains("IK chain child_ik"), "{}", w.message);
 
     // Nesting the same child twice lifts each slot/chain once.
@@ -4989,7 +5527,10 @@ fn a_nested_state_machine_node_compiles_the_files_machine_only() {
     };
     assert_eq!(graph, CHILD);
     assert_eq!(child.states.len(), 2);
-    assert!(child.machines.is_empty(), "a nested pipeline is never compiled");
+    assert!(
+        child.machines.is_empty(),
+        "a nested pipeline is never compiled"
+    );
     assert_eq!(child.pipeline.slot_order, vec![0]);
     assert_eq!(child.pipeline.ik_order, vec![0]);
     assert!(p.parameters.iter().any(|d| d.slug == "attack"), "merged");
@@ -5031,7 +5572,9 @@ fn a_nested_state_machine_node_compiles_the_files_machine_only() {
     // cycle refuse too.
     let broken = |_: &str| {
         let mut child = two_state_doc();
-        child.nodes.retain(|n| n.type_id != plan::ANIM_ENTRY_TYPE_ID);
+        child
+            .nodes
+            .retain(|n| n.type_id != plan::ANIM_ENTRY_TYPE_ID);
         Some(child)
     };
     let err = plan::compile_anim_graph_with(&doc, "graphs/host.animgraph", &broken).unwrap_err();
@@ -5066,8 +5609,7 @@ fn pipeline_compile_refusals_are_author_errors() {
         edit(&mut doc);
         compile_anim_graph(&doc).unwrap_err()
     };
-    let contains =
-        |err: String, what: &str| assert!(err.contains(what), "{err:?} lacks {what:?}");
+    let contains = |err: String, what: &str| assert!(err.contains(what), "{err:?} lacks {what:?}");
 
     // D3.1 — exactly one Output Pose, input wired.
     contains(
@@ -5098,8 +5640,7 @@ fn pipeline_compile_refusals_are_author_errors() {
     contains(
         refuse(&|d| {
             // Cast feeds the Layer's layer pin instead of the Clip.
-            d.edges
-                .retain(|e| !(e.from_node == 21 || e.to_node == 24));
+            d.edges.retain(|e| !(e.from_node == 21 || e.to_node == 24));
             d.edges.push(pose_edge(23, 22, LAYER_LAYER_PIN));
             d.edges.push(pose_edge(22, 24, PIPE_IN_PIN));
         }),
@@ -5110,9 +5651,8 @@ fn pipeline_compile_refusals_are_author_errors() {
     contains(
         refuse(&|d| {
             // SM → IK → Layer(base) …: the Layer sits downstream of IK.
-            d.edges.retain(|e| {
-                !(e.to_node == 24 || e.to_node == 25 || e.to_pin == LAYER_BASE_PIN)
-            });
+            d.edges
+                .retain(|e| !(e.to_node == 24 || e.to_node == 25 || e.to_pin == LAYER_BASE_PIN));
             d.edges.push(pose_edge(20, 24, PIPE_IN_PIN));
             d.edges.push(pose_edge(24, 22, LAYER_BASE_PIN));
             d.edges.push(pose_edge(23, 25, PIPE_IN_PIN));
@@ -5197,19 +5737,19 @@ fn pipeline_compile_refusals_are_author_errors() {
     );
     contains(
         refuse(&|d| {
-            d.node_mut(22)
-                .unwrap()
-                .properties
-                .insert(LAYER_WEIGHT_PARAM_PROP.into(), PropValue::Str("walk".into()));
+            d.node_mut(22).unwrap().properties.insert(
+                LAYER_WEIGHT_PARAM_PROP.into(),
+                PropValue::Str("walk".into()),
+            );
         }),
         "layer 'Aim': parameter 'walk' is not a Float",
     );
     contains(
         refuse(&|d| {
-            d.node_mut(22)
-                .unwrap()
-                .properties
-                .insert(LAYER_WEIGHT_PARAM_PROP.into(), PropValue::Str("nope".into()));
+            d.node_mut(22).unwrap().properties.insert(
+                LAYER_WEIGHT_PARAM_PROP.into(),
+                PropValue::Str("nope".into()),
+            );
         }),
         "layer 'Aim': parameter 'nope' is not declared",
     );
@@ -5244,8 +5784,14 @@ fn unreachable_pipeline_nodes_warn_and_are_ignored() {
     assert_eq!(
         msgs,
         vec![
-            (28, "IK chain 'stray' is not connected to Output Pose and is ignored"),
-            (29, "clip 'Clip 29' is not connected to Output Pose and is ignored"),
+            (
+                28,
+                "IK chain 'stray' is not connected to Output Pose and is ignored"
+            ),
+            (
+                29,
+                "clip 'Clip 29' is not connected to Output Pose and is ignored"
+            ),
         ]
     );
     let p = &compiled.plan;
@@ -5288,7 +5834,10 @@ fn ik_clip_set(name: &str) -> Option<ClipSet> {
             clip.channels = vec![AnimationChannel {
                 bone_index: 1,
                 position_keys: vec![(0.0, Vec3::new(40.0, 0.0, 0.0))],
-                rotation_keys: vec![(0.0, glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2))],
+                rotation_keys: vec![(
+                    0.0,
+                    glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+                )],
                 scale_keys: vec![(0.0, Vec3::splat(2.0))],
             }];
             return set(clip);
@@ -5313,7 +5862,12 @@ fn ik_clip_set(name: &str) -> Option<ClipSet> {
     let (clip, x, duration, marks): (&str, f32, f32, &[(f32, &str)]) = match name {
         "idle.anim" => ("Idle", 0.0, 1.0, &[]),
         "walk.anim" => ("Walk", 10.0, 1.0, &[]),
-        "stride.anim" => ("Stride", 5.0, 1.0, &[(0.15, "foot_down"), (0.65, "foot_up")]),
+        "stride.anim" => (
+            "Stride",
+            5.0,
+            1.0,
+            &[(0.15, "foot_down"), (0.65, "foot_up")],
+        ),
         "attack.anim" => ("Attack", 30.0, 0.5, &[(0.25, "hit")]),
         "upper.anim" => ("Upper", 40.0, 1.0, &[(0.05, "wave")]),
         _ => return None,
@@ -5331,15 +5885,30 @@ fn same_pose(a: &[LocalBoneTransform], b: &[LocalBoneTransform]) -> bool {
 }
 
 fn local_x(h: &Harness, e: hecs::Entity, i: usize) -> f32 {
-    h.world.get::<&SkeletonInstance>(e).unwrap().local_transforms[i].translation.x
+    h.world
+        .get::<&SkeletonInstance>(e)
+        .unwrap()
+        .local_transforms[i]
+        .translation
+        .x
 }
 
 fn set_float(h: &mut Harness, e: hecs::Entity, slug: &str, v: f32) {
-    assert!(h.world.get::<&mut AnimGraphRuntime>(e).unwrap().params.set_float(slug, v));
+    assert!(h
+        .world
+        .get::<&mut AnimGraphRuntime>(e)
+        .unwrap()
+        .params
+        .set_float(slug, v));
 }
 
 fn fire_trigger(h: &mut Harness, e: hecs::Entity, slug: &str) {
-    assert!(h.world.get::<&mut AnimGraphRuntime>(e).unwrap().params.fire_trigger(slug));
+    assert!(h
+        .world
+        .get::<&mut AnimGraphRuntime>(e)
+        .unwrap()
+        .params
+        .fire_trigger(slug));
 }
 
 fn events_of(h: &Harness, e: hecs::Entity) -> Vec<AnimEventFire> {
@@ -5363,7 +5932,11 @@ fn place_flat(h: &mut Harness, e: hecs::Entity, z: f32, dt: f32) {
 fn foot_of(h: &Harness, e: hecs::Entity) -> (bool, bool, bool) {
     let rt = h.world.get::<&AnimGraphRuntime>(e).unwrap();
     let f = rt.ik[0].foot.as_ref().expect("foot chain");
-    (f.locked, f.release.is_some(), rt.throttle.force_eval_external)
+    (
+        f.locked,
+        f.release.is_some(),
+        rt.throttle.force_eval_external,
+    )
 }
 
 /// One legacy frame beside the system's: the pre-41.7 evaluation (inline
@@ -5384,14 +5957,32 @@ fn assert_legacy_frame(
             .get(&normalize_graph_path(&c.clip))?
             .select(c.clip_name.as_deref())
     };
-    evaluate_pose(&rt.machine, &rt.plan, &rt.params, &clip_for, pose, scratch, 0);
+    evaluate_pose(
+        &rt.machine,
+        &rt.plan,
+        &rt.params,
+        clip_for,
+        pose,
+        scratch,
+        0,
+    );
     rt.slot.apply(&rt.plan, &clip_for, pose, scratch, 0);
     assert!(
         same_pose(pose, &skel.local_transforms),
         "tick {t}: the pipeline walk differs from the legacy evaluation"
     );
-    collect_anim_events(&rt.machine, &rt.slot, &rt.plan, &rt.params, &clip_for, events);
-    assert_eq!(*events, rt.events, "tick {t}: events differ from the legacy collection");
+    collect_anim_events(
+        &rt.machine,
+        &rt.slot,
+        &rt.plan,
+        &rt.params,
+        clip_for,
+        events,
+    );
+    assert_eq!(
+        *events, rt.events,
+        "tick {t}: events differ from the legacy collection"
+    );
 }
 
 // -- Golden parity: the demo graph on the real rig ---------------------------
@@ -5517,9 +6108,18 @@ fn the_migrated_demo_graph_animates_identically() {
         .last()
         .unwrap()
         .iter()
-        .filter(|m| (**m - Mat4::IDENTITY).abs().to_cols_array().iter().any(|v| *v > 1e-4))
+        .filter(|m| {
+            (**m - Mat4::IDENTITY)
+                .abs()
+                .to_cols_array()
+                .iter()
+                .any(|v| *v > 1e-4)
+        })
         .count();
-    assert!(moved > 10, "the rig animated ({moved} non-identity palette entries)");
+    assert!(
+        moved > 10,
+        "the rig animated ({moved} non-identity palette entries)"
+    );
 }
 
 // -- Golden parity: slots + a nested machine with a chain and a slot --------
@@ -5544,8 +6144,12 @@ fn parity_child_doc() -> GraphDoc {
     doc.variables.push(trigger_decl("attack"));
     doc.nodes
         .push(ik_node(5, "child_ik", "upper, lower, hand", "ik"));
-    doc.nodes
-        .push(slot_node(9, "ChildAttack", "anims/ik/attack.anim", "attack"));
+    doc.nodes.push(slot_node(
+        9,
+        "ChildAttack",
+        "anims/ik/attack.anim",
+        "attack",
+    ));
     doc
 }
 
@@ -5607,7 +6211,11 @@ struct ParityRun {
 fn run_parity(graphs: &[(&str, GraphDoc)], legacy: bool) -> ParityRun {
     let assets = MapAssets::default();
     for (k, d) in graphs {
-        assets.graphs.lock().unwrap().insert(k.to_string(), d.clone());
+        assets
+            .graphs
+            .lock()
+            .unwrap()
+            .insert(k.to_string(), d.clone());
     }
     let mut h = Harness::new(assets);
     let mut targets = IkTargets::default();
@@ -5664,11 +6272,21 @@ fn a_migrated_slot_and_nested_fixture_evaluates_identically() {
     let before = run_parity(&[(GRAPH, v3), (CHILD, parity_child_doc())], true);
     let after = run_parity(&[(GRAPH, v4), (CHILD, parity_child_doc())], false);
     for (t, (a, b)) in before.frames.iter().zip(&after.frames).enumerate() {
-        assert!(same_pose(&a.0, &b.0), "tick {t}: locals differ after the upgrade");
+        assert!(
+            same_pose(&a.0, &b.0),
+            "tick {t}: locals differ after the upgrade"
+        );
         assert_eq!(a.1, b.1, "tick {t}: palette differs after the upgrade");
     }
-    assert!(before.slot_ticks >= 15, "slots played ({} ticks)", before.slot_ticks);
-    assert_eq!(before.hits, 2, "the host cast and the lifted child attack each hit once");
+    assert!(
+        before.slot_ticks >= 15,
+        "slots played ({} ticks)",
+        before.slot_ticks
+    );
+    assert_eq!(
+        before.hits, 2,
+        "the host cast and the lifted child attack each hit once"
+    );
     let expected = convert_position_zup_to_yup(CHILD_TARGET);
     assert!(
         (before.hand - expected).length() < 1e-2,
@@ -5701,7 +6319,10 @@ fn foot_cast_doc(bones: Option<&str>) -> GraphDoc {
             2,
             plan::ANIM_STATE_TYPE_ID,
             Some("Stride"),
-            &[(plan::CLIP_PROP, PropValue::Asset("anims/ik/stride.anim".into()))],
+            &[(
+                plan::CLIP_PROP,
+                PropValue::Asset("anims/ik/stride.anim".into()),
+            )],
         ),
         node(20, ANIM_PIPE_MACHINE_TYPE_ID, None),
         cast,
@@ -5734,7 +6355,12 @@ fn locked_foot(bones: Option<&str>) -> (Harness, hecs::Entity) {
         IkTargets::default(),
     ));
     h.tick(); // arm; state clock [0, 0.1)
-    assert!(h.world.get::<&AnimGraphRuntime>(e).unwrap().disabled.is_none());
+    assert!(h
+        .world
+        .get::<&AnimGraphRuntime>(e)
+        .unwrap()
+        .disabled
+        .is_none());
     set_float(&mut h, e, "ik", 1.0);
     h.tick(); // [0.1, 0.2): foot_down
     assert_eq!(count(&events_of(&h, e), "foot_down"), 1);
@@ -5758,9 +6384,16 @@ fn a_masked_play_once_keeps_base_events_and_the_foot_lock() {
     let (mut h, e) = locked_foot(Some("hand"));
     fire_trigger(&mut h, e, "cast");
     h.tick(); // tick 3: the cast starts (whole channel, masked to hand+tool)
-    assert_eq!(h.world.get::<&AnimGraphRuntime>(e).unwrap().slot.playing(), Some(0));
+    assert_eq!(
+        h.world.get::<&AnimGraphRuntime>(e).unwrap().slot.playing(),
+        Some(0)
+    );
     place_flat(&mut h, e, -0.1, 0.05);
-    assert_eq!(foot_of(&h, e), (true, false, false), "a masked start leaves the lock alone");
+    assert_eq!(
+        foot_of(&h, e),
+        (true, false, false),
+        "a masked start leaves the lock alone"
+    );
 
     h.tick(); // tick 4: overlay at full weight
     assert_eq!(local_x(&h, e, 2), 15.0, "hand follows the cast (30 / 2)");
@@ -5770,10 +6403,18 @@ fn a_masked_play_once_keeps_base_events_and_the_foot_lock() {
     assert_eq!(count(&events_of(&h, e), "hit"), 1);
     h.tick(); // tick 7: state clock [0.6, 0.7) — foot_up, cast still at weight 1
     let ev = events_of(&h, e);
-    assert_eq!(count(&ev, "foot_up"), 1, "masked: nothing suppressed: {ev:?}");
+    assert_eq!(
+        count(&ev, "foot_up"),
+        1,
+        "masked: nothing suppressed: {ev:?}"
+    );
     assert_eq!(ev.iter().find(|f| f.name == "foot_up").unwrap().weight, 1.0);
     place_flat(&mut h, e, -0.1, 0.05);
-    assert_eq!(foot_of(&h, e), (false, true, true), "released on _up with a blend");
+    assert_eq!(
+        foot_of(&h, e),
+        (false, true, true),
+        "released on _up with a blend"
+    );
 }
 
 /// U1 / rule (b), whole-body side: a whole-body Play Once starting releases
@@ -5789,7 +6430,11 @@ fn a_whole_body_play_once_start_releases_the_foot_lock() {
     assert_eq!(foot_of(&h, e), (false, true, true), "released on start");
 
     h.tick(); // tick 4
-    assert_eq!(local_x(&h, e, 1), 30.0, "whole body: lower follows the cast too");
+    assert_eq!(
+        local_x(&h, e, 1),
+        30.0,
+        "whole body: lower follows the cast too"
+    );
     assert_eq!(local_x(&h, e, 2), 15.0);
     h.tick();
     h.tick();
@@ -5816,16 +6461,20 @@ fn layer_doc_with(bones: &str, layer_clip: &str, include_root: bool) -> GraphDoc
     };
     doc.variables = vec![float_decl("aim")];
     let mut layer = layer_node(22, Some("Aim"), bones, "aim");
-    layer
-        .properties
-        .insert(LAYER_INCLUDE_ROOT_PROP.into(), PropValue::Bool(include_root));
+    layer.properties.insert(
+        LAYER_INCLUDE_ROOT_PROP.into(),
+        PropValue::Bool(include_root),
+    );
     doc.nodes = vec![
         node(1, plan::ANIM_ENTRY_TYPE_ID, None),
         with(
             2,
             plan::ANIM_STATE_TYPE_ID,
             Some("Idle"),
-            &[(plan::CLIP_PROP, PropValue::Asset("anims/ik/idle.anim".into()))],
+            &[(
+                plan::CLIP_PROP,
+                PropValue::Asset("anims/ik/idle.anim".into()),
+            )],
         ),
         node(20, ANIM_PIPE_MACHINE_TYPE_ID, None),
         clip_source(21, Some("Upper"), layer_clip),
@@ -5866,7 +6515,12 @@ fn layer_harness(bones: &str) -> (Harness, hecs::Entity) {
 #[test]
 fn a_layer_at_weight_one_changes_masked_bones_only() {
     let (mut h, e) = layer_harness("lower");
-    assert!(h.world.get::<&AnimGraphRuntime>(e).unwrap().disabled.is_none());
+    assert!(h
+        .world
+        .get::<&AnimGraphRuntime>(e)
+        .unwrap()
+        .disabled
+        .is_none());
     assert_eq!(
         h.world.get::<&AnimGraphRuntime>(e).unwrap().masks.get(&22),
         Some(&vec![0.0, 1.0, 1.0, 1.0]),
@@ -5874,7 +6528,11 @@ fn a_layer_at_weight_one_changes_masked_bones_only() {
     );
     // Tick 1 crossed `wave` (0.05) on the root clock, at weight 0: silent.
     assert_eq!(count(&events_of(&h, e), "wave"), 0);
-    assert_eq!((local_x(&h, e, 1), local_x(&h, e, 2)), (0.0, 0.0), "aim 0: base");
+    assert_eq!(
+        (local_x(&h, e, 1), local_x(&h, e, 2)),
+        (0.0, 0.0),
+        "aim 0: base"
+    );
 
     set_float(&mut h, e, "aim", 1.0);
     h.tick();
@@ -5884,7 +6542,11 @@ fn a_layer_at_weight_one_changes_masked_bones_only() {
 
     set_float(&mut h, e, "aim", 0.5);
     h.tick();
-    assert_eq!((local_x(&h, e, 1), local_x(&h, e, 2)), (20.0, 10.0), "half-way");
+    assert_eq!(
+        (local_x(&h, e, 1), local_x(&h, e, 2)),
+        (20.0, 10.0),
+        "half-way"
+    );
     for _ in 3..11 {
         h.tick();
     }
@@ -5895,7 +6557,11 @@ fn a_layer_at_weight_one_changes_masked_bones_only() {
 
     set_float(&mut h, e, "aim", f32::NAN);
     h.tick();
-    assert_eq!((local_x(&h, e, 1), local_x(&h, e, 2)), (0.0, 0.0), "non-finite: base");
+    assert_eq!(
+        (local_x(&h, e, 1), local_x(&h, e, 2)),
+        (0.0, 0.0),
+        "non-finite: base"
+    );
 }
 
 /// A mask root the skeleton lacks refuses at arm, anchored on the node —
@@ -5929,7 +6595,10 @@ fn arming_refuses_a_missing_root_clip() {
     h.tick();
     let rt = h.world.get::<&AnimGraphRuntime>(e).unwrap();
     let why = rt.disabled.as_deref().expect("refused");
-    assert!(why.contains("clip #21: clip 'anims/ik/nope.anim' could not be loaded"), "{why}");
+    assert!(
+        why.contains("clip #21: clip 'anims/ik/nope.anim' could not be loaded"),
+        "{why}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -5947,7 +6616,10 @@ fn mask_of(h: &Harness, e: hecs::Entity, node: u64) -> Vec<f32> {
 }
 
 fn local_of(h: &Harness, e: hecs::Entity, i: usize) -> LocalBoneTransform {
-    h.world.get::<&SkeletonInstance>(e).unwrap().local_transforms[i]
+    h.world
+        .get::<&SkeletonInstance>(e)
+        .unwrap()
+        .local_transforms[i]
 }
 
 /// The Layer's weight is its Float clamped to `[0, 1]`: above 1 is 1, below
@@ -5980,7 +6652,12 @@ fn a_layer_weight_clamps_to_the_unit_range() {
 #[test]
 fn a_layer_at_half_weight_is_the_sqt_blend_of_base_and_layer() {
     let (mut h, e) = armed_ik_doc(layer_doc_with("lower", "anims/ik/twist.anim", true));
-    assert!(h.world.get::<&AnimGraphRuntime>(e).unwrap().disabled.is_none());
+    assert!(h
+        .world
+        .get::<&AnimGraphRuntime>(e)
+        .unwrap()
+        .disabled
+        .is_none());
     let base = local_of(&h, e, 1);
     assert_eq!(base.translation, Vec3::ZERO);
     assert!(base.rotation.abs_diff_eq(glam::Quat::IDENTITY, 1e-6));
@@ -5993,17 +6670,38 @@ fn a_layer_at_half_weight_is_the_sqt_blend_of_base_and_layer() {
     set_float(&mut h, e, "aim", 1.0);
     h.tick();
     let layer = local_of(&h, e, 1);
-    assert!(layer.translation.abs_diff_eq(Vec3::new(40.0, 0.0, 0.0), 1e-5));
-    assert!(layer.rotation.abs_diff_eq(glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2), 1e-5));
+    assert!(layer
+        .translation
+        .abs_diff_eq(Vec3::new(40.0, 0.0, 0.0), 1e-5));
+    assert!(layer.rotation.abs_diff_eq(
+        glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+        1e-5
+    ));
     assert!(layer.scale.abs_diff_eq(Vec3::splat(2.0), 1e-5));
-    assert_eq!(local_of(&h, e, 2).translation, Vec3::ZERO, "hand: unkeyed by the layer, base kept");
+    assert_eq!(
+        local_of(&h, e, 2).translation,
+        Vec3::ZERO,
+        "hand: unkeyed by the layer, base kept"
+    );
 
     let want = base.blend(&layer, 0.5);
-    assert!(got.translation.abs_diff_eq(want.translation, 1e-5), "{got:?} vs {want:?}");
-    assert!(got.rotation.abs_diff_eq(want.rotation, 1e-5), "{got:?} vs {want:?}");
-    assert!(got.scale.abs_diff_eq(want.scale, 1e-5), "{got:?} vs {want:?}");
     assert!(
-        got.rotation.abs_diff_eq(glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_4), 1e-5),
+        got.translation.abs_diff_eq(want.translation, 1e-5),
+        "{got:?} vs {want:?}"
+    );
+    assert!(
+        got.rotation.abs_diff_eq(want.rotation, 1e-5),
+        "{got:?} vs {want:?}"
+    );
+    assert!(
+        got.scale.abs_diff_eq(want.scale, 1e-5),
+        "{got:?} vs {want:?}"
+    );
+    assert!(
+        got.rotation.abs_diff_eq(
+            glam::Quat::from_rotation_y(std::f32::consts::FRAC_PI_4),
+            1e-5
+        ),
         "a slerp, not a lerp: half a quarter turn"
     );
 }
@@ -6022,7 +6720,11 @@ fn a_layer_clip_missing_channels_keeps_the_base_for_that_bone() {
     let (mut h, e) = armed_ik_doc(doc);
     set_float(&mut h, e, "aim", 1.0);
     h.tick();
-    assert_eq!(local_x(&h, e, 1), 10.0, "lower: the layer has no channel, the walk stays");
+    assert_eq!(
+        local_x(&h, e, 1),
+        10.0,
+        "lower: the layer has no channel, the walk stays"
+    );
     assert_eq!(local_x(&h, e, 2), 40.0, "hand: the layer's channel");
     assert_eq!(local_x(&h, e, 0), 0.0);
 }
@@ -6035,8 +6737,16 @@ fn include_root_false_excludes_the_root_bone_itself() {
     assert_eq!(mask_of(&h, e, 22), vec![0.0, 0.0, 1.0, 1.0]);
     set_float(&mut h, e, "aim", 1.0);
     h.tick();
-    assert_eq!(local_x(&h, e, 1), 0.0, "lower: the excluded root keeps the base");
-    assert_eq!(local_x(&h, e, 2), 20.0, "hand: a descendant follows the layer");
+    assert_eq!(
+        local_x(&h, e, 1),
+        0.0,
+        "lower: the excluded root keeps the base"
+    );
+    assert_eq!(
+        local_x(&h, e, 2),
+        20.0,
+        "hand: a descendant follows the layer"
+    );
 }
 
 /// Overlapping roots union — a bone under any listed root is in, whichever
@@ -6088,8 +6798,15 @@ fn a_masked_play_once_fades_on_its_bones_and_fires_at_plateau_weight() {
     h.tick(); // tick 2: the cast starts at weight 0; the stride's foot_down (0.15) crosses
     let ev = events_of(&h, e);
     assert_eq!(count(&ev, "foot_down"), 1, "{ev:?}");
-    assert_eq!(ev.iter().find(|f| f.name == "foot_down").unwrap().weight, 1.0);
-    assert_eq!((local_x(&h, e, 1), local_x(&h, e, 2)), (5.0, 2.5), "weight 0: the stride");
+    assert_eq!(
+        ev.iter().find(|f| f.name == "foot_down").unwrap().weight,
+        1.0
+    );
+    assert_eq!(
+        (local_x(&h, e, 1), local_x(&h, e, 2)),
+        (5.0, 2.5),
+        "weight 0: the stride"
+    );
 
     h.tick(); // tick 3: slot clock [0, 0.1) → envelope 0.5
     assert_eq!(local_x(&h, e, 2), 8.75, "hand: half-way from 2.5 to 15");
@@ -6099,11 +6816,19 @@ fn a_masked_play_once_fades_on_its_bones_and_fires_at_plateau_weight() {
     h.tick(); // tick 5: [0.2, 0.3) crosses `hit` (0.25)
     let ev = events_of(&h, e);
     assert_eq!(count(&ev, "hit"), 1, "{ev:?}");
-    assert_eq!(ev.iter().find(|f| f.name == "hit").unwrap().weight, 1.0, "full plateau weight");
+    assert_eq!(
+        ev.iter().find(|f| f.name == "hit").unwrap().weight,
+        1.0,
+        "full plateau weight"
+    );
     h.tick(); // tick 6
     h.tick(); // tick 7: the stride's foot_up (0.65) under the cast
     let ev = events_of(&h, e);
-    assert_eq!(count(&ev, "foot_up"), 1, "masked: base events untouched: {ev:?}");
+    assert_eq!(
+        count(&ev, "foot_up"),
+        1,
+        "masked: base events untouched: {ev:?}"
+    );
     assert_eq!(ev.iter().find(|f| f.name == "foot_up").unwrap().weight, 1.0);
 }
 
@@ -6136,22 +6861,47 @@ fn root_clip_base_doc() -> GraphDoc {
 #[test]
 fn a_root_clip_loops_at_its_speed_and_fires_at_the_base_weight() {
     let (mut h, e) = armed_ik_doc(root_clip_base_doc()); // tick 1: clock [0, 0.2)
-    assert!(h.world.get::<&AnimGraphRuntime>(e).unwrap().disabled.is_none());
+    assert!(h
+        .world
+        .get::<&AnimGraphRuntime>(e)
+        .unwrap()
+        .disabled
+        .is_none());
     let ev = events_of(&h, e);
     assert_eq!(count(&ev, "lap"), 1, "{ev:?}");
     assert_eq!(ev[0].weight, 1.0, "the Base side is heard at 1");
-    assert!((local_x(&h, e, 1) - 2.0).abs() < 1e-4, "0.2 s into the ramp");
+    assert!(
+        (local_x(&h, e, 1) - 2.0).abs() < 1e-4,
+        "0.2 s into the ramp"
+    );
     for t in 2..=5 {
         h.tick();
         assert_eq!(count(&events_of(&h, e), "lap"), 0, "tick {t}");
         if t == 4 {
-            assert!((local_x(&h, e, 1) - 8.0).abs() < 1e-4, "0.8 s into the ramp");
+            assert!(
+                (local_x(&h, e, 1) - 8.0).abs() < 1e-4,
+                "0.8 s into the ramp"
+            );
         }
     }
     h.tick(); // tick 6: [1.0, 1.2) — the second cycle
     let clock = h.world.get::<&AnimGraphRuntime>(e).unwrap().root_clocks[0];
-    assert!((clock.prev - 1.0).abs() < 1e-5 && (clock.time - 1.2).abs() < 1e-5, "{clock:?}");
-    assert_eq!(count(&events_of(&h, e), "lap"), 1, "fired again on the wrap");
-    assert!((local_x(&h, e, 1) - 2.0).abs() < 1e-4, "wrapped: 0.2 s into the ramp again");
-    assert_eq!(local_x(&h, e, 2), 0.0, "the machine's Idle on the Layer side at aim 0 is silent");
+    assert!(
+        (clock.prev - 1.0).abs() < 1e-5 && (clock.time - 1.2).abs() < 1e-5,
+        "{clock:?}"
+    );
+    assert_eq!(
+        count(&events_of(&h, e), "lap"),
+        1,
+        "fired again on the wrap"
+    );
+    assert!(
+        (local_x(&h, e, 1) - 2.0).abs() < 1e-4,
+        "wrapped: 0.2 s into the ramp again"
+    );
+    assert_eq!(
+        local_x(&h, e, 2),
+        0.0,
+        "the machine's Idle on the Layer side at aim 0 is silent"
+    );
 }

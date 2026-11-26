@@ -19,7 +19,10 @@ use crate::doc::{GraphDoc, GRAPH_DOC_VERSION};
 #[derive(Debug)]
 pub enum GraphIoError {
     /// The document's container version is newer than this engine build.
-    NewerVersion { found: u32, supported: u32 },
+    NewerVersion {
+        found: u32,
+        supported: u32,
+    },
     Parse(String),
     Io(String),
 }
@@ -56,8 +59,7 @@ pub fn parse_graph(text: &str) -> Result<GraphDoc, GraphIoError> {
             supported: GRAPH_DOC_VERSION,
         });
     }
-    let mut doc: GraphDoc =
-        ron::from_str(text).map_err(|e| GraphIoError::Parse(e.to_string()))?;
+    let mut doc: GraphDoc = ron::from_str(text).map_err(|e| GraphIoError::Parse(e.to_string()))?;
     migrate_container(&mut doc, probe.version);
     Ok(doc)
 }
@@ -109,7 +111,12 @@ fn migrate_container(doc: &mut GraphDoc, from: u32) {
 /// its live order, because the undo stack addresses nodes and edges by index.
 pub fn serialize_graph(doc: &GraphDoc) -> Result<String, GraphIoError> {
     let canonical = canonical_form(doc);
-    let config = ron::ser::PrettyConfig::new().struct_names(false);
+    // Pin the newline: ron defaults to the platform newline (CRLF on Windows), which
+    // would make .graph files differ by the OS that saved them and break the
+    // byte-for-byte golden tests on Linux CI.
+    let config = ron::ser::PrettyConfig::new()
+        .struct_names(false)
+        .new_line("\n".to_string());
     let mut text = ron::ser::to_string_pretty(&canonical, config)
         .map_err(|e| GraphIoError::Parse(e.to_string()))?;
     // A text file ends with a newline. Without it every diff of an asset's
@@ -188,7 +195,8 @@ mod tests {
                 position: [10.4, -3.6],
                 properties: BTreeMap::new(),
                 subgraph: None,
-                tint: None, title: None,
+                tint: None,
+                title: None,
             },
             NodeInst {
                 id: 2,
@@ -197,11 +205,18 @@ mod tests {
                 position: [0.49, 100.5],
                 properties: BTreeMap::new(),
                 subgraph: None,
-                tint: None, title: None,
+                tint: None,
+                title: None,
             },
         ];
-        a.comments = vec![CommentBox { rect: [1.2, 2.7, 100.4, 60.6], ..Default::default() }];
-        a.groups = vec![GroupBox { rect: [-0.4, 9.5, 20.2, 30.8], ..Default::default() }];
+        a.comments = vec![CommentBox {
+            rect: [1.2, 2.7, 100.4, 60.6],
+            ..Default::default()
+        }];
+        a.groups = vec![GroupBox {
+            rect: [-0.4, 9.5, 20.2, 30.8],
+            ..Default::default()
+        }];
 
         // The same doc with the nodes entered in the other order must produce
         // byte-identical output.
@@ -212,7 +227,10 @@ mod tests {
 
         // Node order on disk is id order.
         let reloaded = parse_graph(&ta).unwrap();
-        assert_eq!(reloaded.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![2, 7]);
+        assert_eq!(
+            reloaded.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            vec![2, 7]
+        );
         // Positions and rects are whole pixels.
         assert_eq!(reloaded.nodes[0].position, [0.0, 101.0]);
         assert_eq!(reloaded.nodes[1].position, [10.0, -4.0]);
@@ -224,7 +242,10 @@ mod tests {
         assert!(ta.ends_with('\n'), "an asset must end with a newline");
 
         // …and the in-memory doc is untouched: undo addresses nodes by index.
-        assert_eq!(a.nodes[0].id, 7, "canonicalization must not reorder in memory");
+        assert_eq!(
+            a.nodes[0].id, 7,
+            "canonicalization must not reorder in memory"
+        );
         assert_eq!(a.nodes[0].position, [10.4, -3.6]);
     }
 
@@ -240,7 +261,8 @@ mod tests {
             position: [f32::NAN, f32::INFINITY],
             properties: BTreeMap::new(),
             subgraph: None,
-            tint: None, title: None,
+            tint: None,
+            title: None,
         }];
         let text = serialize_graph(&d).unwrap();
         assert!(!text.contains("NaN") && !text.contains("inf"), "{text}");
@@ -261,7 +283,9 @@ mod tests {
             .join("content/graphs");
         let mut stack = vec![root];
         while let Some(dir) = stack.pop() {
-            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for e in entries.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -302,7 +326,9 @@ mod tests {
         let mut stack = vec![root];
         let mut checked = 0;
         while let Some(dir) = stack.pop() {
-            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for e in entries.flatten() {
                 let p = e.path();
                 if p.is_dir() {
@@ -340,8 +366,10 @@ mod tests {
                     position: [40.0, 80.0],
                     properties: BTreeMap::new(),
                     subgraph: None,
-                
-                tint: None, title: None,},
+
+                    tint: None,
+                    title: None,
+                },
                 NodeInst {
                     id: 1,
                     type_id: "test_damage".to_string(),
@@ -349,8 +377,10 @@ mod tests {
                     position: [260.0, 80.0],
                     properties: props,
                     subgraph: None,
-                
-                tint: None, title: None,},
+
+                    tint: None,
+                    title: None,
+                },
             ],
             edges: vec![Edge {
                 from_node: 0,
@@ -393,7 +423,8 @@ mod tests {
                     position: [60.0, 120.0],
                     properties: BTreeMap::new(),
                     subgraph: None,
-                    tint: None, title: None,
+                    tint: None,
+                    title: None,
                 },
                 NodeInst {
                     id: 1,
@@ -402,7 +433,8 @@ mod tests {
                     position: [320.0, 100.0],
                     properties: damage_props,
                     subgraph: None,
-                    tint: Some(4), title: None,
+                    tint: Some(4),
+                    title: None,
                 },
             ],
             edges: vec![Edge {
@@ -420,16 +452,17 @@ mod tests {
         let empty = crate::NodeRegistry::new();
 
         let loaded = parse_graph(&text).expect("an unknown type must not break loading");
-        assert_eq!(loaded, doc, "every node, property and edge survives loading");
+        assert_eq!(
+            loaded, doc,
+            "every node, property and edge survives loading"
+        );
 
         // Validation degrades to anchored errors, not data loss.
         let errors = crate::validate_doc(&loaded, &empty);
         let unknown: Vec<&str> = errors
             .iter()
             .filter_map(|e| match e {
-                crate::GraphError::UnknownNodeType { type_id, .. } => {
-                    Some(type_id.as_str())
-                }
+                crate::GraphError::UnknownNodeType { type_id, .. } => Some(type_id.as_str()),
                 _ => None,
             })
             .collect();
@@ -437,10 +470,7 @@ mod tests {
 
         // Migration leaves unknown types alone rather than rejecting the doc.
         let mut migrating = loaded.clone();
-        assert_eq!(
-            crate::migrate_doc(&mut migrating, &empty).unwrap(),
-            vec![]
-        );
+        assert_eq!(crate::migrate_doc(&mut migrating, &empty).unwrap(), vec![]);
 
         // The save round trip: byte-identical, nothing dropped.
         let resaved = serialize_graph(&migrating).unwrap();
@@ -528,7 +558,11 @@ mod tests {
         let a = serialize_graph(&doc).unwrap();
         let back = parse_graph(&a).unwrap();
         assert_eq!(back, doc);
-        assert_eq!(serialize_graph(&back).unwrap(), a, "canonical form is idempotent");
+        assert_eq!(
+            serialize_graph(&back).unwrap(),
+            a,
+            "canonical form is idempotent"
+        );
         assert!(a.ends_with('\n'));
         assert!(
             a.contains(&format!("version: {GRAPH_DOC_VERSION}")),
@@ -537,7 +571,10 @@ mod tests {
         // Node titles and variable declarations reach the file.
         assert!(a.contains("title: Some(\"Start Here\")"), "{a}");
         assert!(a.contains("Array(String)"), "{a}");
-        assert_eq!(back.variable("names").unwrap().ty, PinType::Array(Box::new(PinType::String)));
+        assert_eq!(
+            back.variable("names").unwrap().ty,
+            PinType::Array(Box::new(PinType::String))
+        );
         assert_eq!(back.variable("target").unwrap().default, None);
         assert_eq!(back.nodes[0].title.as_deref(), Some("Start Here"));
         assert_eq!(back.nodes[1].title, None);
@@ -553,9 +590,15 @@ mod tests {
         assert!(!v1.contains("variables"), "the input fixture must stay v1");
 
         let doc = parse_graph(v1).unwrap();
-        assert_eq!(doc.version, GRAPH_DOC_VERSION, "loading stamps the new version");
+        assert_eq!(
+            doc.version, GRAPH_DOC_VERSION,
+            "loading stamps the new version"
+        );
         assert_eq!(doc.variables, vec![], "v1 knew no variables");
-        assert!(doc.nodes.iter().all(|n| n.title.is_none()), "v1 knew no titles");
+        assert!(
+            doc.nodes.iter().all(|n| n.title.is_none()),
+            "v1 knew no titles"
+        );
 
         // Nothing else moved.
         assert_eq!(doc.realm, GraphRealm::Client);
@@ -661,7 +704,11 @@ mod tests {
         let a = serialize_graph(&doc).unwrap();
         let back = parse_graph(&a).unwrap();
         assert_eq!(back, doc);
-        assert_eq!(serialize_graph(&back).unwrap(), a, "canonical form is idempotent");
+        assert_eq!(
+            serialize_graph(&back).unwrap(),
+            a,
+            "canonical form is idempotent"
+        );
         assert!(a.contains("version: 4"), "{a}");
         assert!(a.contains("regions"), "{a}");
 
@@ -670,7 +717,11 @@ mod tests {
         let region = messy.regions.get_mut(&1).unwrap();
         region.nodes.reverse();
         region.nodes[0].position = [199.6, 0.4];
-        assert_eq!(serialize_graph(&messy).unwrap(), a, "region order/sub-pixels must not churn");
+        assert_eq!(
+            serialize_graph(&messy).unwrap(),
+            a,
+            "region order/sub-pixels must not churn"
+        );
 
         // No regions → no `regions` field on disk (and byte-parity with what
         // a v2 build wrote, apart from the version stamp).
@@ -682,7 +733,10 @@ mod tests {
     #[test]
     fn container_v2_migrates_to_v3() {
         let doc = parse_graph(include_str!("fixtures/container_v2.graph")).unwrap();
-        assert_eq!(doc.version, GRAPH_DOC_VERSION, "loading stamps the new version");
+        assert_eq!(
+            doc.version, GRAPH_DOC_VERSION,
+            "loading stamps the new version"
+        );
         assert!(doc.regions.is_empty(), "v2 knew no regions");
         assert_eq!(doc, v2_doc());
     }
@@ -694,8 +748,14 @@ mod tests {
         let v3 = include_str!("fixtures/container_v3.graph");
         assert!(v3.contains("version: 3"), "the input fixture must stay v3");
         let doc = parse_graph(v3).unwrap();
-        assert_eq!(doc.version, GRAPH_DOC_VERSION, "loading stamps the new version");
-        assert!(doc.comments.iter().all(|c| c.family.is_none()), "v3 knew no families");
+        assert_eq!(
+            doc.version, GRAPH_DOC_VERSION,
+            "loading stamps the new version"
+        );
+        assert!(
+            doc.comments.iter().all(|c| c.family.is_none()),
+            "v3 knew no families"
+        );
         assert!(doc.groups.iter().all(|g| g.family.is_none()));
         assert_eq!(doc, v3_doc());
     }
@@ -720,14 +780,21 @@ mod tests {
     fn checked_in_v4_fixture_parses() {
         if std::env::var("UPDATE_GRAPH_FIXTURES").is_ok() {
             std::fs::write(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/fixtures/container_v4.graph"),
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/src/fixtures/container_v4.graph"
+                ),
                 serialize_graph(&v4_doc()).unwrap(),
             )
             .unwrap();
             return; // freshly written; the compiled-in copy is stale
         }
         let text = include_str!("fixtures/container_v4.graph");
-        assert_eq!(text.matches("family").count(), 1, "untagged annotations write no field");
+        assert_eq!(
+            text.matches("family").count(),
+            1,
+            "untagged annotations write no field"
+        );
         let doc = parse_graph(text).unwrap();
         assert_eq!(doc, v4_doc());
         assert_eq!(serialize_graph(&doc).unwrap(), text, "fixed point");
@@ -739,7 +806,10 @@ mod tests {
     #[test]
     fn remove_node_cascades_region_edges_and_anchored_comments() {
         let mut doc = v3_doc();
-        doc.comments.push(CommentBox { anchor: Some(1), ..Default::default() });
+        doc.comments.push(CommentBox {
+            anchor: Some(1),
+            ..Default::default()
+        });
         assert!(doc.remove_node(1));
         assert!(doc.node(1).is_none());
         assert!(doc.regions.is_empty(), "the rule dies with its transition");
@@ -751,7 +821,10 @@ mod tests {
 
     #[test]
     fn newer_container_version_is_rejected() {
-        let doc = GraphDoc { version: GRAPH_DOC_VERSION + 1, ..GraphDoc::default() };
+        let doc = GraphDoc {
+            version: GRAPH_DOC_VERSION + 1,
+            ..GraphDoc::default()
+        };
         let text = serialize_graph(&doc).unwrap();
         match parse_graph(&text) {
             Err(GraphIoError::NewerVersion { found, .. }) => {
@@ -795,8 +868,10 @@ mod tests {
             position: [500.0, 80.0],
             properties: BTreeMap::new(),
             subgraph: Some("graphs/lib/calc.subgraph".to_string()),
-        
-        tint: None, title: None,});
+
+            tint: None,
+            title: None,
+        });
 
         let dir = std::env::temp_dir().join("rust_engine_graph_io_test");
         std::fs::create_dir_all(&dir).unwrap();

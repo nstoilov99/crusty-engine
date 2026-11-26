@@ -197,7 +197,17 @@ fn pure(
     inputs: Vec<PinDescriptor>,
     outputs: Vec<PinDescriptor>,
 ) -> NodeDescriptor {
-    Desc { id, name, category, doc, pure: true, deterministic: true, inputs, outputs }.build()
+    Desc {
+        id,
+        name,
+        category,
+        doc,
+        pure: true,
+        deterministic: true,
+        inputs,
+        outputs,
+    }
+    .build()
 }
 
 fn impure(
@@ -208,7 +218,17 @@ fn impure(
     inputs: Vec<PinDescriptor>,
     outputs: Vec<PinDescriptor>,
 ) -> NodeDescriptor {
-    Desc { id, name, category, doc, pure: false, deterministic: true, inputs, outputs }.build()
+    Desc {
+        id,
+        name,
+        category,
+        doc,
+        pure: false,
+        deterministic: true,
+        inputs,
+        outputs,
+    }
+    .build()
 }
 
 /// A pure node whose value is not a function of its inputs alone — instance
@@ -223,7 +243,17 @@ fn volatile(
     inputs: Vec<PinDescriptor>,
     outputs: Vec<PinDescriptor>,
 ) -> NodeDescriptor {
-    Desc { id, name, category, doc, pure: true, deterministic: false, inputs, outputs }.build()
+    Desc {
+        id,
+        name,
+        category,
+        doc,
+        pure: true,
+        deterministic: false,
+        inputs,
+        outputs,
+    }
+    .build()
 }
 
 /// Every standard node descriptor, in registration order.
@@ -375,10 +405,25 @@ fn control() -> Vec<NodeDescriptor> {
     }
     // Select, one variant per picked type.
     for (id, name, ty, default) in [
-        (SELECT_FLOAT, "Select (Float)", PinType::Float, PropValue::Float(0.0)),
+        (
+            SELECT_FLOAT,
+            "Select (Float)",
+            PinType::Float,
+            PropValue::Float(0.0),
+        ),
         (SELECT_INT, "Select (Int)", PinType::Int, PropValue::Int(0)),
-        (SELECT_BOOL, "Select (Bool)", PinType::Bool, PropValue::Bool(false)),
-        (SELECT_STRING, "Select (String)", PinType::String, PropValue::Str(String::new())),
+        (
+            SELECT_BOOL,
+            "Select (Bool)",
+            PinType::Bool,
+            PropValue::Bool(false),
+        ),
+        (
+            SELECT_STRING,
+            "Select (String)",
+            PinType::String,
+            PropValue::Str(String::new()),
+        ),
     ] {
         v.push(pure(
             id,
@@ -435,7 +480,11 @@ fn logic_math() -> Vec<NodeDescriptor> {
             "Clamp (Float)",
             "Math",
             "Constrains a value to Min..Max",
-            vec![f("value", "Value", 0.0), f("min", "Min", 0.0), f("max", "Max", 1.0)],
+            vec![
+                f("value", "Value", 0.0),
+                f("min", "Min", 0.0),
+                f("max", "Max", 1.0),
+            ],
             vec![f("result", "Result", 0.0)],
         ),
         pure(
@@ -443,7 +492,11 @@ fn logic_math() -> Vec<NodeDescriptor> {
             "Clamp (Int)",
             "Math",
             "Constrains a value to Min..Max",
-            vec![i("value", "Value", 0), i("min", "Min", 0), i("max", "Max", 1)],
+            vec![
+                i("value", "Value", 0),
+                i("min", "Min", 0),
+                i("max", "Max", 1),
+            ],
             vec![i("result", "Result", 0)],
         ),
         volatile(
@@ -465,8 +518,18 @@ fn logic_math() -> Vec<NodeDescriptor> {
     ];
     // Comparisons: two nodes, operator as a declared-variant Enum.
     for (id, name, ty, default) in [
-        (COMPARE_INT, "Compare (Int)", PinType::Int, PropValue::Int(0)),
-        (COMPARE_FLOAT, "Compare (Float)", PinType::Float, PropValue::Float(0.0)),
+        (
+            COMPARE_INT,
+            "Compare (Int)",
+            PinType::Int,
+            PropValue::Int(0),
+        ),
+        (
+            COMPARE_FLOAT,
+            "Compare (Float)",
+            PinType::Float,
+            PropValue::Float(0.0),
+        ),
     ] {
         v.push(pure(
             id,
@@ -496,7 +559,10 @@ fn logic_math() -> Vec<NodeDescriptor> {
             name,
             "Math",
             doc,
-            vec![i("a", "A", 0), i("b", "B", if id == DIV_INT || id == MUL_INT { 1 } else { 0 })],
+            vec![
+                i("a", "A", 0),
+                i("b", "B", if id == DIV_INT || id == MUL_INT { 1 } else { 0 }),
+            ],
             vec![i("result", "Result", 0)],
         ));
     }
@@ -513,7 +579,15 @@ fn logic_math() -> Vec<NodeDescriptor> {
             doc,
             vec![
                 f("a", "A", 0.0),
-                f("b", "B", if id == DIV_FLOAT || id == MUL_FLOAT { 1.0 } else { 0.0 }),
+                f(
+                    "b",
+                    "B",
+                    if id == DIV_FLOAT || id == MUL_FLOAT {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                ),
             ],
             vec![f("result", "Result", 0.0)],
         ));
@@ -597,7 +671,10 @@ fn effects() -> Vec<NodeDescriptor> {
             "Emit Event",
             "Event",
             "Queues a custom event on this graph for the next tick",
-            vec![exec_in(), s("name", "Name").with_doc("Must match a Custom Event node's name")],
+            vec![
+                exec_in(),
+                s("name", "Name").with_doc("Must match a Custom Event node's name"),
+            ],
             vec![exec_out()],
         ),
         impure(
@@ -713,27 +790,43 @@ mod tests {
         crate::std_events::register_std_events(&mut reg).unwrap();
 
         let all = std_node_descriptors();
-        assert!(all.len() >= 40, "the D5 library is ~40 nodes, got {}", all.len());
+        assert!(
+            all.len() >= 40,
+            "the D5 library is ~40 nodes, got {}",
+            all.len()
+        );
 
         let mut ids = BTreeSet::new();
         for d in &all {
             assert!(ids.insert(d.id.clone()), "duplicate id '{}'", d.id);
-            assert!(d.doc.is_some(), "'{}' has no doc line — the create menu reads it", d.id);
+            assert!(
+                d.doc.is_some(),
+                "'{}' has no doc line — the create menu reads it",
+                d.id
+            );
             assert!(!d.name.is_empty() && !d.category.is_empty(), "{}", d.id);
             // Slugs are forever: keep them boring.
             assert!(
-                d.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
+                d.id.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
                 "'{}' is not a snake_case slug",
                 d.id
             );
             for p in d.inputs.iter().chain(d.outputs.iter()) {
                 assert!(
-                    p.slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
+                    p.slug
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
                     "'{}' pin '{}' is not a snake_case slug",
                     d.id,
                     p.slug
                 );
-                assert!(!p.label.is_empty(), "'{}' pin '{}' has no label", d.id, p.slug);
+                assert!(
+                    !p.label.is_empty(),
+                    "'{}' pin '{}' has no label",
+                    d.id,
+                    p.slug
+                );
             }
         }
     }
@@ -744,7 +837,10 @@ mod tests {
     #[test]
     fn comparison_operators_are_declared_variants() {
         for id in [COMPARE_INT, COMPARE_FLOAT] {
-            let d = std_node_descriptors().into_iter().find(|d| d.id == id).unwrap();
+            let d = std_node_descriptors()
+                .into_iter()
+                .find(|d| d.id == id)
+                .unwrap();
             let op = d.input("op").expect("an operator pin");
             assert_eq!(op.variants, COMPARE_OPS.map(String::from).to_vec());
             assert!(op.accepts_variant("less_equal"));

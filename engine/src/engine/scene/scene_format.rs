@@ -412,18 +412,20 @@ fn default_plankton_initial_velocity() -> [f32; 3] {
 
 /// Spawn shape for scene serialization.
 /// Custom serde impl for the same RON internally-tagged enum reason as CameraProjectionData.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum SpawnShapeData {
+    #[default]
     Point,
-    Sphere { radius: f32 },
-    Cone { angle_rad: f32, radius: f32 },
-    Box { half_extents: [f32; 3] },
-}
-
-impl Default for SpawnShapeData {
-    fn default() -> Self {
-        Self::Point
-    }
+    Sphere {
+        radius: f32,
+    },
+    Cone {
+        angle_rad: f32,
+        radius: f32,
+    },
+    Box {
+        half_extents: [f32; 3],
+    },
 }
 
 impl Serialize for SpawnShapeData {
@@ -1007,8 +1009,7 @@ mod tests {
             }],
         };
         // Same serializer configuration as `serialize_scene_to_string`.
-        let text =
-            ron::ser::to_string_pretty(&scene, ron::ser::PrettyConfig::default()).unwrap();
+        let text = ron::ser::to_string_pretty(&scene, ron::ser::PrettyConfig::default()).unwrap();
         assert!(!text.contains("jump_requested") && !text.contains("yaw"));
 
         let back: SceneFile = ron::from_str(&text).unwrap();

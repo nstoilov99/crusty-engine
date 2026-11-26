@@ -110,8 +110,8 @@ impl StandaloneApp {
 
         let args: Vec<String> = std::env::args().collect();
         let bench_flags = crate::bench::parse_flags(&args);
-        let offline_scene = crate::bench::arg_value(&args, "--scene")
-            .unwrap_or_else(|| OFFLINE_SCENE.to_string());
+        let offline_scene =
+            crate::bench::arg_value(&args, "--scene").unwrap_or_else(|| OFFLINE_SCENE.to_string());
         println!("standalone: offline scene '{offline_scene}'");
 
         let window_config = rust_engine::engine::utils::WindowConfig::load_or_default();
@@ -509,7 +509,7 @@ impl StandaloneApp {
             .game_world
             .resources_mut()
             .remove::<TransformCache>()
-            .unwrap_or_else(TransformCache::new);
+            .unwrap_or_default();
         transform_cache.propagate(self.game_world.hecs_mut());
         self.game_world.resources_mut().insert(transform_cache);
 
@@ -633,7 +633,8 @@ impl StandaloneApp {
             {
                 let status = net.status_line();
                 if status != self.net_title_status {
-                    self.window.set_title(&format!("Rust Game Engine — {status}"));
+                    self.window
+                        .set_title(&format!("Rust Game Engine — {status}"));
                     self.net_title_status = status;
                 }
             }

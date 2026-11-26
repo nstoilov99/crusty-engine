@@ -368,9 +368,9 @@ impl SpacetimeNetClient {
     /// forges stale and foreign values through this.
     pub fn dev_submit_input_raw(&mut self, epoch: u32, seq: u32, move_dir: [f32; 2], yaw: f32) {
         if let Some(conn) = &self.conn {
-            let _ = conn
-                .reducers
-                .submit_input(epoch, seq, move_dir[0], move_dir[1], yaw, false, false);
+            let _ =
+                conn.reducers
+                    .submit_input(epoch, seq, move_dir[0], move_dir[1], yaw, false, false);
         }
     }
 
@@ -463,7 +463,10 @@ impl SpacetimeNetClient {
     }
 
     fn subscribe_base(&mut self) {
-        let conn = self.conn.as_ref().expect("subscribe_base requires a connection");
+        let conn = self
+            .conn
+            .as_ref()
+            .expect("subscribe_base requires a connection");
         let hex = conn
             .try_identity()
             .expect("subscribe_base requires an identity")
@@ -493,8 +496,8 @@ impl SpacetimeNetClient {
     }
 
     /// M8 D2 interest pump: subscriptions follow a hysteresis-stabilized
-    /// anchor cell (`re_anchor`: the anchor only moves once the position is
-    /// > 8 m outside its AABB, so border wiggle never thrashes). The anchor
+    /// anchor cell (`re_anchor`: the anchor only moves once the position is more
+    /// than 8 m outside its AABB, so border wiggle never thrashes). The anchor
     /// tracks the *predicted* position when a hint is set, the authoritative
     /// own row otherwise.
     ///
@@ -609,11 +612,17 @@ impl SpacetimeNetClient {
         sample_on!(conn.db.npc(), Self::npc_state);
         // Coarse rows only dirty the snapshot — no interp samples (M8 D3).
         let f = flags.clone();
-        conn.db.entity_coarse().on_insert(move |_, _| f.mark_dirty());
+        conn.db
+            .entity_coarse()
+            .on_insert(move |_, _| f.mark_dirty());
         let f = flags.clone();
-        conn.db.entity_coarse().on_update(move |_, _, _| f.mark_dirty());
+        conn.db
+            .entity_coarse()
+            .on_update(move |_, _, _| f.mark_dirty());
         let f = flags.clone();
-        conn.db.entity_coarse().on_delete(move |_, _| f.mark_dirty());
+        conn.db
+            .entity_coarse()
+            .on_delete(move |_, _| f.mark_dirty());
         let f = flags.clone();
         conn.db.tombstone().on_insert(move |_, row| {
             f.push_tombstone(row.entity_id, row.generation);
@@ -767,9 +776,10 @@ impl NetClient for SpacetimeNetClient {
             }
             Err(e) => {
                 self.state = ConnectionState::Disconnected;
-                self.pending.push(NetEvent::Disconnected(DisconnectReason::ConnectionLost(
-                    format!("connect failed: {e}"),
-                )));
+                self.pending
+                    .push(NetEvent::Disconnected(DisconnectReason::ConnectionLost(
+                        format!("connect failed: {e}"),
+                    )));
             }
         }
     }
@@ -857,7 +867,10 @@ impl NetClient for SpacetimeNetClient {
         match self.state {
             ConnectionState::Connecting => {
                 let identity_ready = self.flags.connected.load(Ordering::Acquire)
-                    && self.conn.as_ref().is_some_and(|c| c.try_identity().is_some());
+                    && self
+                        .conn
+                        .as_ref()
+                        .is_some_and(|c| c.try_identity().is_some());
                 if identity_ready {
                     self.subscribe_base();
                     self.state = ConnectionState::AwaitBaseSub;

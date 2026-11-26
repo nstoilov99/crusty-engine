@@ -106,17 +106,26 @@ mod tests {
     #[test]
     fn forward_input_follows_camera_yaw() {
         assert!(close(camera_relative_dir((0.0, 1.0), 0.0), [1.0, 0.0]));
-        assert!(close(camera_relative_dir((0.0, 1.0), FRAC_PI_2), [0.0, 1.0]));
+        assert!(close(
+            camera_relative_dir((0.0, 1.0), FRAC_PI_2),
+            [0.0, 1.0]
+        ));
         // Strafe right at yaw 0 is +Y; at yaw 90° it is -X.
         assert!(close(camera_relative_dir((1.0, 0.0), 0.0), [0.0, 1.0]));
-        assert!(close(camera_relative_dir((1.0, 0.0), FRAC_PI_2), [-1.0, 0.0]));
+        assert!(close(
+            camera_relative_dir((1.0, 0.0), FRAC_PI_2),
+            [-1.0, 0.0]
+        ));
     }
 
     #[test]
     fn diagonal_is_clamped_to_unit_and_deadzone_is_zero() {
         let d = camera_relative_dir((1.0, 1.0), 0.0);
         assert!((d[0] * d[0] + d[1] * d[1] - 1.0).abs() < 1e-5);
-        assert!(camera_relative_dir((0.5, 0.0), 0.0)[1] == 0.5, "analog magnitude kept");
+        assert!(
+            camera_relative_dir((0.5, 0.0), 0.0)[1] == 0.5,
+            "analog magnitude kept"
+        );
         assert_eq!(camera_relative_dir((0.0, 0.0), 1.0), [0.0; 2]);
     }
 
@@ -127,7 +136,11 @@ mod tests {
         let cams = [(Some(other), 0.5), (None, 0.7), (Some(me), 0.9)];
         assert_eq!(camera_yaw(&cams, Some(me)), 0.9);
         assert_eq!(camera_yaw(&cams, Some(Uuid::from_u128(3))), 0.5);
-        assert_eq!(camera_yaw(&cams, None), 0.5, "untargeted camera never matches by None");
+        assert_eq!(
+            camera_yaw(&cams, None),
+            0.5,
+            "untargeted camera never matches by None"
+        );
         assert_eq!(camera_yaw(&[], Some(me)), 0.0);
     }
 }

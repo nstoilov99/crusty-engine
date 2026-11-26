@@ -163,16 +163,13 @@ impl Default for EditorVisibility {
 }
 
 /// Camera projection type
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum CameraProjection {
+    #[default]
     Perspective,
-    Orthographic { size: f32 },
-}
-
-impl Default for CameraProjection {
-    fn default() -> Self {
-        Self::Perspective
-    }
+    Orthographic {
+        size: f32,
+    },
 }
 
 /// Camera component for 3D rendering
@@ -299,18 +296,20 @@ fn default_shadow_bias() -> f32 {
 }
 
 /// Spawn shape for particle emitters (Z-up game space)
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum SpawnShape {
+    #[default]
     Point,
-    Sphere { radius: f32 },
-    Cone { angle_rad: f32, radius: f32 },
-    Box { half_extents: [f32; 3] },
-}
-
-impl Default for SpawnShape {
-    fn default() -> Self {
-        Self::Point
-    }
+    Sphere {
+        radius: f32,
+    },
+    Cone {
+        angle_rad: f32,
+        radius: f32,
+    },
+    Box {
+        half_extents: [f32; 3],
+    },
 }
 
 /// Composable particle simulation module.
@@ -352,16 +351,11 @@ impl UpdateModule {
 }
 
 /// Particle render mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RenderMode {
+    #[default]
     Billboard,
     // Ribbon, Mesh, Light — future
-}
-
-impl Default for RenderMode {
-    fn default() -> Self {
-        Self::Billboard
-    }
 }
 
 /// Deserialize capacity with clamping to 256..=4096

@@ -235,14 +235,27 @@ mod tests {
         p.normalize();
         assert_eq!(p.graph.zoom_min, 0.4);
         assert_eq!(p.graph.zoom_max, 1.8);
-        assert_eq!(p.graph.wires, super::super::graph_prefs::WirePrefs::default());
+        assert_eq!(
+            p.graph.wires,
+            super::super::graph_prefs::WirePrefs::default()
+        );
         // …and the legacy keys are not written back out.
         let text = ron::ser::to_string_pretty(&p, Default::default()).unwrap();
-        assert!(!text.contains("graph_zoom_min"), "legacy key was re-serialized");
+        assert!(
+            !text.contains("graph_zoom_min"),
+            "legacy key was re-serialized"
+        );
         assert!(text.contains("graph:"), "graph section missing from output");
         // A nonsense range falls back to the defaults instead of breaking the
         // canvas.
-        let mut bad = EditorPrefs { graph: GraphPrefs { zoom_min: 0.0, zoom_max: 0.0, ..GraphPrefs::default() }, ..EditorPrefs::default() };
+        let mut bad = EditorPrefs {
+            graph: GraphPrefs {
+                zoom_min: 0.0,
+                zoom_max: 0.0,
+                ..GraphPrefs::default()
+            },
+            ..EditorPrefs::default()
+        };
         bad.normalize();
         assert_eq!(bad.graph.zoom_min, GraphPrefs::default().zoom_min);
     }

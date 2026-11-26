@@ -62,7 +62,10 @@ fn parse_args() -> Args {
     };
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
-        let mut val = || it.next().unwrap_or_else(|| panic!("missing value for {flag}"));
+        let mut val = || {
+            it.next()
+                .unwrap_or_else(|| panic!("missing value for {flag}"))
+        };
         match flag.as_str() {
             "--bots" => a.bots = val().parse().expect("--bots"),
             "--prefix" => a.prefix = val(),
@@ -398,14 +401,20 @@ fn main() {
 
     // Report.
     let dur = args.duration as f64;
-    let mut rtts: Vec<u64> = bots.iter().flat_map(|b| b.rtts_us.iter().copied()).collect();
+    let mut rtts: Vec<u64> = bots
+        .iter()
+        .flat_map(|b| b.rtts_us.iter().copied())
+        .collect();
     rtts.sort_unstable();
     let snapshots: u64 = bots.iter().map(|b| b.snapshots).sum();
     let updates: u64 = bots.iter().map(|b| b.state_updates).sum();
     let coarse: u64 = bots.iter().map(|b| b.coarse_updates).sum();
     let disconnects: u64 = bots.iter().map(|b| b.disconnects).sum();
     let reconnects: u64 = bots.iter().map(|b| b.reconnects).sum();
-    let swaps: Vec<u32> = bots.iter().map(|b| b.client.interest_swap_count()).collect();
+    let swaps: Vec<u32> = bots
+        .iter()
+        .map(|b| b.client.interest_swap_count())
+        .collect();
     let n = bots.len() as f64;
     println!("--- net_bots report ({} bots, {dur:.0}s) ---", bots.len());
     println!(

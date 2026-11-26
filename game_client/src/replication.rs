@@ -88,14 +88,17 @@ impl TombstoneEvidence {
 
     pub fn prune(&mut self, now: Instant) {
         let ttl = Duration::from_secs(TOMBSTONE_TTL_SECS);
-        self.map.retain(|_, (_, seen)| now.duration_since(*seen) < ttl);
+        self.map
+            .retain(|_, (_, seen)| now.duration_since(*seen) < ttl);
     }
 
     /// Contract §3.2: evidence with `generation >= g` marks incarnation `g`
     /// (and everything before it) as destroyed; older evidence does not
     /// classify a newer incarnation.
     pub fn destroyed(&self, entity_id: u64, generation: u32) -> bool {
-        self.map.get(&entity_id).is_some_and(|(g, _)| *g >= generation)
+        self.map
+            .get(&entity_id)
+            .is_some_and(|(g, _)| *g >= generation)
     }
 }
 
@@ -250,8 +253,8 @@ impl CoarseTrack {
         if self.duration.is_zero() {
             return (self.to, self.yaw);
         }
-        let f = (now.duration_since(self.since).as_secs_f32() / self.duration.as_secs_f32())
-            .min(1.0);
+        let f =
+            (now.duration_since(self.since).as_secs_f32() / self.duration.as_secs_f32()).min(1.0);
         let lerp = |a: f32, b: f32| a + (b - a) * f;
         (
             [
@@ -306,7 +309,10 @@ impl Replication {
             alive: s.alive,
             server_time_us: s.server_time_us,
         };
-        let slot = self.combat.entry((s.entity_id, s.generation)).or_insert(next);
+        let slot = self
+            .combat
+            .entry((s.entity_id, s.generation))
+            .or_insert(next);
         if s.server_time_us >= slot.server_time_us {
             *slot = next;
         }
@@ -336,10 +342,7 @@ impl Replication {
         self.buffers
             .iter()
             .filter_map(|((id, generation), (_, buf))| {
-                let alive = self
-                    .combat
-                    .get(&(*id, *generation))
-                    .map_or(true, |c| c.alive);
+                let alive = self.combat.get(&(*id, *generation)).is_none_or(|c| c.alive);
                 let (pos, _) = buf.latest()?;
                 (alive).then_some((*id, pos))
             })
@@ -428,7 +431,11 @@ impl Replication {
                     self.coarse.remove(&(entity_id, generation));
                     if let Some(e) = self.index.map.remove(&(entity_id, generation)) {
                         despawn_recursive(world, e);
-                        let kind = if destroyed { "destroyed" } else { "out of scope" };
+                        let kind = if destroyed {
+                            "destroyed"
+                        } else {
+                            "out of scope"
+                        };
                         println!("net: despawn {entity_id} gen {generation} ({kind})");
                     }
                 }
@@ -480,7 +487,9 @@ impl Replication {
                     NetLocalPlayer,
                 ));
                 spawn_character_rig(world, entity);
-                self.index.map.insert((row.entity_id, row.generation), entity);
+                self.index
+                    .map
+                    .insert((row.entity_id, row.generation), entity);
                 self.local_player = Some(entity);
                 println!("net: local player bound to entity {own_id}");
             }
@@ -489,8 +498,12 @@ impl Replication {
                 // snapshots must NOT touch it. Only a generation bump
                 // (respawn) re-keys the binding and snaps.
                 if self.index.get(row.entity_id, row.generation) != Some(entity) {
-                    self.index.map.retain(|k, v| !(k.0 == own_id && *v == entity));
-                    self.index.map.insert((row.entity_id, row.generation), entity);
+                    self.index
+                        .map
+                        .retain(|k, v| !(k.0 == own_id && *v == entity));
+                    self.index
+                        .map
+                        .insert((row.entity_id, row.generation), entity);
                     write_transform(world, entity, row);
                 }
             }
@@ -514,7 +527,8 @@ impl Replication {
         // Spawn pose is the first sample, so interpolation starts anchored.
         let mut buf = InterpBuffer::default();
         buf.push(s.server_time_us, s.pos, s.yaw);
-        self.buffers.insert((s.entity_id, s.generation), (s.kind, buf));
+        self.buffers
+            .insert((s.entity_id, s.generation), (s.kind, buf));
         self.push_combat(s);
         println!("net: spawn {label} {} gen {}", s.entity_id, s.generation);
     }
@@ -540,7 +554,10 @@ impl Replication {
             (c.entity_id, c.generation),
             CoarseTrack::new(c.pos, c.server_time_us),
         );
-        println!("net: spawn {label} {} gen {} (far)", c.entity_id, c.generation);
+        println!(
+            "net: spawn {label} {} gen {} (far)",
+            c.entity_id, c.generation
+        );
     }
 }
 
@@ -766,14 +783,22 @@ mod tests {
         let ev = TombstoneEvidence::default();
         let ops = diff_snapshot(&[], &snap_tiers(vec![], vec![coarse(2, 1)], None), &ev);
         assert_eq!(ops, vec![DiffOp::SpawnCoarse(coarse(2, 1))]);
-        let ops = diff_snapshot(&[(2, 1)], &snap_tiers(vec![], vec![coarse(2, 1)], None), &ev);
+        let ops = diff_snapshot(
+            &[(2, 1)],
+            &snap_tiers(vec![], vec![coarse(2, 1)], None),
+            &ev,
+        );
         assert_eq!(ops, vec![DiffOp::UpdateCoarse(coarse(2, 1))]);
     }
 
     #[test]
     fn coarse_generation_bump_is_replace() {
         let ev = TombstoneEvidence::default();
-        let ops = diff_snapshot(&[(2, 1)], &snap_tiers(vec![], vec![coarse(2, 2)], None), &ev);
+        let ops = diff_snapshot(
+            &[(2, 1)],
+            &snap_tiers(vec![], vec![coarse(2, 2)], None),
+            &ev,
+        );
         assert_eq!(
             ops,
             vec![DiffOp::ReplaceCoarse {
@@ -790,10 +815,17 @@ mod tests {
         // Spawn far, promote to near, demote back — one entity throughout.
         r.apply_snapshot(&mut world, &snap_tiers(vec![], vec![coarse(1, 1)], None));
         let far = r.index.get(1, 1).expect("far proxy spawned");
-        assert!(r.targetables().is_empty(), "coarse proxy must be untargetable");
+        assert!(
+            r.targetables().is_empty(),
+            "coarse proxy must be untargetable"
+        );
 
         r.apply_snapshot(&mut world, &snap(vec![state(1, 1)], None));
-        assert_eq!(r.index.get(1, 1), Some(far), "promotion replaced the entity");
+        assert_eq!(
+            r.index.get(1, 1),
+            Some(far),
+            "promotion replaced the entity"
+        );
         assert!(r.buffers.contains_key(&(1, 1)) && !r.coarse.contains_key(&(1, 1)));
         assert_eq!(r.targetables().len(), 1);
 

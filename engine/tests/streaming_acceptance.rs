@@ -315,7 +315,9 @@ fn streamed_cell_guids_stable_across_reload() {
         h.tick(far);
     }
     assert_eq!(h.streamer.resident_chunk_count(), 0);
-    assert!(before.values().all(|&g| h.streamer.entity_for_guid(g).is_none()));
+    assert!(before
+        .values()
+        .all(|&g| h.streamer.entity_for_guid(g).is_none()));
     assert_eq!(h.cell_guids().len(), 0);
 
     // Return: same GUIDs on fresh entities.

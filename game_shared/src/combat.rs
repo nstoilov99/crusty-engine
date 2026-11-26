@@ -245,10 +245,7 @@ mod tests {
         let nova = def(NOVA);
         let now = micros(100.0);
         assert_eq!(can_cast(nova, now, 0, 0, 50.0, true), Ok(()));
-        assert_eq!(
-            can_cast(nova, now, 0, 0, 50.0, false),
-            Err(CastError::Dead)
-        );
+        assert_eq!(can_cast(nova, now, 0, 0, 50.0, false), Err(CastError::Dead));
         assert_eq!(
             can_cast(nova, now, now + 1, 0, 50.0, true),
             Err(CastError::GcdActive)

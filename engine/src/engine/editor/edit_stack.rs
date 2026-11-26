@@ -30,7 +30,11 @@ impl<E> Default for EditStack<E> {
 impl<E> EditStack<E> {
     /// A stack for a freshly loaded (clean) document.
     pub fn new() -> Self {
-        Self { undo: Vec::new(), redo: Vec::new(), saved: Some(0) }
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+            saved: Some(0),
+        }
     }
 
     /// Record an edit that has *already* been applied to the doc.

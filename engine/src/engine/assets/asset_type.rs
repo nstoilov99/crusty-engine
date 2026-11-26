@@ -216,7 +216,10 @@ mod tests {
         assert_eq!(AssetType::from_extension("mesh"), AssetType::Mesh);
         assert_eq!(AssetType::from_extension("wav"), AssetType::Audio);
         assert_eq!(AssetType::from_extension("xyz"), AssetType::Unknown);
-        assert_eq!(AssetType::from_extension("blendspace"), AssetType::BlendSpace);
+        assert_eq!(
+            AssetType::from_extension("blendspace"),
+            AssetType::BlendSpace
+        );
         assert_eq!(AssetType::BlendSpace.extensions(), &["blendspace"]);
     }
 

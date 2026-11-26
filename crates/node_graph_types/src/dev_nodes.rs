@@ -73,9 +73,7 @@ pub fn dev_node_descriptors() -> Vec<NodeDescriptor> {
                     .with_default(PropValue::Float(0.0))
                     .with_doc("Second addend"),
             ],
-            outputs: vec![
-                PinDescriptor::new("sum", "Sum", PinType::Float).with_doc("a + b"),
-            ],
+            outputs: vec![PinDescriptor::new("sum", "Sum", PinType::Float).with_doc("a + b")],
             pure: true,
             realm: NodeRealm::Shared,
             deterministic: true,

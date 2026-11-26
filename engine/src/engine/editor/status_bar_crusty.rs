@@ -88,7 +88,12 @@ pub fn status_bar_panel(ui: &mut Ui, bar_rect: Rect, mut ctx: StatusBarCtx) -> b
     let ready_col = ctx.theme.palette.status.success;
     let tw = mono_width(ui, ready_text);
     rx -= tw;
-    mono_text(ui, Pos2::new(rx, cy - MONO_SIZE * 1.25 * 0.5), ready_text, ready_col);
+    mono_text(
+        ui,
+        Pos2::new(rx, cy - MONO_SIZE * 1.25 * 0.5),
+        ready_text,
+        ready_col,
+    );
     let dot_r = 3.0;
     rx -= 6.0 + dot_r * 2.0;
     ui.painter().rect_filled(

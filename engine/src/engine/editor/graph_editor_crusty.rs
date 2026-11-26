@@ -29,29 +29,24 @@ use crusty_gui::widgets::{
     SelectableValue, Slider, TextEdit,
 };
 
-use super::keymap::{Action, ActionStatus, Context, Keymap};
-use super::graph_editor::{
-    alias_is_global, alias_name, alias_states, alias_states_value,
-    anchored_comments, frame_view, nodes_captured_by_rect, prop_display, AlignMode, Annotation,
-    AnnotationDrag, AnnotationEdit, AnnotationResize, ConnectDrag, DomainError, GraphDomain,
-    GraphEdit, GraphEditorState, GraphOpenRequest,
-    GraphFragment, MarqueeMode, NewVarDraft, NodeDrag, PayloadConfirm, PayloadDraft,
-    PeekDrag, PeekDragKind,
-    payload_reader_count, variable_matches, variable_mismatch, variable_node_ids, variable_slug,
-    variables_view,
-    retype_default_outcome, pin_type_label, ResizeHandle, VarConfirm, VarDrop, VarListRow,
-    DEFAULT_PAYLOAD_TYPE, watch_chip_text, Watch, WATCH_STALE_SECS,
-    ANNOTATION_MIN_H, ANNOTATION_MIN_W, FindState, PaletteDragSource, PaletteState,
-    BOOKMARK_SLOTS, TOAST_MS,
-    region_find_matches, rule_scope_registry,
-};
 use super::anim_preview::{AnimParamEdit, AnimPreview, PANEL_INSTANCE_ID};
+use super::graph_editor::{
+    alias_is_global, alias_name, alias_states, alias_states_value, anchored_comments, frame_view,
+    nodes_captured_by_rect, payload_reader_count, pin_type_label, prop_display,
+    region_find_matches, retype_default_outcome, rule_scope_registry, variable_matches,
+    variable_mismatch, variable_node_ids, variable_slug, variables_view, watch_chip_text,
+    AlignMode, Annotation, AnnotationDrag, AnnotationEdit, AnnotationResize, ConnectDrag,
+    DomainError, FindState, GraphDomain, GraphEdit, GraphEditorState, GraphFragment,
+    GraphOpenRequest, MarqueeMode, NewVarDraft, NodeDrag, PaletteDragSource, PaletteState,
+    PayloadConfirm, PayloadDraft, PeekDrag, PeekDragKind, ResizeHandle, VarConfirm, VarDrop,
+    VarListRow, Watch, ANNOTATION_MIN_H, ANNOTATION_MIN_W, BOOKMARK_SLOTS, DEFAULT_PAYLOAD_TYPE,
+    TOAST_MS, WATCH_STALE_SECS,
+};
 use super::graph_exec_viz::{DebugRequest, ExecInstance, GraphExecViz, STEADY_HOT_HZ};
 use super::graph_palette::{self, PaletteEntry, PinFilter};
 use super::graph_prefs::{WirePrefs, WireStyle};
-use super::graph_wire_router::{
-    self as router, point_polyline_distance, RouteMeta,
-};
+use super::graph_wire_router::{self as router, point_polyline_distance, RouteMeta};
+use super::keymap::{Action, ActionStatus, Context, Keymap};
 use super::theme::{
     category_color, category_tag_color, grid_major, grid_minor, pin_color, ramp, wire_color,
     Palette, GRID_MAJOR_STEP, GRID_MINOR_MIN_ZOOM, GRID_MINOR_STEP,
@@ -63,9 +58,8 @@ use crate::engine::node_graph::{
         EVENT_PAYLOAD_PREFIX, PAYLOAD_PIN_TYPES,
     },
     CurveResolver, DocDescriptors, Edge, ErrorAnchor, GraphDoc, GraphError, GraphResolver,
-    NodeDescriptor, NodeInst,
-    NodeKind, NodeRegistry, PinType, PropValue, REROUTE_IN, REROUTE_OUT, REROUTE_TYPE_ID,
-    SUBGRAPH_TYPE_ID, VAR_PROP,
+    NodeDescriptor, NodeInst, NodeKind, NodeRegistry, PinType, PropValue, REROUTE_IN, REROUTE_OUT,
+    REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID, VAR_PROP,
 };
 
 // ---------------------------------------------------------------------------
@@ -513,7 +507,10 @@ impl GraphMetrics {
     /// Transition badge sizing for the machine layout (transitions ticket
     /// 02 ruling): diameter = the chip row height, gap = the label gap.
     fn badge(&self) -> super::graph_anim_edge::BadgeMetrics {
-        super::graph_anim_edge::BadgeMetrics { d: self.row_h, gap: self.label_gap }
+        super::graph_anim_edge::BadgeMetrics {
+            d: self.row_h,
+            gap: self.label_gap,
+        }
     }
 
     /// Width of a config row's value cell, world units.
@@ -692,7 +689,11 @@ pub(super) enum InlineKind {
     /// them: shown in `status.warning` rather than reported as an error,
     /// because the `GraphError` set is closed (recorded ruling) and stale
     /// enum data is something to fix, not a broken document.
-    Enum { value: String, variants: Vec<String>, ok: bool },
+    Enum {
+        value: String,
+        variants: Vec<String>,
+        ok: bool,
+    },
     /// A dropdown over a list that is **not** an `Enum` on disk: the `var`
     /// config row picks a slug and stores it as [`PropValue::Str`], because
     /// that is what `DocDescriptors::variable_of` reads. Same widget as
@@ -700,7 +701,11 @@ pub(super) enum InlineKind {
     /// variant rather than a flag: the storage shape is not a rendering
     /// detail. `ok` is false for a dangling reference, which still *displays*
     /// (the author has to see the name that broke).
-    Choice { value: String, variants: Vec<String>, ok: bool },
+    Choice {
+        value: String,
+        variants: Vec<String>,
+        ok: bool,
+    },
     /// Painted mono chip (asset path, free-string enum, vector tuple).
     Chip(String),
     /// Forward-compat data: warning-dashed `preserved` chip, never a blank.
@@ -810,7 +815,10 @@ fn pipeline_chip(state: &GraphEditorState, n: &NodeInst, tag: String) -> String 
                 Some(PropValue::Str(s)) => s.split(',').filter(|b| !b.trim().is_empty()).count(),
                 _ => 0,
             };
-            format!("{tag} \u{b7} {roots} ROOT{}", if roots == 1 { "" } else { "S" })
+            format!(
+                "{tag} \u{b7} {roots} ROOT{}",
+                if roots == 1 { "" } else { "S" }
+            )
         }
         _ => tag,
     }
@@ -823,15 +831,17 @@ fn pipeline_chip(state: &GraphEditorState, n: &NodeInst, tag: String) -> String 
 /// in the drawing code. Rows appear even when the property is missing — a
 /// freshly placed `event_custom` has no `event_name` yet, and a row is the
 /// only way to give it one.
-pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, String, InlineKind)> {
+pub(super) fn config_rows(
+    n: &NodeInst,
+    docd: &DocDescriptors,
+) -> Vec<(String, String, InlineKind)> {
     use crate::engine::animation::graph::plan::{
         ANIM_IK_CHAIN_TYPE_ID, ANIM_PLAY_ONCE_TYPE_ID, ANIM_STATE_ALIAS_TYPE_ID,
         ANIM_STATE_TYPE_ID, ANIM_TRANSITION_TYPE_ID, CLIP_NAME_PROP, CLIP_PROP, DURATION_PROP,
         GRAPH_PROP, IK_ANKLE_OFFSET_PROP, IK_AXIS_X_PROP, IK_AXIS_Y_PROP, IK_AXIS_Z_PROP,
         IK_BONES_PROP, IK_FOOT_PROP, IK_MAX_ANGLE_PROP, IK_PELVIS_PROP, IK_SOLVER_LOOK_AT,
-        IK_SOLVER_PROP, IK_SOLVER_TWO_BONE,
-        IK_WEIGHT_PARAM_PROP, PRIORITY_PROP, SLOT_FADE_IN_PROP, SLOT_FADE_OUT_PROP,
-        SLOT_TRIGGER_PROP, SPACE_PROP, SPEED_PROP,
+        IK_SOLVER_PROP, IK_SOLVER_TWO_BONE, IK_WEIGHT_PARAM_PROP, PRIORITY_PROP, SLOT_FADE_IN_PROP,
+        SLOT_FADE_OUT_PROP, SLOT_TRIGGER_PROP, SPACE_PROP, SPEED_PROP,
     };
     use crate::engine::animation::graph::{
         ALIAS_GLOBAL_PROP, ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID,
@@ -857,13 +867,21 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
     match NodeKind::of_type(&n.type_id) {
         NodeKind::VarGet | NodeKind::VarSet => {
             let value = text_of(VAR_PROP);
-            let variants: Vec<String> =
-                docd.doc().variables.iter().map(|v| v.slug.clone()).collect();
+            let variants: Vec<String> = docd
+                .doc()
+                .variables
+                .iter()
+                .map(|v| v.slug.clone())
+                .collect();
             let ok = variants.contains(&value);
             out.push((
                 VAR_PROP.to_string(),
                 "Variable".to_string(),
-                InlineKind::Choice { value, variants, ok },
+                InlineKind::Choice {
+                    value,
+                    variants,
+                    ok,
+                },
             ));
         }
         NodeKind::EventCustom => {
@@ -874,8 +892,7 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
             ));
             // One row per declared payload pin, in slug order (`properties` is
             // a BTreeMap, which is also the order the pins come out in).
-            let variants: Vec<String> =
-                PAYLOAD_PIN_TYPES.iter().map(|s| s.to_string()).collect();
+            let variants: Vec<String> = PAYLOAD_PIN_TYPES.iter().map(|s| s.to_string()).collect();
             for key in n.properties.keys() {
                 let Some(slug) = key.strip_prefix(EVENT_PAYLOAD_PREFIX) else {
                     continue;
@@ -885,7 +902,11 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
                 out.push((
                     key.clone(),
                     slug.to_string(),
-                    InlineKind::Enum { value, variants: variants.clone(), ok },
+                    InlineKind::Enum {
+                        value,
+                        variants: variants.clone(),
+                        ok,
+                    },
                 ));
             }
         }
@@ -1027,7 +1048,11 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
             out.push((
                 SLOT_TRIGGER_PROP.to_string(),
                 "Trigger".to_string(),
-                InlineKind::Choice { value, variants, ok },
+                InlineKind::Choice {
+                    value,
+                    variants,
+                    ok,
+                },
             ));
             out.push((
                 SPEED_PROP.to_string(),
@@ -1072,7 +1097,11 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
             out.push((
                 LAYER_WEIGHT_PARAM_PROP.to_string(),
                 "Weight".to_string(),
-                InlineKind::Choice { value, variants, ok },
+                InlineKind::Choice {
+                    value,
+                    variants,
+                    ok,
+                },
             ));
             let include_root = !matches!(
                 n.properties.get(LAYER_INCLUDE_ROOT_PROP),
@@ -1121,7 +1150,11 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
             out.push((
                 IK_SOLVER_PROP.to_string(),
                 "Solver".to_string(),
-                InlineKind::Enum { value: solver.clone(), variants, ok },
+                InlineKind::Enum {
+                    value: solver.clone(),
+                    variants,
+                    ok,
+                },
             ));
             let value = text_of(IK_WEIGHT_PARAM_PROP);
             let variants: Vec<String> = docd
@@ -1135,7 +1168,11 @@ pub(super) fn config_rows(n: &NodeInst, docd: &DocDescriptors) -> Vec<(String, S
             out.push((
                 IK_WEIGHT_PARAM_PROP.to_string(),
                 "Weight".to_string(),
-                InlineKind::Choice { value, variants, ok },
+                InlineKind::Choice {
+                    value,
+                    variants,
+                    ok,
+                },
             ));
             if solver == IK_SOLVER_LOOK_AT {
                 for (key, label, default) in [
@@ -1380,11 +1417,7 @@ impl NodeGeom {
 
 /// SUB > PURE > EVENT > category tag — the prototype's precedence. Tags are
 /// derived per node, never stored.
-fn derive_tag(
-    is_subgraph: bool,
-    desc: Option<&NodeDescriptor>,
-    category: Option<&str>,
-) -> String {
+fn derive_tag(is_subgraph: bool, desc: Option<&NodeDescriptor>, category: Option<&str>) -> String {
     if is_subgraph {
         return "SUB".to_string();
     }
@@ -1520,10 +1553,7 @@ fn build_geoms(
                     output,
                     row: 0,
                     wire_anchor: Pos2::new(x, c.y),
-                    dot_center: Pos2::new(
-                        if output { c.x + band } else { c.x - band },
-                        c.y,
-                    ),
+                    dot_center: Pos2::new(if output { c.x + band } else { c.x - band }, c.y),
                     connected: state.doc.edges.iter().any(|e| {
                         if output {
                             e.from_node == n.id && e.from_pin == slug
@@ -1579,9 +1609,8 @@ fn build_geoms(
                 let h = m.row_h;
                 let rect = Rect::from_min_size(min, Vec2::new(w, h));
                 let cy = min.y + h * 0.5;
-                let flow = PinType::Domain(
-                    crate::engine::animation::graph::ANIM_FLOW_DOMAIN.to_string(),
-                );
+                let flow =
+                    PinType::Domain(crate::engine::animation::graph::ANIM_FLOW_DOMAIN.to_string());
                 let empty: BTreeSet<&str> = BTreeSet::new();
                 let incoming = incident.incoming.get(&n.id).unwrap_or(&empty);
                 let outgoing = incident.outgoing.get(&n.id).unwrap_or(&empty);
@@ -1618,7 +1647,10 @@ fn build_geoms(
                     errored: errors.nodes.contains(&n.id),
                     warned: errors.warned.contains(&n.id),
                     reroute: false,
-                    chip: Some(ChipGeom { tip: resolved.tooltip(), dir: Vec2::new(1.0, 0.0) }),
+                    chip: Some(ChipGeom {
+                        tip: resolved.tooltip(),
+                        dir: Vec2::new(1.0, 0.0),
+                    }),
                     anim: None,
                     pinned_pos: false,
                     breakpoint: state.breakpoints.get(&n.id).copied(),
@@ -1731,8 +1763,7 @@ fn build_geoms(
                         | crate::engine::animation::graph::plan::ANIM_STATE_ALIAS_TYPE_ID
                 );
             let anim_transition = state.is_machine_scope()
-                && n.type_id
-                    == crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
+                && n.type_id == crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
             let (inputs, outputs) = if anim_state_unfold {
                 (Vec::new(), Vec::new())
             } else {
@@ -1753,7 +1784,8 @@ fn build_geoms(
             let mut gutter_w = 0.0;
             if state.has_breakpoint(n.id) {
                 tag_w = tag_w.max(
-                    p.measure_text_family("PAUSED", m.tag_px, None, FontFamily::Mono).x,
+                    p.measure_text_family("PAUSED", m.tag_px, None, FontFamily::Mono)
+                        .x,
                 );
                 gutter_w = m.pin_r * BREAK_BADGE_R * 2.0 + m.label_gap;
             }
@@ -1853,11 +1885,13 @@ fn build_geoms(
                     .unwrap_or(0.0);
                 let right = outputs
                     .get(i)
-                    .map(|(_, label, _)| {
-                        m.label_inset() + p.measure_text(label, label_px, None).x
-                    })
+                    .map(|(_, label, _)| m.label_inset() + p.measure_text(label, label_px, None).x)
                     .unwrap_or(0.0);
-                let gap = if left > 0.0 && right > 0.0 { m.col_gap } else { 0.0 };
+                let gap = if left > 0.0 && right > 0.0 {
+                    m.col_gap
+                } else {
+                    0.0
+                };
                 content_w = content_w.max(left + gap + right);
             }
             let width = content_w.clamp(m.min_w, m.max_w);
@@ -1880,18 +1914,24 @@ fn build_geoms(
                     let y = m.band_y(min.y, i);
                     let payload = key.starts_with(EVENT_PAYLOAD_PREFIX);
                     let right = min.x + width - m.pad_x;
-                    let remove = payload.then(|| {
-                        m.config_box(right - m.config_remove_w(), right, y)
-                    });
+                    let remove =
+                        payload.then(|| m.config_box(right - m.config_remove_w(), right, y));
                     let cell_right = match &remove {
                         Some(r) => r.min.x - m.label_gap,
                         None => right,
                     };
                     let cell_w = m.config_value_w().max(inline_cell_w(p, &kind, m, st));
                     let cell = m.config_box(cell_right - cell_w, cell_right, y);
-                    let label_box =
-                        m.config_box(min.x + m.pad_x, cell.min.x - m.label_gap, y);
-                    ConfigGeom { key, label, kind, y, cell, label_box, remove }
+                    let label_box = m.config_box(min.x + m.pad_x, cell.min.x - m.label_gap, y);
+                    ConfigGeom {
+                        key,
+                        label,
+                        kind,
+                        y,
+                        cell,
+                        label_box,
+                        remove,
+                    }
                 })
                 .collect();
             // …and the ghost row closes the band, one row below the last field.
@@ -1985,9 +2025,8 @@ fn build_geoms(
                 use crate::engine::animation::graph::plan::{
                     ANIM_STATE_TYPE_ID, STATE_IN_PIN, STATE_OUT_PIN,
                 };
-                let flow = PinType::Domain(
-                    crate::engine::animation::graph::ANIM_FLOW_DOMAIN.to_string(),
-                );
+                let flow =
+                    PinType::Domain(crate::engine::animation::graph::ANIM_FLOW_DOMAIN.to_string());
                 let cy = min.y + height * 0.5;
                 let has_in = n.type_id == ANIM_STATE_TYPE_ID;
                 for (slug, output, x) in [
@@ -2079,9 +2118,7 @@ fn alias_state_names(n: &NodeInst, doc: &GraphDoc) -> Vec<String> {
 
 /// A state's name as the compiler spells it: its title, else "State <id>".
 pub(super) fn anim_state_name(s: &NodeInst) -> String {
-    s.title
-        .clone()
-        .unwrap_or_else(|| format!("State {}", s.id))
+    s.title.clone().unwrap_or_else(|| format!("State {}", s.id))
 }
 
 /// A state card's one mono subtitle: the compiler's precedence spoken back
@@ -2137,7 +2174,8 @@ fn anim_card_geom(
             Some(alias_subtitle(n, docd.doc())),
         ),
         AnimCardKind::State => (
-            docd.display_name(n.id).unwrap_or_else(|| "State".to_string()),
+            docd.display_name(n.id)
+                .unwrap_or_else(|| "State".to_string()),
             "STATE".to_string(),
             anim_state_subtitle(n, docd),
         ),
@@ -2152,12 +2190,14 @@ fn anim_card_geom(
     let tag_w = if tag.is_empty() {
         0.0
     } else {
-        p.measure_text_family(&tag, m.tag_px, None, FontFamily::Mono).x + m.col_gap
+        p.measure_text_family(&tag, m.tag_px, None, FontFamily::Mono)
+            .x
+            + m.col_gap
     };
     let title_w = p.measure_text(&title, title_px, None).x;
-    let sub_w = subtitle
-        .as_deref()
-        .map_or(0.0, |s| p.measure_text_family(s, sub_px, None, FontFamily::Mono).x);
+    let sub_w = subtitle.as_deref().map_or(0.0, |s| {
+        p.measure_text_family(s, sub_px, None, FontFamily::Mono).x
+    });
     let content = (gutter_w + title_w + tag_w).max(sub_w);
     // States take the mockup's min card width; pills size to their text.
     let w = match kind {
@@ -2230,12 +2270,26 @@ fn anim_card_geom(
 /// Shape is deliberate redundancy for color-vision deficiency: twelve ramp
 /// hues exceed comfortable deuteranopia separation, so shape + label carry
 /// the difference where hue cannot.
-fn draw_pin(p: &mut Painter, pin: &PinGeom, c: Pos2, zoom: f32, m: &GraphMetrics, st: &Style, reg: &NodeRegistry) {
+fn draw_pin(
+    p: &mut Painter,
+    pin: &PinGeom,
+    c: Pos2,
+    zoom: f32,
+    m: &GraphMetrics,
+    st: &Style,
+    reg: &NodeRegistry,
+) {
     if pin.ghost {
         // A ghost has no declared type, so it draws neutral and dashed — the
         // wire lands somewhere, and the row says plainly that it should not.
         let r = m.pin_r * zoom;
-        dashed_circle(p, c, r, (m.ring_w * zoom).max(1.0), st.palette.text_disabled);
+        dashed_circle(
+            p,
+            c,
+            r,
+            (m.ring_w * zoom).max(1.0),
+            st.palette.text_disabled,
+        );
         return;
     }
     let col = pin_color(Some(reg), &pin.ty);
@@ -2253,7 +2307,11 @@ fn draw_pin(p: &mut Painter, pin: &PinGeom, c: Pos2, zoom: f32, m: &GraphMetrics
                 Pos2::new(c.x - w, c.y + h),
                 Pos2::new(c.x + w, c.y),
             );
-            let color = if filled { col } else { st.palette.text_disabled };
+            let color = if filled {
+                col
+            } else {
+                st.palette.text_disabled
+            };
             p.triangle(a, b, d, color);
         }
         PinType::Vec2 | PinType::Vec3 | PinType::Vec4 => {
@@ -2375,7 +2433,6 @@ fn pin_label(pin: &PinGeom) -> String {
 /// target, so a second wire into it is a second place execution can arrive
 /// from, not a second value. Data inputs keep the single-wire rule.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 fn validate_connection(
     state: &GraphEditorState,
     registry: &NodeRegistry,
@@ -2420,7 +2477,9 @@ fn validate_connection(
     }
     // An identical wire is not a second arrival, it is the same one.
     if state.doc.edges.iter().any(|e| {
-        e.to_node == to_node && e.to_pin == to_pin && e.from_node == from_node
+        e.to_node == to_node
+            && e.to_pin == to_pin
+            && e.from_node == from_node
             && e.from_pin == from_pin
     }) {
         return None;
@@ -2460,7 +2519,10 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
         anim,
         anim_instances,
     } = ctx;
-    let resolver = &DocResolvers { graphs: resolver, curves };
+    let resolver = &DocResolvers {
+        graphs: resolver,
+        curves,
+    };
     // Subgraph instances are a script-library concept; the animation
     // library's file-backed nesting is a state referencing another
     // `.animgraph` through its Graph row (ticket 09), not a subgraph row.
@@ -2585,7 +2647,11 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
     let strip = {
         let st = ui.style();
         let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
-        let w = if state.vars.open { VARS_W * s } else { VARS_RAIL_W * s };
+        let w = if state.vars.open {
+            VARS_W * s
+        } else {
+            VARS_RAIL_W * s
+        };
         let c = ui.cursor();
         let r = Rect::from_min_max(c, Pos2::new(c.x + w, ui.available().max.y - preview_h));
         ui.set_cursor(Pos2::new(c.x + w, c.y));
@@ -2610,11 +2676,9 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
     // Rule 2's threshold is a crusty constant, scaled by the editor's UI scale
     // so it stays 4 logical points at any scale factor. One source, so the
     // canvas's right-drag decision and the graph's own hit tests agree.
-    let mut canvas = Canvas::new()
-        .zoom_range(zoom_min, zoom_max)
-        .drag_threshold(crusty_gui::input::drag_threshold(
-            (ui.style().metrics.row_height / BASE_ROW_H).max(0.1),
-        ));
+    let mut canvas = Canvas::new().zoom_range(zoom_min, zoom_max).drag_threshold(
+        crusty_gui::input::drag_threshold((ui.style().metrics.row_height / BASE_ROW_H).max(0.1)),
+    );
     if preview_h > 0.0 {
         // The canvas fills what remains *above* the preview band.
         let a = ui.available_size();
@@ -2716,7 +2780,10 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
         state.flash = Some((id, std::time::Instant::now()));
         if let Some((mn, mx)) = geoms_bbox(out.inner.iter().filter(|g| g.id == id)) {
             let v = frame_view(mn, mx, out.rect.size(), zoom_min, zoom_max);
-            state.view = CanvasView { pan: v.pan, zoom: state.view.zoom };
+            state.view = CanvasView {
+                pan: v.pan,
+                zoom: state.view.zoom,
+            };
         }
     }
     // The preview strip (ticket 06) paints its band under the canvas, then
@@ -2727,13 +2794,19 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
             Pos2::new(strip.min.x, strip.max.y),
             Pos2::new(ui.available().max.x, strip.max.y + preview_h),
         );
-        anim_chip_rect = Some(anim_preview_strip(ui, band, state, registry, anim, anim_instances));
+        anim_chip_rect = Some(anim_preview_strip(
+            ui,
+            band,
+            state,
+            registry,
+            anim,
+            anim_instances,
+        ));
     }
     if let Some((chip, just_opened)) = anim_chip_rect.filter(|_| state.anim_picker) {
         let st = ui.style();
         let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
-        if let Some(pick) =
-            anim_preview_picker(ui, chip, anim_instances, anim, &st, s, just_opened)
+        if let Some(pick) = anim_preview_picker(ui, chip, anim_instances, anim, &st, s, just_opened)
         {
             state.anim_bind = pick;
             state.anim_picker = false;
@@ -2745,9 +2818,7 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
     if let Some((chip, just_opened)) = live_chip_rect.filter(|_| state.exec_picker) {
         let st = ui.style();
         let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
-        if let Some(pick) =
-            instance_picker(ui, chip, exec_instances, exec, &st, s, just_opened)
-        {
+        if let Some(pick) = instance_picker(ui, chip, exec_instances, exec, &st, s, just_opened) {
             state.exec_bind = pick;
             state.exec_picker = false;
         }
@@ -2756,13 +2827,21 @@ pub fn graph_editor_panel(ui: &mut Ui, ctx: GraphEditorPanelCtx) {
     payload_confirm_dialog(ui, out.rect, state, registry);
 
     palette_popover(ui, state, registry, subgraph_assets);
-    find_overlay(ui, out.rect, state, &out.inner, zoom_min, zoom_max, registry);
+    find_overlay(
+        ui, out.rect, state, &out.inner, zoom_min, zoom_max, registry,
+    );
     annotation_menu(ui, state, registry, keymap, annotation_menu_at);
     wire_menu(ui, state, registry, wire_menu_at);
     node_menu(ui, state, registry, keymap, &out.inner, node_menu_at);
-    if let Some((world, screen)) =
-        canvas_menu(ui, state, registry, keymap, &out.inner, clipboard, canvas_menu_at)
-    {
+    if let Some((world, screen)) = canvas_menu(
+        ui,
+        state,
+        registry,
+        keymap,
+        &out.inner,
+        clipboard,
+        canvas_menu_at,
+    ) {
         // "Add Node…" opens the palette where the menu was anchored, so the
         // node lands where the user right-clicked rather than wherever the row
         // happened to be.
@@ -2952,9 +3031,7 @@ fn handle_panel_keys(
     }
     // Save is the editor's, not the graph's — it is not in the graph keymap
     // and stays on its literal chord until a Global "file" action exists.
-    if ui.ctx().input.modifiers == Modifiers::CTRL
-        && ui.ctx().input.key_pressed(Key::Char('s'))
-    {
+    if ui.ctx().input.modifiers == Modifiers::CTRL && ui.ctx().input.key_pressed(Key::Char('s')) {
         let abs = std::path::Path::new("content").join(&state.path);
         if let Err(e) = state.save(&abs) {
             log::warn!("graph save failed: {e}");
@@ -3013,7 +3090,12 @@ fn draw_and_interact(
     let anim_flow = state.is_machine_scope().then(|| {
         let rects: BTreeMap<u64, [f32; 4]> = geoms
             .iter()
-            .map(|g| (g.id, [g.rect.min.x, g.rect.min.y, g.rect.max.x, g.rect.max.y]))
+            .map(|g| {
+                (
+                    g.id,
+                    [g.rect.min.x, g.rect.min.y, g.rect.max.x, g.rect.max.y],
+                )
+            })
             .collect();
         super::graph_anim_edge::anim_flow_layout(&state.doc, &rects, m.badge())
     });
@@ -3097,7 +3179,6 @@ fn draw_and_interact(
                 })
                 .map(|w| w.edge_index)
         });
-
 
     draw_grid(ui, scope, &st, vis, zoom);
     draw_annotations(ui, scope, state, &st, &m, vis, zoom, lod);
@@ -3250,8 +3331,13 @@ fn draw_and_interact(
                 content_bbox(state, &geoms)
             };
             if let Some((min, max)) = bbox {
-                *frame_request =
-                    Some(frame_view(min, max, scope.rect().size(), zoom_min, zoom_max));
+                *frame_request = Some(frame_view(
+                    min,
+                    max,
+                    scope.rect().size(),
+                    zoom_min,
+                    zoom_max,
+                ));
             }
         }
     }
@@ -3280,20 +3366,18 @@ fn draw_and_interact(
         if !pointer_down {
             // Dropped on a wire, with a node that can sit on it? Splice.
             let dragged = (originals.len() == 1).then(|| originals[0].0);
-            let spliced = dragged.zip(splice_target).is_some_and(
-                |(id, ei)| {
-                    let Some(edge) = state.doc.edges.get(ei).cloned() else {
-                        return false;
-                    };
-                    match state.splice_pins(&edge, id, registry) {
-                        Some((i, o)) => {
-                            finish_node_drag(state, registry);
-                            state.splice_node_into(&edge, id, &i, &o, registry)
-                        }
-                        None => false,
+            let spliced = dragged.zip(splice_target).is_some_and(|(id, ei)| {
+                let Some(edge) = state.doc.edges.get(ei).cloned() else {
+                    return false;
+                };
+                match state.splice_pins(&edge, id, registry) {
+                    Some((i, o)) => {
+                        finish_node_drag(state, registry);
+                        state.splice_node_into(&edge, id, &i, &o, registry)
                     }
-                },
-            );
+                    None => false,
+                }
+            });
             if !spliced {
                 finish_node_drag(state, registry);
             }
@@ -3302,7 +3386,13 @@ fn draw_and_interact(
 
     // Advance / finish a live comment/group drag (P7).
     let ann_snapshot = state.annotation_drag.as_ref().map(|d| {
-        (d.is_group, d.index, d.origin_world, d.rect_min0, d.captured.clone())
+        (
+            d.is_group,
+            d.index,
+            d.origin_world,
+            d.rect_min0,
+            d.captured.clone(),
+        )
     });
     if let Some((is_group, index, origin, rect0, captured)) = ann_snapshot {
         if let Some(pw) = pointer_world {
@@ -3408,8 +3498,7 @@ fn draw_and_interact(
                     ui.tooltip_for(handle, "Drag to insert a reroute");
                 }
                 if resp.pressed {
-                    if let (Some(edge), Some(pw)) =
-                        (state.doc.edges.get(i).cloned(), pointer_world)
+                    if let (Some(edge), Some(pw)) = (state.doc.edges.get(i).cloned(), pointer_world)
                     {
                         midpoint_grab = Some((edge, [pw.x, pw.y]));
                     }
@@ -3483,10 +3572,8 @@ fn draw_and_interact(
                 if pin.hit_w == Some(0.0) {
                     continue;
                 }
-                let wr = Rect::from_center_size(
-                    pin.dot_center,
-                    Vec2::splat(pin.hit_w.unwrap_or(hit_w)),
-                );
+                let wr =
+                    Rect::from_center_size(pin.dot_center, Vec2::splat(pin.hit_w.unwrap_or(hit_w)));
                 let id = ui.alloc_id(("graph_pin", g.id, &pin.slug, pin.output));
                 let resp = scope.interact(ui, id, wr);
                 let watched = state
@@ -3502,11 +3589,7 @@ fn draw_and_interact(
                 // node type bothered to write one. Removes an inspector
                 // round-trip exactly when the user is wiring.
                 if resp.hovered && state.connect_drag.is_none() {
-                    let mut tip = format!(
-                        "{}  {}",
-                        pin.label,
-                        graph_palette::type_tag(&pin.ty)
-                    );
+                    let mut tip = format!("{}  {}", pin.label, graph_palette::type_tag(&pin.ty));
                     if let Some(doc) =
                         pin_doc(registry, resolver, state, g.id, &pin.slug, pin.output)
                     {
@@ -3547,8 +3630,12 @@ fn draw_and_interact(
                 if resp.hovered && alt && pin.connected {
                     let c = scope.world_to_screen(pin.dot_center);
                     let r = m.pin_r * zoom * 1.6;
-                    ui.painter()
-                        .circle_stroke(c, r, m.border.max(1.0), Palette::invariant_status().error);
+                    ui.painter().circle_stroke(
+                        c,
+                        r,
+                        m.border.max(1.0),
+                        Palette::invariant_status().error,
+                    );
                 }
                 if !resp.pressed {
                     continue;
@@ -3673,7 +3760,9 @@ fn draw_and_interact(
     if lod.config_band() && !alt && !widget_claimed {
         for g in geoms.iter().filter(|g| visible(g, lod, &m, vis)) {
             for cfg in &g.config {
-                let Some(slug) = cfg.payload_slug() else { continue };
+                let Some(slug) = cfg.payload_slug() else {
+                    continue;
+                };
                 if let Some(r) = cfg.remove {
                     let id = ui.alloc_id(("graph_payload_x", g.id, slug));
                     let resp = scope.interact(ui, id, r);
@@ -3765,15 +3854,24 @@ fn draw_and_interact(
                 state.rename_payload_field(node, &slug, &name, registry);
             }
             Some(name) => {
-                state.payload.confirm =
-                    Some(PayloadConfirm::Rename { node, slug, name, readers, graphs });
+                state.payload.confirm = Some(PayloadConfirm::Rename {
+                    node,
+                    slug,
+                    name,
+                    readers,
+                    graphs,
+                });
             }
             None if readers == 0 => {
                 state.remove_payload_field(node, &slug, registry);
             }
             None => {
-                state.payload.confirm =
-                    Some(PayloadConfirm::Remove { node, slug, readers, graphs });
+                state.payload.confirm = Some(PayloadConfirm::Remove {
+                    node,
+                    slug,
+                    readers,
+                    graphs,
+                });
             }
         }
     }
@@ -3811,10 +3909,7 @@ fn draw_and_interact(
             if let Some(chip) = &g.chip {
                 ui.tooltip_for(scope.world_rect_to_screen(g.rect), &chip.tip);
             } else {
-                let header = Rect::from_min_size(
-                    g.rect.min,
-                    Vec2::new(g.rect.width(), m.header_h),
-                );
+                let header = Rect::from_min_size(g.rect.min, Vec2::new(g.rect.width(), m.header_h));
                 if pointer_world.is_some_and(|p| header.contains(p)) {
                     if let Some(doc) = node_doc(registry, resolver, state, g.id) {
                         ui.tooltip_for(scope.world_rect_to_screen(header), &doc);
@@ -3825,10 +3920,7 @@ fn draw_and_interact(
         // Alt-click the header breaks every link the node has — the pin
         // gesture, extended to the whole node.
         if resp.pressed && alt && !pin_claimed && !badge_claimed {
-            let header = Rect::from_min_size(
-                g.rect.min,
-                Vec2::new(g.rect.width(), m.header_h),
-            );
+            let header = Rect::from_min_size(g.rect.min, Vec2::new(g.rect.width(), m.header_h));
             if pointer_world.is_some_and(|p| header.contains(p)) || g.reroute {
                 break_node = Some(g.id);
             }
@@ -3875,7 +3967,8 @@ fn draw_and_interact(
                 }
             }
         }
-        if resp.pressed && !alt
+        if resp.pressed
+            && !alt
             && !pin_claimed
             && !badge_claimed
             && !config_claimed
@@ -3932,10 +4025,19 @@ fn draw_and_interact(
                 originals.iter().map(|(id, _)| *id).collect();
             let anchored = anchored_comments(&state.doc, &ids)
                 .into_iter()
-                .map(|i| (i, [state.doc.comments[i].rect[0], state.doc.comments[i].rect[1]]))
+                .map(|i| {
+                    (
+                        i,
+                        [state.doc.comments[i].rect[0], state.doc.comments[i].rect[1]],
+                    )
+                })
                 .collect();
-            state.node_drag =
-                Some(NodeDrag { origin_world: [pw.x, pw.y], originals, anchored, pending: None });
+            state.node_drag = Some(NodeDrag {
+                origin_world: [pw.x, pw.y],
+                originals,
+                anchored,
+                pending: None,
+            });
         }
     }
 
@@ -3961,7 +4063,11 @@ fn draw_and_interact(
             } else {
                 state.sel_comment.and_then(|i| {
                     state.doc.comments.get(i).map(|c| {
-                        (Annotation::Comment(i), comment_rect(c, &m), comment_min_h(c, &m))
+                        (
+                            Annotation::Comment(i),
+                            comment_rect(c, &m),
+                            comment_min_h(c, &m),
+                        )
                     })
                 })
             };
@@ -4293,9 +4399,7 @@ fn draw_and_interact(
             if let Some(token) = comment_ref_at(state, &m, pw, &st, zoom, ui) {
                 if let Some(id) = resolve_node_ref(state, &geoms, &token) {
                     state.select_only(id);
-                    if let Some((mn, mx)) =
-                        geoms_bbox(geoms.iter().filter(|g| g.id == id))
-                    {
+                    if let Some((mn, mx)) = geoms_bbox(geoms.iter().filter(|g| g.id == id)) {
                         *frame_request =
                             Some(frame_view(mn, mx, scope.rect().size(), zoom_min, zoom_max));
                     }
@@ -4391,9 +4495,14 @@ fn draw_and_interact(
     // key-up went to another window) still closes the transaction.
     if state.nudging() {
         let input = &ui.ctx().input;
-        let any_arrow_held = [Key::ArrowUp, Key::ArrowDown, Key::ArrowLeft, Key::ArrowRight]
-            .iter()
-            .any(|k| input.key_down(*k));
+        let any_arrow_held = [
+            Key::ArrowUp,
+            Key::ArrowDown,
+            Key::ArrowLeft,
+            Key::ArrowRight,
+        ]
+        .iter()
+        .any(|k| input.key_down(*k));
         if !any_arrow_held {
             state.commit_nudge(registry);
         }
@@ -4403,7 +4512,8 @@ fn draw_and_interact(
     // crosshair is the cheapest legible hint and the OS already owns drawing
     // it, so it costs nothing and cannot drift out of sync with a glyph.
     if ctrl && !widget_claimed && pointer_world.is_some() && hovered_wire.is_none() {
-        ui.ctx_mut().set_cursor_icon(crusty_gui::context::CursorIcon::Crosshair);
+        ui.ctx_mut()
+            .set_cursor_icon(crusty_gui::context::CursorIcon::Crosshair);
     }
 
     // Canvas-context shortcuts. Pointer over the canvas, and never while an
@@ -4455,8 +4565,9 @@ fn draw_and_interact(
                 // the rows somewhere else.
                 Action::ALIGN_STRIP => {
                     if state.selection.len() >= 2 {
-                        state.node_menu =
-                            state.primary.or_else(|| state.selection.iter().copied().next());
+                        state.node_menu = state
+                            .primary
+                            .or_else(|| state.selection.iter().copied().next());
                         *node_menu_at = ui.ctx().input.pointer_pos;
                     }
                 }
@@ -4547,15 +4658,16 @@ fn draw_and_interact(
                 // is the one you keep.
                 Action::ADD_NODE_PALETTE => {
                     if state.palette.is_none() {
-                        if let (Some(pw), Some(sp)) =
-                            (pointer_world, ui.ctx().input.pointer_pos)
-                        {
+                        if let (Some(pw), Some(sp)) = (pointer_world, ui.ctx().input.pointer_pos) {
                             open_palette(state, [pw.x, pw.y], [sp.x, sp.y], None);
                         }
                     }
                 }
                 Action::FIND => {
-                    state.find = Some(FindState { first_frame: true, ..Default::default() });
+                    state.find = Some(FindState {
+                        first_frame: true,
+                        ..Default::default()
+                    });
                 }
                 // `Canvas` walks out to `GraphTab`, so the strip toggles from
                 // the canvas too — which is where the pointer is when an
@@ -4583,7 +4695,6 @@ fn bookmark_slot(action: Action) -> usize {
         _ => 0,
     }
 }
-
 
 /// The `?` cheat sheet: every binding, two columns, grouped by context.
 ///
@@ -4622,9 +4733,18 @@ fn cheat_sheet(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, keymap: &K
         let mut p = ui.overlay_painter();
         // A scrim that still shows the graph: you are reading the sheet
         // *about* what is behind it.
-        p.rect_filled_translucent(rect, Rounding::ZERO, Color::BLACK.with_alpha(pal.scrim_alpha));
+        p.rect_filled_translucent(
+            rect,
+            Rounding::ZERO,
+            Color::BLACK.with_alpha(pal.scrim_alpha),
+        );
         p.rect_filled(panel, st.rounding.panel, pal.elevated);
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, pal.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            pal.stroke_strong,
+        );
         p.text(
             Pos2::new(panel.min.x + 20.0, panel.min.y + 16.0),
             "Keyboard Shortcuts",
@@ -4671,7 +4791,11 @@ fn cheat_sheet(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, keymap: &K
                     y = panel.min.y + 52.0;
                 }
                 last_ctx = heading;
-                let label = if fixed { "Input model".to_string() } else { ctx.label().to_string() };
+                let label = if fixed {
+                    "Input model".to_string()
+                } else {
+                    ctx.label().to_string()
+                };
                 y += 6.0;
                 p.text_family(
                     Pos2::new(x, y),
@@ -4687,7 +4811,11 @@ fn cheat_sheet(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, keymap: &K
             // behaviour does not yet.
             let live = row.action.status() == ActionStatus::Live;
             let name_col = if live { pal.text } else { pal.text_disabled };
-            let chord_col = if live { pal.text_mono } else { pal.text_disabled };
+            let chord_col = if live {
+                pal.text_mono
+            } else {
+                pal.text_disabled
+            };
             p.text_family(
                 Pos2::new(x, y),
                 &row.chords[0].label(),
@@ -4842,12 +4970,7 @@ fn peek_user_rect(canvas: Rect, off: [f32; 2], size: [f32; 2], s: f32) -> Rect {
 /// transition's chip when it is on screen (the rule opens where the eye
 /// already is), clamped into the canvas, sized to leave the machine visible
 /// around it.
-fn rule_peek_rect(
-    ui: &Ui,
-    canvas: Rect,
-    state: &GraphEditorState,
-    geoms: &[NodeGeom],
-) -> Rect {
+fn rule_peek_rect(ui: &Ui, canvas: Rect, state: &GraphEditorState, geoms: &[NodeGeom]) -> Rect {
     let st = ui.style();
     let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
     if let Some((off, size)) = state.peek_panel {
@@ -4873,15 +4996,17 @@ fn rule_peek_rect(
         })
         .unwrap_or_else(|| canvas.center());
     let mut min = Pos2::new(anchor.x - w * 0.5, anchor.y + 14.0 * s);
-    min.x = min
-        .x
-        .clamp(canvas.min.x + margin, (canvas.max.x - margin - w).max(canvas.min.x + margin));
+    min.x = min.x.clamp(
+        canvas.min.x + margin,
+        (canvas.max.x - margin - w).max(canvas.min.x + margin),
+    );
     if min.y + h > canvas.max.y - margin {
         min.y = (anchor.y - 28.0 * s - h).max(canvas.min.y + margin);
     }
-    min.y = min
-        .y
-        .clamp(canvas.min.y + margin, (canvas.max.y - margin - h).max(canvas.min.y + margin));
+    min.y = min.y.clamp(
+        canvas.min.y + margin,
+        (canvas.max.y - margin - h).max(canvas.min.y + margin),
+    );
     Rect::from_min_size(min, Vec2::new(w, h))
 }
 
@@ -4917,7 +5042,10 @@ fn subtract_rects(outer: Rect, holes: &[Rect]) -> Vec<Rect> {
             x = x.max(hx1);
         }
         if outer.max.x > x {
-            out.push(Rect::from_min_max(Pos2::new(x, y0), Pos2::new(outer.max.x, y1)));
+            out.push(Rect::from_min_max(
+                Pos2::new(x, y0),
+                Pos2::new(outer.max.x, y1),
+            ));
         }
     }
     out
@@ -4928,7 +5056,9 @@ fn subtract_rects(outer: Rect, holes: &[Rect]) -> Vec<Rect> {
 /// what the canvas already drew (mockup 3b: "source + target states stay
 /// lit; rest dims").
 fn rule_dim_scrim(ui: &mut Ui, canvas: Rect, state: &GraphEditorState, geoms: &[NodeGeom]) {
-    let Some(scope) = &state.rule_scope else { return };
+    let Some(scope) = &state.rule_scope else {
+        return;
+    };
     let (from, to) = rule_endpoints(state, scope.owner);
     let v = state.view;
     let mut lit: Vec<Rect> = Vec::new();
@@ -4997,8 +5127,7 @@ fn anim_select_dim(
     let mut lit: Vec<Rect> = Vec::new();
     for g in geoms {
         if g.id == owner || Some(g.id) == from || Some(g.id) == to {
-            let r = Rect::from_min_max(screen(g.rect.min), screen(g.rect.max))
-                .intersect(canvas);
+            let r = Rect::from_min_max(screen(g.rect.min), screen(g.rect.max)).intersect(canvas);
             if r.width() > 0.0 && r.height() > 0.0 {
                 lit.push(r);
             }
@@ -5018,7 +5147,12 @@ fn anim_select_dim(
     // line's midpoint), so nothing ever crosses the card being edited.
     let rects: BTreeMap<u64, [f32; 4]> = geoms
         .iter()
-        .map(|g| (g.id, [g.rect.min.x, g.rect.min.y, g.rect.max.x, g.rect.max.y]))
+        .map(|g| {
+            (
+                g.id,
+                [g.rect.min.x, g.rect.min.y, g.rect.max.x, g.rect.max.y],
+            )
+        })
         .collect();
     let layout = super::graph_anim_edge::anim_flow_layout(
         &state.doc,
@@ -5068,7 +5202,11 @@ enum BreadcrumbClick {
 /// Walk · 0.20s`. Drawn when any has something to say; the scopes read as
 /// one chain, which is exactly the spec's "breadcrumb distinguishes the two".
 fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
-    let chain: &[String] = if state.domain.is_animation() { &state.nav_back } else { &[] };
+    let chain: &[String] = if state.domain.is_animation() {
+        &state.nav_back
+    } else {
+        &[]
+    };
     let rule = state.rule_scope.as_ref().map(|s| s.owner);
     let machine = state.is_machine_scope();
     if chain.is_empty() && rule.is_none() && !machine {
@@ -5079,8 +5217,7 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
     let h = st.metrics.control_height;
     let font = st.fonts.body;
     let rect = ui.allocate(Vec2::new(ui.available_size().x, h));
-    let file_name =
-        |path: &str| path.rsplit('/').next().unwrap_or(path).to_string();
+    let file_name = |path: &str| path.rsplit('/').next().unwrap_or(path).to_string();
     let sep = " \u{25b8} ";
     let sep_w = ui.painter().measure_text(sep, font, None).x;
     let ty = rect.center().y - font * 0.62;
@@ -5092,11 +5229,13 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
     let mut p = ui.painter();
     p.rect_filled(rect, Rounding::ZERO, st.palette.header);
     p.rect_filled(
-        Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - st.metrics.border), rect.max),
+        Rect::from_min_max(
+            Pos2::new(rect.min.x, rect.max.y - st.metrics.border),
+            rect.max,
+        ),
         Rounding::ZERO,
         st.palette.stroke_strong,
     );
-    drop(p);
 
     let mut x = rect.min.x + pad;
     for (i, ancestor) in chain.iter().enumerate() {
@@ -5113,7 +5252,11 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
             Pos2::new(x, ty),
             &text,
             font,
-            if resp.hovered { st.palette.accent_active } else { st.palette.text_secondary },
+            if resp.hovered {
+                st.palette.accent_active
+            } else {
+                st.palette.text_secondary
+            },
             None,
         );
         x += w;
@@ -5164,7 +5307,11 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
         Pos2::new(x, ty),
         &file,
         font,
-        if file_hovered { st.palette.accent_active } else { st.palette.text },
+        if file_hovered {
+            st.palette.accent_active
+        } else {
+            st.palette.text
+        },
         None,
     );
     x += file_w;
@@ -5175,7 +5322,11 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
             Pos2::new(x, ty),
             machine_text,
             font,
-            if hovered { st.palette.accent_active } else { st.palette.text },
+            if hovered {
+                st.palette.accent_active
+            } else {
+                st.palette.text
+            },
             None,
         );
         x += w;
@@ -5227,7 +5378,7 @@ fn rule_canvas_pass(
     zoom_max: f32,
     own_modal: Option<Id>,
 ) -> Option<RuleCanvasOut> {
-    let Some(mut scope) = state.rule_scope.take() else { return None };
+    let mut scope = state.rule_scope.take()?;
     let rreg = rule_scope_registry();
     let owner = scope.owner;
     let child = &mut *scope.child;
@@ -5247,7 +5398,10 @@ fn rule_canvas_pass(
         body,
         Direction::TopDown,
         Id::ROOT.with(("rule_canvas", owner)),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             Canvas::new()
                 .size(body.size())
@@ -5306,9 +5460,15 @@ fn rule_canvas_pass(
     find_overlay(ui, out.rect, child, &out.inner, zoom_min, zoom_max, rreg);
     wire_menu(ui, child, rreg, wire_menu_at);
     node_menu(ui, child, rreg, keymap, &out.inner, node_menu_at);
-    if let Some((world, screen)) =
-        canvas_menu(ui, child, rreg, keymap, &out.inner, clipboard, canvas_menu_at)
-    {
+    if let Some((world, screen)) = canvas_menu(
+        ui,
+        child,
+        rreg,
+        keymap,
+        &out.inner,
+        clipboard,
+        canvas_menu_at,
+    ) {
         open_palette(child, world, screen, None);
     }
     purge_confirm(ui, out.rect, child, rreg);
@@ -5359,7 +5519,11 @@ fn rule_canvas_pass(
 
     state.rule_scope = Some(scope);
     state.drain_rule_scope(registry);
-    Some(RuleCanvasOut { rect: out.rect, geoms: out.inner, ascend })
+    Some(RuleCanvasOut {
+        rect: out.rect,
+        geoms: out.inner,
+        ascend,
+    })
 }
 
 /// Which panel borders a point inside the grip zones would resize — corners
@@ -5417,7 +5581,9 @@ fn rule_peek_overlay(
     zoom_min: f32,
     zoom_max: f32,
 ) {
-    let Some(scope) = &state.rule_scope else { return };
+    let Some(scope) = &state.rule_scope else {
+        return;
+    };
     if scope.full {
         return;
     }
@@ -5441,8 +5607,7 @@ fn rule_peek_overlay(
     let mut promote_drop = false;
     let mut drag_aborted = false;
     if let Some(drag) = state.peek_drag {
-        if ui.ctx().input.key_pressed(Key::Escape) || ui.ctx().focus_lost() || pointer.is_none()
-        {
+        if ui.ctx().input.key_pressed(Key::Escape) || ui.ctx().focus_lost() || pointer.is_none() {
             // Rule 3: the drag reverts and records nothing — and the Esc
             // that aborted it must not also dismiss the peek.
             state.peek_panel = drag.prev;
@@ -5461,7 +5626,12 @@ fn rule_peek_overlay(
                     let min = Pos2::new(pt.x - grab[0], pt.y - grab[1]);
                     state.peek_panel = Some(store(Rect::from_min_size(min, panel.size())));
                 }
-                PeekDragKind::Resize { left, right, top, bottom } => {
+                PeekDragKind::Resize {
+                    left,
+                    right,
+                    top,
+                    bottom,
+                } => {
                     let min_sz = peek_min_size(s);
                     let mut r = panel;
                     if left {
@@ -5528,16 +5698,22 @@ fn rule_peek_overlay(
             .filter(|pt| panel.contains(*pt) && !close_r.contains(*pt) && !promote_r.contains(*pt))
         {
             let kind = match peek_resize_zone(panel, pt, s) {
-                Some((left, right, top, bottom)) => {
-                    Some(PeekDragKind::Resize { left, right, top, bottom })
-                }
+                Some((left, right, top, bottom)) => Some(PeekDragKind::Resize {
+                    left,
+                    right,
+                    top,
+                    bottom,
+                }),
                 None if pt.y < panel.min.y + header_h => Some(PeekDragKind::Move {
                     grab: [pt.x - panel.min.x, pt.y - panel.min.y],
                 }),
                 None => None,
             };
             if let Some(kind) = kind {
-                state.peek_drag = Some(PeekDrag { kind, prev: state.peek_panel });
+                state.peek_drag = Some(PeekDrag {
+                    kind,
+                    prev: state.peek_panel,
+                });
                 // The grab pins today's concrete placement, so a Move keeps
                 // this size and a Resize moves only the grabbed edges even
                 // when the panel was still on its anchored default.
@@ -5551,10 +5727,20 @@ fn rule_peek_overlay(
 
     // Cursor language: borders advertise the resize, an active move grabs.
     let zone = match state.peek_drag {
-        Some(PeekDrag { kind: PeekDragKind::Resize { left, right, top, bottom }, .. }) => {
-            Some((left, right, top, bottom))
-        }
-        Some(PeekDrag { kind: PeekDragKind::Move { .. }, .. }) => None,
+        Some(PeekDrag {
+            kind:
+                PeekDragKind::Resize {
+                    left,
+                    right,
+                    top,
+                    bottom,
+                },
+            ..
+        }) => Some((left, right, top, bottom)),
+        Some(PeekDrag {
+            kind: PeekDragKind::Move { .. },
+            ..
+        }) => None,
         None => pointer.and_then(|pt| peek_resize_zone(panel, pt, s)),
     };
     if let Some((l, r, t, b)) = zone {
@@ -5566,7 +5752,10 @@ fn rule_peek_overlay(
         });
     } else if matches!(
         state.peek_drag,
-        Some(PeekDrag { kind: PeekDragKind::Move { .. }, .. })
+        Some(PeekDrag {
+            kind: PeekDragKind::Move { .. },
+            ..
+        })
     ) {
         ui.ctx_mut().set_cursor_icon(CursorIcon::Grabbing);
     }
@@ -5586,7 +5775,12 @@ fn rule_peek_overlay(
             st.rounding.panel,
             st.palette.header,
         );
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
         p.text_family(
             Pos2::new(panel.min.x + pad, cy - font * 0.62),
             &title,
@@ -5615,7 +5809,11 @@ fn rule_peek_overlay(
                 Pos2::new(r.min.x + pad * 0.25, cy - font * 0.62),
                 text,
                 font,
-                if resp.hovered { st.palette.text } else { st.palette.text_disabled },
+                if resp.hovered {
+                    st.palette.text
+                } else {
+                    st.palette.text_disabled
+                },
                 None,
                 FontFamily::Mono,
             );
@@ -5648,12 +5846,13 @@ fn rule_peek_overlay(
     // promotes. Drawn last, above the panel it may overlap.
     if dock_hot {
         let mut p = ui.painter();
-        p.rect_filled_translucent(
+        p.rect_filled_translucent(dock_band, st.rounding.panel, st.palette.selection_fill);
+        p.rect_stroke(
             dock_band,
             st.rounding.panel,
-            st.palette.selection_fill,
+            st.metrics.border,
+            st.palette.accent_active,
         );
-        p.rect_stroke(dock_band, st.rounding.panel, st.metrics.border, st.palette.accent_active);
         let label = "\u{2922} drop to open as full canvas";
         let w = p.measure_text(label, st.fonts.small, None).x;
         p.text_family(
@@ -5707,7 +5906,10 @@ fn rule_scope_full(
     let strip = {
         let st = ui.style();
         let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
-        let open = state.rule_scope.as_ref().is_some_and(|sc| sc.child.vars.open);
+        let open = state
+            .rule_scope
+            .as_ref()
+            .is_some_and(|sc| sc.child.vars.open);
         let w = if open { VARS_W * s } else { VARS_RAIL_W * s };
         let c = ui.cursor();
         let r = Rect::from_min_max(c, Pos2::new(c.x + w, ui.available().max.y));
@@ -5753,16 +5955,17 @@ fn rule_scope_full(
             scope.child.flash = Some((id, std::time::Instant::now()));
             if let Some((mn, mx)) = geoms_bbox(pass.geoms.iter().filter(|g| g.id == id)) {
                 let v = frame_view(mn, mx, pass.rect.size(), zoom_min, zoom_max);
-                scope.child.view = CanvasView { pan: v.pan, zoom: scope.child.view.zoom };
+                scope.child.view = CanvasView {
+                    pan: v.pan,
+                    zoom: scope.child.view.zoom,
+                };
             }
         }
         state.rule_scope = Some(scope);
         state.drain_rule_scope(registry);
     }
 
-    if pass.is_some_and(|p| p.ascend)
-        || (ui.ctx().input.key_pressed(Key::Escape) && !esc_busy)
-    {
+    if pass.is_some_and(|p| p.ascend) || (ui.ctx().input.key_pressed(Key::Escape) && !esc_busy) {
         state.close_rule_scope(registry);
     }
 }
@@ -5812,11 +6015,12 @@ fn draw_toasts(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState) {
     let mut p = ui.painter();
     for (text, alpha) in toasts {
         let w = p.measure_text(&text, font, None).x + pad * 2.0;
-        let chip = Rect::from_min_size(
-            Pos2::new(rect.center().x - w * 0.5, y),
-            Vec2::new(w, h),
+        let chip = Rect::from_min_size(Pos2::new(rect.center().x - w * 0.5, y), Vec2::new(w, h));
+        p.rect_filled(
+            chip,
+            st.rounding.small,
+            st.palette.elevated.with_alpha(alpha),
         );
-        p.rect_filled(chip, st.rounding.small, st.palette.elevated.with_alpha(alpha));
         p.rect_stroke(
             chip,
             st.rounding.small,
@@ -5864,7 +6068,12 @@ fn find_overlay(
     {
         let mut p = ui.painter();
         p.rect_filled(panel, st.rounding.widget, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.widget, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.widget,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let mut query = find.query.clone();
     let (mut submitted, mut cancelled) = (false, false);
@@ -5875,7 +6084,10 @@ fn find_overlay(
         ),
         Direction::TopDown,
         Id::new("graph_find_field"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(&mut query)
                 .hint("Find in graph\u{2026}")
@@ -5912,7 +6124,10 @@ fn find_overlay(
     // Mono count, the same convention the palette footer uses.
     if find.active() {
         ui.painter().text_family(
-            Pos2::new(panel.max.x - pad * 4.0, panel.center().y - st.fonts.small * 0.62),
+            Pos2::new(
+                panel.max.x - pad * 4.0,
+                panel.center().y - st.fonts.small * 0.62,
+            ),
             &format!("{total}"),
             st.fonts.small,
             st.palette.text_disabled,
@@ -5930,7 +6145,10 @@ fn find_overlay(
                 // Pan only, like error cycling — a find should not also
                 // rescale the canvas out from under the reader.
                 let v = frame_view(mn, mx, rect.size(), zoom_min, zoom_max);
-                state.view = CanvasView { pan: v.pan, zoom: state.view.zoom };
+                state.view = CanvasView {
+                    pan: v.pan,
+                    zoom: state.view.zoom,
+                };
             }
         };
         if let Some(&id) = matches.get(i) {
@@ -5958,10 +6176,7 @@ fn purge_confirm(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, registry
     let st = ui.style();
     let pad = st.spacing.padding;
     let n = ids.len();
-    let text = format!(
-        "Purge {n} unused node{}?",
-        if n == 1 { "" } else { "s" }
-    );
+    let text = format!("Purge {n} unused node{}?", if n == 1 { "" } else { "s" });
     let font = st.fonts.body;
     let w = ui.painter().measure_text(&text, font, None).x + pad * 2.0;
     let panel = Rect::from_center_size(
@@ -5979,7 +6194,12 @@ fn purge_confirm(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, registry
             Color::BLACK.with_alpha(st.palette.scrim_alpha),
         );
         p.rect_filled(panel, st.rounding.panel, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
         p.text(
             Pos2::new(panel.min.x + pad, panel.min.y + pad),
             &text,
@@ -5998,7 +6218,10 @@ fn purge_confirm(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, registry
         ),
         Direction::LeftToRight,
         Id::new("graph_purge_confirm"),
-        UiOptions { padding: Vec2::ZERO, spacing: st.spacing.item },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: st.spacing.item,
+        },
         |ui| {
             cancel = Button::new("Cancel")
                 .exact_size(Vec2::new(bw, st.metrics.control_height))
@@ -6013,7 +6236,10 @@ fn purge_confirm(ui: &mut Ui, rect: Rect, state: &mut GraphEditorState, registry
     );
     if purge {
         state.purge_nodes(&ids, registry);
-        println!("graph: purged {n} unused node{}", if n == 1 { "" } else { "s" });
+        println!(
+            "graph: purged {n} unused node{}",
+            if n == 1 { "" } else { "s" }
+        );
         state.purge_confirm = None;
     } else if cancel {
         state.purge_confirm = None;
@@ -6065,7 +6291,13 @@ fn canvas_menu(
 
     crusty_gui::widgets::context_menu_at(ui, "graph_canvas_menu", open_at, |ui| {
         ui.menu_group_header("Canvas");
-        if menu_row_for(ui, keymap, Action::ADD_NODE_PALETTE, "Add Node\u{2026}", true) {
+        if menu_row_for(
+            ui,
+            keymap,
+            Action::ADD_NODE_PALETTE,
+            "Add Node\u{2026}",
+            true,
+        ) {
             palette_at = Some(at);
         }
         if menu_row_for(ui, keymap, Action::PASTE, "Paste", has_clip) {
@@ -6141,13 +6373,7 @@ fn align_action(mode: AlignMode) -> Option<Action> {
 /// Preferences updates every menu that offers the action — a row and its key
 /// cannot drift apart. An unbound action (the user cleared it, or the preset
 /// never bound it) simply shows no chord.
-fn menu_row_for(
-    ui: &mut Ui,
-    keymap: &Keymap,
-    action: Action,
-    label: &str,
-    enabled: bool,
-) -> bool {
+fn menu_row_for(ui: &mut Ui, keymap: &Keymap, action: Action, label: &str, enabled: bool) -> bool {
     match keymap.chord_label(action) {
         Some(chord) => ui.menu_item_shortcut(label, chord, enabled),
         None => ui.menu_item_enabled(label, enabled),
@@ -6292,8 +6518,7 @@ fn annotation_menu(
         Annotation::Group(i) => state.doc.groups.get(i).map(|g| g.collapsed),
     }
     .unwrap_or(false);
-    let anchored = is_comment
-        && state.doc.comments.get(i).and_then(|c| c.anchor).is_some();
+    let anchored = is_comment && state.doc.comments.get(i).and_then(|c| c.anchor).is_some();
     let one_node = state.selection.len() == 1;
 
     let mut picked: Option<Option<u8>> = None;
@@ -6330,7 +6555,11 @@ fn annotation_menu(
         state.annotation_menu = None;
     }
     if let Some(a) = anchor_to {
-        let node = if anchored { None } else { a.or_else(|| state.selection.iter().copied().next()) };
+        let node = if anchored {
+            None
+        } else {
+            a.or_else(|| state.selection.iter().copied().next())
+        };
         state.set_comment_anchor(i, node, registry);
         state.annotation_menu = None;
     }
@@ -6355,8 +6584,14 @@ fn resize_handle_at(rect: Rect, pw: Pos2, zoom: f32) -> Option<ResizeHandle> {
     if !outer.contains(pw) {
         return None;
     }
-    let (l, r) = ((pw.x - rect.min.x).abs() <= band, (pw.x - rect.max.x).abs() <= band);
-    let (t, b) = ((pw.y - rect.min.y).abs() <= band, (pw.y - rect.max.y).abs() <= band);
+    let (l, r) = (
+        (pw.x - rect.min.x).abs() <= band,
+        (pw.x - rect.max.x).abs() <= band,
+    );
+    let (t, b) = (
+        (pw.y - rect.min.y).abs() <= band,
+        (pw.y - rect.max.y).abs() <= band,
+    );
     // Corners first: a corner overlaps two edges and must win.
     Some(match (l, r, t, b) {
         (true, _, true, _) => ResizeHandle::TopLeft,
@@ -6449,7 +6684,11 @@ fn tint_menu_row(ui: &mut Ui, current: Option<u8>) -> Option<Option<u8>> {
                 cell,
                 st.rounding.small,
                 st.metrics.border,
-                if slot == current { st.palette.accent_active } else { st.palette.focus_ring },
+                if slot == current {
+                    st.palette.accent_active
+                } else {
+                    st.palette.focus_ring
+                },
             );
         }
         if resp.clicked {
@@ -6566,7 +6805,12 @@ fn palette_popover(
             st.rounding.panel,
             st.palette.elevated.with_alpha(st.palette.popover_alpha),
         );
-        pt.rect_stroke(rect, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        pt.rect_stroke(
+            rect,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
 
     // Search field, focused on open.
@@ -6580,7 +6824,10 @@ fn palette_popover(
         ),
         Direction::TopDown,
         Id::new("graph_palette_search"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(&mut search)
                 .hint("Search nodes\u{2026}")
@@ -6658,7 +6905,10 @@ fn palette_popover(
                     .measure_text_family(&tag, st.fonts.small, None, FontFamily::Mono)
                     .x;
                 pt.text_family(
-                    Pos2::new(row.max.x - pad * 0.5 - tw, row.center().y - st.fonts.small * 0.62),
+                    Pos2::new(
+                        row.max.x - pad * 0.5 - tw,
+                        row.center().y - st.fonts.small * 0.62,
+                    ),
                     &tag,
                     st.fonts.small,
                     st.palette.text_secondary.with_alpha(alpha),
@@ -6751,7 +7001,11 @@ fn place_palette_pick(
     if let (Some(slug), Some(from)) = (slug.as_ref(), p.from.as_ref()) {
         // Offset so the pin we are about to wire lands on the drop point.
         if let Some(desc) = registry.get(&entry.id) {
-            let side = if from.output { &desc.inputs } else { &desc.outputs };
+            let side = if from.output {
+                &desc.inputs
+            } else {
+                &desc.outputs
+            };
             let row = side.iter().position(|q| &q.slug == slug).unwrap_or(0);
             pos[1] -= BASE_HEADER_H + BASE_ROW_H * (row as f32 + 0.5);
             if !from.output {
@@ -6763,11 +7017,10 @@ fn place_palette_pick(
     }
     // Nudge clear of anything already there — the palette's drop rule.
     for _ in 0..32 {
-        let clash = state
-            .doc
-            .nodes
-            .iter()
-            .any(|n| (n.position[0] - pos[0]).abs() < 1.0 && (n.position[1] - pos[1]).abs() < 1.0);
+        let clash =
+            state.doc.nodes.iter().any(|n| {
+                (n.position[0] - pos[0]).abs() < 1.0 && (n.position[1] - pos[1]).abs() < 1.0
+            });
         if !clash {
             break;
         }
@@ -6838,7 +7091,8 @@ fn graph_toolbar(
     let s = (st.metrics.row_height / BASE_ROW_H).max(0.1);
     let w = ui.available().width();
     let rect = ui.allocate(Vec2::new(w, TOOLBAR_H * s));
-    ui.painter().rect_filled(rect, Rounding::ZERO, st.palette.window);
+    ui.painter()
+        .rect_filled(rect, Rounding::ZERO, st.palette.window);
     ui.painter().line_segment(
         Pos2::new(rect.min.x, rect.max.y),
         Pos2::new(rect.max.x, rect.max.y),
@@ -6883,7 +7137,10 @@ fn graph_toolbar(
         .measure_text_family(label, px, None, FontFamily::Mono)
         .x;
     let chip = Rect::from_min_size(
-        Pos2::new(rect.max.x - pad - tw - pad * 2.0, rect.center().y - seg_h * 0.5),
+        Pos2::new(
+            rect.max.x - pad - tw - pad * 2.0,
+            rect.center().y - seg_h * 0.5,
+        ),
         Vec2::new(tw + pad * 2.0, seg_h),
     );
     ui.painter()
@@ -6916,30 +7173,31 @@ fn graph_toolbar(
     let killed = exec.is_some_and(|v| {
         v.killed.is_some() || instances.iter().any(|i| i.id == v.instance_id && i.killed)
     });
-    let (word, word_col, chip_fill, chip_stroke) = match chip_state(exec.is_some(), killed, instances.len()) {
-        ChipState::Absent => {
-            state.exec_picker = false;
-            return;
-        }
-        ChipState::Killed => (
-            "\u{2715} KILLED".to_string(),
-            status.error,
-            status.error.with_alpha(0.10),
-            status.error,
-        ),
-        ChipState::Live => (
-            "LIVE".to_string(),
-            st.palette.accent_active,
-            st.palette.accent_soft,
-            st.palette.accent_active,
-        ),
-        ChipState::Unbound(n) => (
-            format!("{n} RUNNING"),
-            st.palette.text_secondary,
-            st.palette.panel,
-            st.palette.stroke,
-        ),
-    };
+    let (word, word_col, chip_fill, chip_stroke) =
+        match chip_state(exec.is_some(), killed, instances.len()) {
+            ChipState::Absent => {
+                state.exec_picker = false;
+                return;
+            }
+            ChipState::Killed => (
+                "\u{2715} KILLED".to_string(),
+                status.error,
+                status.error.with_alpha(0.10),
+                status.error,
+            ),
+            ChipState::Live => (
+                "LIVE".to_string(),
+                st.palette.accent_active,
+                st.palette.accent_soft,
+                st.palette.accent_active,
+            ),
+            ChipState::Unbound(n) => (
+                format!("{n} RUNNING"),
+                st.palette.text_secondary,
+                st.palette.panel,
+                st.palette.stroke,
+            ),
+        };
     let who = match exec {
         Some(v) => v.instance.clone(),
         None => "select instance".to_string(),
@@ -6973,7 +7231,11 @@ fn graph_toolbar(
     ui.painter().circle_filled(
         Pos2::new(live_chip.min.x + pad + dot_r, live_chip.center().y),
         dot_r,
-        if exec.is_some() { word_col } else { status.success },
+        if exec.is_some() {
+            word_col
+        } else {
+            status.success
+        },
     );
     let text_x = live_chip.min.x + pad + dot_r * 2.0 + pad * 0.5;
     let text_y = live_chip.center().y - px * 0.62;
@@ -7106,7 +7368,11 @@ fn paused_banner(
 
     // Instance and hit count in one mono run: which Duck, and how many times
     // this session has stopped here.
-    let who = if viz.instance.is_empty() { "instance" } else { viz.instance.as_str() };
+    let who = if viz.instance.is_empty() {
+        "instance"
+    } else {
+        viz.instance.as_str()
+    };
     let sub = format!("{who} \u{00B7} hit {}\u{00D7}", pause.hits.max(1));
     ui.painter().text_family(
         Pos2::new(x, rect.center().y - px * 0.62),
@@ -7125,12 +7391,16 @@ fn paused_banner(
         ("Step", Some(Action::DEBUG_STEP), 0),
         ("Resume", Some(Action::DEBUG_RESUME), 1),
     ] {
-        let chord = action.and_then(|a| keymap.chord_label(a)).unwrap_or_default();
+        let chord = action
+            .and_then(|a| keymap.chord_label(a))
+            .unwrap_or_default();
         let lw = ui.painter().measure_text(label, body, None).x;
         let cw = if chord.is_empty() {
             0.0
         } else {
-            ui.painter().measure_text_family(&chord, px * 0.9, None, FontFamily::Mono).x
+            ui.painter()
+                .measure_text_family(&chord, px * 0.9, None, FontFamily::Mono)
+                .x
                 + pad * 0.5
         };
         let bw = lw + cw + pad * 1.6;
@@ -7153,18 +7423,29 @@ fn paused_banner(
             b,
             st.rounding.small,
             st.metrics.border,
-            if kind == 1 { st.palette.stroke_strong } else { st.palette.stroke },
+            if kind == 1 {
+                st.palette.stroke_strong
+            } else {
+                st.palette.stroke
+            },
         );
         p.text(
             Pos2::new(b.min.x + pad * 0.8, b.center().y - body * 0.62),
             label,
             body,
-            if kind == 1 { st.palette.text } else { st.palette.text_secondary },
+            if kind == 1 {
+                st.palette.text
+            } else {
+                st.palette.text_secondary
+            },
             None,
         );
         if !chord.is_empty() {
             p.text_family(
-                Pos2::new(b.min.x + pad * 0.8 + lw + pad * 0.5, b.center().y - px * 0.56),
+                Pos2::new(
+                    b.min.x + pad * 0.8 + lw + pad * 0.5,
+                    b.center().y - px * 0.56,
+                ),
                 &chord,
                 px * 0.9,
                 st.palette.text_disabled,
@@ -7243,7 +7524,12 @@ fn instance_picker(
     {
         let mut p = ui.painter();
         p.rect_filled(panel, st.rounding.widget, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.widget, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.widget,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let mut picked: Option<Option<u64>> = None;
     let bound = exec.map(|v| v.instance_id);
@@ -7288,11 +7574,19 @@ fn instance_picker(
             Pos2::new(row.max.x - pad - mw, row.center().y - px * 0.62),
             &meta,
             px,
-            if is_bound { st.palette.text_mono } else { st.palette.text_disabled },
+            if is_bound {
+                st.palette.text_mono
+            } else {
+                st.palette.text_disabled
+            },
             None,
             FontFamily::Mono,
         );
-        let name = if inst.name.is_empty() { "(unnamed)" } else { inst.name.as_str() };
+        let name = if inst.name.is_empty() {
+            "(unnamed)"
+        } else {
+            inst.name.as_str()
+        };
         let avail = row.max.x - pad * 2.0 - mw - (row.min.x + pad * 2.0 + dot_r * 2.0);
         let name = clip_text(&mut p, name, st.fonts.body, avail);
         p.text(
@@ -7302,7 +7596,11 @@ fn instance_picker(
             ),
             &name,
             st.fonts.body,
-            if is_bound { st.palette.selection_text } else { st.palette.text },
+            if is_bound {
+                st.palette.selection_text
+            } else {
+                st.palette.text
+            },
             None,
         );
         if resp.clicked {
@@ -7331,7 +7629,10 @@ fn instance_picker(
     if fresp.clicked {
         picked = Some(None);
     }
-    let footer = Rect::from_min_size(Pos2::new(panel.min.x, follow.max.y), Vec2::new(w, row_h * 0.9));
+    let footer = Rect::from_min_size(
+        Pos2::new(panel.min.x, follow.max.y),
+        Vec2::new(w, row_h * 0.9),
+    );
     {
         let mut p = ui.painter();
         p.line_segment(
@@ -7486,7 +7787,8 @@ fn anim_preview_strip(
         let mut p = ui.painter();
         (
             p.measure_text_family(&word, px, None, FontFamily::Mono).x,
-            p.measure_text_family(&format!("{sep}{who}"), px, None, FontFamily::Mono).x,
+            p.measure_text_family(&format!("{sep}{who}"), px, None, FontFamily::Mono)
+                .x,
         )
     };
     let dot_r = px * 0.28;
@@ -7510,7 +7812,14 @@ fn anim_preview_strip(
         );
         let text_x = chip.min.x + pad + dot_r * 2.0 + pad * 0.5;
         let text_y = chip.center().y - px * 0.62;
-        p.text_family(Pos2::new(text_x, text_y), &word, px, word_col, None, FontFamily::Mono);
+        p.text_family(
+            Pos2::new(text_x, text_y),
+            &word,
+            px,
+            word_col,
+            None,
+            FontFamily::Mono,
+        );
         p.text_family(
             Pos2::new(text_x + state_w, text_y),
             &format!("{sep}{who}"),
@@ -7594,7 +7903,9 @@ fn anim_param_controls(
             let mut painter = ui.painter();
             (
                 painter.measure_text(&label, px, None).x,
-                painter.measure_text_family("00.00", px, None, FontFamily::Mono).x,
+                painter
+                    .measure_text_family("00.00", px, None, FontFamily::Mono)
+                    .x,
                 painter
                     .measure_text_family(fire_label, px, None, FontFamily::Mono)
                     .x,
@@ -7638,7 +7949,10 @@ fn anim_param_controls(
                     slider,
                     Direction::LeftToRight,
                     Id::new(("anim_preview_float", p.slug.as_str())),
-                    UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                    UiOptions {
+                        padding: Vec2::ZERO,
+                        spacing: 0.0,
+                    },
                     |ui| {
                         Slider::new(&mut val, p.range.0..=p.range.1)
                             .width(slider_w)
@@ -7682,7 +7996,10 @@ fn anim_param_controls(
                     row,
                     Direction::LeftToRight,
                     Id::new(("anim_preview_bool", p.slug.as_str())),
-                    UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                    UiOptions {
+                        padding: Vec2::ZERO,
+                        spacing: 0.0,
+                    },
                     |ui| {
                         Checkbox::new(&mut val, "").show(ui);
                     },
@@ -7717,7 +8034,11 @@ fn anim_param_controls(
                 } else if resp.hovered {
                     (st.palette.hover, st.palette.stroke_strong, st.palette.text)
                 } else {
-                    (Color::TRANSPARENT, st.palette.stroke, st.palette.text_secondary)
+                    (
+                        Color::TRANSPARENT,
+                        st.palette.stroke,
+                        st.palette.text_secondary,
+                    )
                 };
                 {
                     let mut painter = ui.painter();
@@ -7787,7 +8108,12 @@ fn anim_preview_picker(
     {
         let mut p = ui.painter();
         p.rect_filled(panel, st.rounding.widget, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.widget, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.widget,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let mut picked: Option<Option<u64>> = None;
     let bound = anim.map(|a| a.instance_id);
@@ -7830,11 +8156,19 @@ fn anim_preview_picker(
             Pos2::new(row.max.x - pad - mw, row.center().y - px * 0.62),
             &meta,
             px,
-            if is_bound { st.palette.text_mono } else { st.palette.text_disabled },
+            if is_bound {
+                st.palette.text_mono
+            } else {
+                st.palette.text_disabled
+            },
             None,
             FontFamily::Mono,
         );
-        let name = if inst.name.is_empty() { "(unnamed)" } else { inst.name.as_str() };
+        let name = if inst.name.is_empty() {
+            "(unnamed)"
+        } else {
+            inst.name.as_str()
+        };
         let avail = row.max.x - pad * 2.0 - mw - (row.min.x + pad * 2.0 + dot_r * 2.0);
         let name = clip_text(&mut p, name, st.fonts.body, avail);
         p.text(
@@ -7844,7 +8178,11 @@ fn anim_preview_picker(
             ),
             &name,
             st.fonts.body,
-            if is_bound { st.palette.selection_text } else { st.palette.text },
+            if is_bound {
+                st.palette.selection_text
+            } else {
+                st.palette.text
+            },
             None,
         );
         if resp.clicked {
@@ -7870,7 +8208,10 @@ fn anim_preview_picker(
     if fresp.clicked {
         picked = Some(None);
     }
-    let footer = Rect::from_min_size(Pos2::new(panel.min.x, follow.max.y), Vec2::new(w, row_h * 0.9));
+    let footer = Rect::from_min_size(
+        Pos2::new(panel.min.x, follow.max.y),
+        Vec2::new(w, row_h * 0.9),
+    );
     {
         let mut p = ui.painter();
         p.line_segment(
@@ -7902,7 +8243,10 @@ fn anim_preview_picker(
         // Keep the binding, close the surface: "put it away" is not "unbind".
         // The Preview panel's own machine is not a pick, though — it is the
         // fallback — so dismissing over it keeps "follow the selection".
-        return Some(anim.map(|a| a.instance_id).filter(|id| *id != PANEL_INSTANCE_ID));
+        return Some(
+            anim.map(|a| a.instance_id)
+                .filter(|id| *id != PANEL_INSTANCE_ID),
+        );
     }
     if picked.is_some() {
         ui.ctx_mut().modal_dismiss(anim_picker_modal_id());
@@ -7974,8 +8318,18 @@ fn anim_live_highlight(
         // A transition is a round badge: its ring is round too.
         if g.chip.is_some() {
             let (c, rad) = (r.center(), r.width().min(r.height()) * 0.5);
-            p.circle_stroke(c, rad, (st.metrics.border * 2.0).max(2.0), accent.with_alpha(alpha));
-            p.circle_stroke(c, rad + 3.0 * s, st.metrics.border, accent.with_alpha(alpha * 0.35));
+            p.circle_stroke(
+                c,
+                rad,
+                (st.metrics.border * 2.0).max(2.0),
+                accent.with_alpha(alpha),
+            );
+            p.circle_stroke(
+                c,
+                rad + 3.0 * s,
+                st.metrics.border,
+                accent.with_alpha(alpha * 0.35),
+            );
             continue;
         }
         p.rect_stroke(
@@ -8050,7 +8404,10 @@ fn var_types(domain: GraphDomain) -> &'static [(&'static str, PinType)] {
                 vec![
                     ("Float", PinType::Float),
                     ("Bool", PinType::Bool),
-                    ("Trigger", crate::engine::animation::graph::trigger_pin_type()),
+                    (
+                        "Trigger",
+                        crate::engine::animation::graph::trigger_pin_type(),
+                    ),
                 ]
             })
         }
@@ -8101,7 +8458,10 @@ fn strip_button(ui: &mut Ui, id: Id, rect: Rect, label: &str, variant: u8) -> bo
         rect,
         Direction::TopDown,
         id,
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let b = Button::new(label).exact_size(rect.size());
             let b = match variant {
@@ -8305,7 +8665,10 @@ pub(super) fn variables_panel(
         plus,
         Direction::TopDown,
         root.with("graph_vars_add_menu"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             // The width is the *dropdown's*, not the button's — a menu as
             // narrow as the + glyph would be unreadable.
@@ -8313,7 +8676,10 @@ pub(super) fn variables_panel(
                 if ui.menu_item("Add Variable") {
                     new_var = match new_var {
                         Some(_) => None,
-                        None => Some(NewVarDraft { first_frame: true, ..Default::default() }),
+                        None => Some(NewVarDraft {
+                            first_frame: true,
+                            ..Default::default()
+                        }),
                     };
                 }
                 // A group with no members cannot exist — it is metadata on a
@@ -8351,7 +8717,10 @@ pub(super) fn variables_panel(
         field,
         Direction::TopDown,
         root.with("graph_vars_filter"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(&mut filter)
                 .hint("\u{2315} Filter variables")
@@ -8364,7 +8733,9 @@ pub(super) fn variables_panel(
         // The count belongs *in* the field — the find-in-graph idiom.
         let text = format!("{}/{}", view.matches, view.total);
         let mut p = ui.painter();
-        let w = p.measure_text_family(&text, small, None, FontFamily::Mono).x;
+        let w = p
+            .measure_text_family(&text, small, None, FontFamily::Mono)
+            .x;
         p.text_family(
             Pos2::new(field.max.x - w - pad * 0.5, field.center().y - small * 0.62),
             &text,
@@ -8379,10 +8750,7 @@ pub(super) fn variables_panel(
     let footer_h = sel_index
         .map(|i| footer_height(&vars[i], &st, s))
         .unwrap_or(0.0);
-    let footer = Rect::from_min_max(
-        Pos2::new(rect.min.x, rect.max.y - footer_h),
-        rect.max,
-    );
+    let footer = Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - footer_h), rect.max);
     let list = Rect::from_min_max(
         Pos2::new(rect.min.x, filter_row.max.y),
         Pos2::new(rect.max.x, rect.max.y - footer_h),
@@ -8398,7 +8766,10 @@ pub(super) fn variables_panel(
         list,
         Direction::TopDown,
         root.with("graph_vars_list"),
-        UiOptions { padding: Vec2::new(pad * 0.5, pad * 0.5), spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::new(pad * 0.5, pad * 0.5),
+            spacing: 0.0,
+        },
         |ui| {
             if vars.is_empty() && new_var.is_none() {
                 empty_state(ui, list, &st);
@@ -8408,100 +8779,109 @@ pub(super) fn variables_panel(
                 .inset(0.0)
                 .spacing(0.0)
                 .show(ui, |ui| {
-                // The width the scroll area actually offers: it reserves a
-                // scrollbar gutter the moment the content overflows, and a row
-                // laid out to the panel width would slide its usage count
-                // underneath it.
-                let w = ui.available().width();
-                // The add draft sits at the top of the list, unchanged from
-                // the baseline: name, type, array, Cancel/Add.
-                if let Some(draft) = new_var.as_mut() {
-                    if let Some(req) = add_draft_block(ui, w, &st, pad, state.domain, root, draft) {
-                        request = Some(req);
-                    }
-                }
-                if new_var.as_ref().is_some_and(|d| d.done) {
-                    new_var = None;
-                }
-                for row in &view.rows {
-                    match row {
-                        VarListRow::Group { name, count, collapsed } => {
-                            let r = ui.allocate(Vec2::new(w, st.metrics.control_height * 0.8));
-                            header_rects.push((name.clone(), r));
-                            let hot = dragging_row && ui.dnd_hovering::<VarDragPayload>(r);
-                            if hot {
-                                drop_target = Some(VarDropTarget::Group(name.clone()));
-                            }
-                            group_header(ui, r, name.as_deref(), *count, *collapsed, hot, &st);
-                            let id = ui.alloc_id(("graph_var_group", name.clone()));
-                            if ui.interact(id, r).clicked {
-                                toggle_group =
-                                    Some(name.clone().unwrap_or_default());
-                            }
-                        }
-                        VarListRow::Var(i) => {
-                            let i = *i;
-                            let v = &vars[i];
-                            let tall = mismatch[i].is_some();
-                            let h = if tall { row_h * VARS_MISMATCH_ROW } else { row_h };
-                            let r = ui.allocate(Vec2::new(w, h));
-                            row_rects.push((i, r));
-                            let is_sel = selected.as_deref() == Some(v.slug.as_str());
-                            let id = ui.alloc_id(("graph_var_row", v.slug.as_str()));
-                            let resp = ui.interact(id, r);
-                            let dragged = ui.dnd_drag_source::<VarDragPayload>(
-                                id,
-                                r,
-                                v.label.clone(),
-                                || VarDragPayload {
-                                    slug: v.slug.clone(),
-                                    label: v.label.clone(),
-                                },
-                            );
-                            // The usage gutter is the locate affordance: hover
-                            // swaps the count for ◎, click cycles the uses.
-                            let gutter = Rect::from_min_max(
-                                Pos2::new(r.max.x - VARS_GUTTER * s, r.min.y),
-                                Pos2::new(r.max.x, r.min.y + row_h),
-                            );
-                            let over_gutter = ui
-                                .ctx()
-                                .input
-                                .pointer_pos
-                                .is_some_and(|p| gutter.contains(p));
-                            if resp.clicked && over_gutter && uses[i] > 0 {
-                                *locate = state.next_locate(&v.slug);
-                            } else if resp.clicked {
-                                select = Some(if is_sel { None } else { Some(v.slug.clone()) });
-                            }
-                            var_row(
-                                ui,
-                                r,
-                                v,
-                                uses[i],
-                                mismatch[i].as_deref(),
-                                is_sel,
-                                resp.hovered && !dragged,
-                                over_gutter,
-                                &filter,
-                                registry,
-                                &st,
-                                s,
-                            );
+                    // The width the scroll area actually offers: it reserves a
+                    // scrollbar gutter the moment the content overflows, and a row
+                    // laid out to the panel width would slide its usage count
+                    // underneath it.
+                    let w = ui.available().width();
+                    // The add draft sits at the top of the list, unchanged from
+                    // the baseline: name, type, array, Cancel/Add.
+                    if let Some(draft) = new_var.as_mut() {
+                        if let Some(req) =
+                            add_draft_block(ui, w, &st, pad, state.domain, root, draft)
+                        {
+                            request = Some(req);
                         }
                     }
-                }
-                if view.hidden > 0 {
-                    let r = ui.allocate(Vec2::new(w, row_h));
-                    ui.painter().text(
-                        Pos2::new(r.min.x + pad * 0.5, r.center().y - small * 0.62),
-                        &format!("{} hidden by filter \u{2014} Esc to clear", view.hidden),
-                        small,
-                        st.palette.text_disabled,
-                        None,
-                    );
-                }
-            });
+                    if new_var.as_ref().is_some_and(|d| d.done) {
+                        new_var = None;
+                    }
+                    for row in &view.rows {
+                        match row {
+                            VarListRow::Group {
+                                name,
+                                count,
+                                collapsed,
+                            } => {
+                                let r = ui.allocate(Vec2::new(w, st.metrics.control_height * 0.8));
+                                header_rects.push((name.clone(), r));
+                                let hot = dragging_row && ui.dnd_hovering::<VarDragPayload>(r);
+                                if hot {
+                                    drop_target = Some(VarDropTarget::Group(name.clone()));
+                                }
+                                group_header(ui, r, name.as_deref(), *count, *collapsed, hot, &st);
+                                let id = ui.alloc_id(("graph_var_group", name.clone()));
+                                if ui.interact(id, r).clicked {
+                                    toggle_group = Some(name.clone().unwrap_or_default());
+                                }
+                            }
+                            VarListRow::Var(i) => {
+                                let i = *i;
+                                let v = &vars[i];
+                                let tall = mismatch[i].is_some();
+                                let h = if tall {
+                                    row_h * VARS_MISMATCH_ROW
+                                } else {
+                                    row_h
+                                };
+                                let r = ui.allocate(Vec2::new(w, h));
+                                row_rects.push((i, r));
+                                let is_sel = selected.as_deref() == Some(v.slug.as_str());
+                                let id = ui.alloc_id(("graph_var_row", v.slug.as_str()));
+                                let resp = ui.interact(id, r);
+                                let dragged = ui.dnd_drag_source::<VarDragPayload>(
+                                    id,
+                                    r,
+                                    v.label.clone(),
+                                    || VarDragPayload {
+                                        slug: v.slug.clone(),
+                                        label: v.label.clone(),
+                                    },
+                                );
+                                // The usage gutter is the locate affordance: hover
+                                // swaps the count for ◎, click cycles the uses.
+                                let gutter = Rect::from_min_max(
+                                    Pos2::new(r.max.x - VARS_GUTTER * s, r.min.y),
+                                    Pos2::new(r.max.x, r.min.y + row_h),
+                                );
+                                let over_gutter = ui
+                                    .ctx()
+                                    .input
+                                    .pointer_pos
+                                    .is_some_and(|p| gutter.contains(p));
+                                if resp.clicked && over_gutter && uses[i] > 0 {
+                                    *locate = state.next_locate(&v.slug);
+                                } else if resp.clicked {
+                                    select = Some(if is_sel { None } else { Some(v.slug.clone()) });
+                                }
+                                var_row(
+                                    ui,
+                                    r,
+                                    v,
+                                    uses[i],
+                                    mismatch[i].as_deref(),
+                                    is_sel,
+                                    resp.hovered && !dragged,
+                                    over_gutter,
+                                    &filter,
+                                    registry,
+                                    &st,
+                                    s,
+                                );
+                            }
+                        }
+                    }
+                    if view.hidden > 0 {
+                        let r = ui.allocate(Vec2::new(w, row_h));
+                        ui.painter().text(
+                            Pos2::new(r.min.x + pad * 0.5, r.center().y - small * 0.62),
+                            &format!("{} hidden by filter \u{2014} Esc to clear", view.hidden),
+                            small,
+                            st.palette.text_disabled,
+                            None,
+                        );
+                    }
+                });
         },
     );
 
@@ -8549,7 +8929,9 @@ pub(super) fn variables_panel(
                     // Dropping into another group's run assigns as well as
                     // moves: the row lands where it was dropped, and a row
                     // that reads under a header belongs to it.
-                    let group = vars.get(to.min(vars.len() - 1)).and_then(|v| v.group.clone());
+                    let group = vars
+                        .get(to.min(vars.len() - 1))
+                        .and_then(|v| v.group.clone());
                     let to = if from < to { to.saturating_sub(1) } else { to };
                     if vars[from].group != group {
                         request = Some(VarRequest::SetGroup(p.slug.clone(), group));
@@ -8587,7 +8969,10 @@ pub(super) fn variables_panel(
             entry,
             Direction::TopDown,
             root.with("graph_vars_new_group"),
-            UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+            UiOptions {
+                padding: Vec2::ZERO,
+                spacing: 0.0,
+            },
             |ui| {
                 // Focus once, on the surface whose + menu opened the entry;
                 // asking every frame would let a twin surface steal it back.
@@ -8736,7 +9121,12 @@ fn group_header(
     let small = st.fonts.small;
     p.rect_filled(rect, Rounding::ZERO, st.palette.window);
     if hot {
-        p.rect_stroke(rect, st.rounding.small, st.metrics.border, st.palette.accent_active);
+        p.rect_stroke(
+            rect,
+            st.rounding.small,
+            st.metrics.border,
+            st.palette.accent_active,
+        );
     }
     let caret = if collapsed { "\u{25b8}" } else { "\u{25be}" };
     let x = rect.min.x + st.spacing.padding * 0.25;
@@ -8748,7 +9138,9 @@ fn group_header(
         st.palette.text_disabled,
         None,
     );
-    let label = name.map(str::to_uppercase).unwrap_or_else(|| "UNGROUPED".to_string());
+    let label = name
+        .map(str::to_uppercase)
+        .unwrap_or_else(|| "UNGROUPED".to_string());
     let lx = x + cw + st.spacing.item * 0.5;
     let lw = p
         .text_family(
@@ -8816,7 +9208,11 @@ fn var_row(
         // 8% of a bright warning yellow into a near-black panel lands around
         // 25% once it is displayed. 2% is what reads as the design's hint —
         // measured on a capture, not guessed.
-        p.rect_filled(rect, st.rounding.small, fade(status.warning, 0.02, st.palette.panel));
+        p.rect_filled(
+            rect,
+            st.rounding.small,
+            fade(status.warning, 0.02, st.palette.panel),
+        );
     } else if hovered {
         p.rect_filled(rect, st.rounding.small, st.palette.hover);
     }
@@ -8841,12 +9237,18 @@ fn var_row(
     } else {
         st.palette.text_secondary
     };
-    let cw = p.measure_text_family(&count, small, None, FontFamily::Mono).x;
+    let cw = p
+        .measure_text_family(&count, small, None, FontFamily::Mono)
+        .x;
     p.text_family(
         Pos2::new(rect.max.x - cw - pad * 0.25, top.center().y - small * 0.62),
         &count,
         small,
-        if over_gutter && uses > 0 { st.palette.text } else { count_col },
+        if over_gutter && uses > 0 {
+            st.palette.text
+        } else {
+            count_col
+        },
         None,
         FontFamily::Mono,
     );
@@ -8855,7 +9257,11 @@ fn var_row(
             Pos2::new(rect.max.x - gutter_w, top.center().y - small * 0.62),
             "\u{25ce}",
             small,
-            if over_gutter { st.palette.accent_active } else { st.palette.text_secondary },
+            if over_gutter {
+                st.palette.accent_active
+            } else {
+                st.palette.text_secondary
+            },
             None,
         );
     }
@@ -8908,7 +9314,11 @@ fn var_row(
         Pos2::new(lx, top.center().y - st.fonts.body * 0.62),
         &label,
         st.fonts.body,
-        if selected { st.palette.selection_text } else { st.palette.text },
+        if selected {
+            st.palette.selection_text
+        } else {
+            st.palette.text
+        },
         None,
     );
     // The reason line, at rest, in place of nothing — plugin-manager rule.
@@ -8955,7 +9365,12 @@ fn add_draft_block(
     {
         let mut p = ui.painter();
         p.rect_filled(block, st.rounding.small, st.palette.window);
-        p.rect_stroke(block, st.rounding.small, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            block,
+            st.rounding.small,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let (mut commit, mut cancel) = (false, false);
     ui.run_at(
@@ -8965,7 +9380,10 @@ fn add_draft_block(
         ),
         Direction::TopDown,
         root.with("graph_vars_new"),
-        UiOptions { padding: Vec2::ZERO, spacing: pad * 0.75 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: pad * 0.75,
+        },
         |ui| {
             let fw = w - pad;
             let out = TextEdit::new(&mut draft.name)
@@ -8981,7 +9399,10 @@ fn add_draft_block(
                 row,
                 Direction::LeftToRight,
                 root.with("graph_vars_new_row"),
-                UiOptions { padding: Vec2::ZERO, spacing: pad },
+                UiOptions {
+                    padding: Vec2::ZERO,
+                    spacing: pad,
+                },
                 |ui| {
                     let types = var_types(domain);
                     let picked = draft.ty.min(types.len() - 1);
@@ -9006,7 +9427,10 @@ fn add_draft_block(
                 actions,
                 Direction::LeftToRight,
                 root.with("graph_vars_new_actions"),
-                UiOptions { padding: Vec2::ZERO, spacing: pad },
+                UiOptions {
+                    padding: Vec2::ZERO,
+                    spacing: pad,
+                },
                 |ui| {
                     cancel |= Button::new("Cancel")
                         .exact_size(Vec2::new(bw, st.metrics.control_height))
@@ -9109,22 +9533,25 @@ fn footer_inspector(
     };
     let (uw, ux) = {
         let mut p = ui.painter();
-        let w = p.measure_text_family(&usage, small, None, FontFamily::Mono).x;
+        let w = p
+            .measure_text_family(&usage, small, None, FontFamily::Mono)
+            .x;
         p.text_family(
             Pos2::new(head.max.x - w, head.center().y - small * 0.62),
             &usage,
             small,
-            if uses == 0 { st.palette.text_disabled } else { st.palette.accent_active },
+            if uses == 0 {
+                st.palette.text_disabled
+            } else {
+                st.palette.accent_active
+            },
             None,
             FontFamily::Mono,
         );
         (w, head.max.x - w)
     };
     if uses > 0 {
-        let hit = Rect::from_min_max(
-            Pos2::new(ux, head.min.y),
-            Pos2::new(head.max.x, head.max.y),
-        );
+        let hit = Rect::from_min_max(Pos2::new(ux, head.min.y), Pos2::new(head.max.x, head.max.y));
         let id = ui.alloc_id(("graph_var_locate", decl.slug.as_str()));
         let resp = ui.interact(id, hit);
         if resp.hovered {
@@ -9145,7 +9572,10 @@ fn footer_inspector(
         Rect::from_min_max(Pos2::new(inner.min.x + label_w, y), name_row.max),
         Direction::TopDown,
         root.with(("graph_var_name", decl.slug.as_str())),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(rename_buf)
                 .width(name_row.width() - label_w)
@@ -9184,7 +9614,10 @@ fn footer_inspector(
         Rect::from_min_max(Pos2::new(inner.min.x + label_w, y), ty_row.max),
         Direction::LeftToRight,
         root.with(("graph_var_ty", decl.slug.as_str())),
-        UiOptions { padding: Vec2::ZERO, spacing: pad * 0.5 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: pad * 0.5,
+        },
         |ui| {
             let types = var_types(domain);
             ComboBox::new(format!("graph_var_ty_{}", decl.slug))
@@ -9251,18 +9684,20 @@ fn footer_inspector(
     if ui.ctx().input.pointer_pos.is_some_and(|p| del.contains(p)) {
         ui.tooltip_for(del, "Delete variable");
     }
-    if strip_button(ui, root.with(("graph_var_del", decl.slug.as_str())), del, "\u{2715}", 2)
-        && request.is_none()
+    if strip_button(
+        ui,
+        root.with(("graph_var_del", decl.slug.as_str())),
+        del,
+        "\u{2715}",
+        2,
+    ) && request.is_none()
     {
         request = Some(VarRequest::ConfirmDelete(decl.slug.clone(), uses));
     }
 
     // The array literal editor, bounded and scrolling.
     if is_array {
-        let editor = Rect::from_min_max(
-            Pos2::new(inner.min.x, d_row.max.y + pad * 0.5),
-            inner.max,
-        );
+        let editor = Rect::from_min_max(Pos2::new(inner.min.x, d_row.max.y + pad * 0.5), inner.max);
         if let Some(req) = array_editor(ui, editor, decl, st, pad, s, root) {
             if request.is_none() {
                 request = Some(req);
@@ -9289,13 +9724,19 @@ fn runtime_chip(ui: &mut Ui, cell: Rect, st: &Style, text: &str) {
     let mut p = ui.painter();
     let w = p.measure_text(text, small, None).x + st.spacing.padding;
     let chip = Rect::from_min_size(
-        Pos2::new(cell.min.x, cell.center().y - st.metrics.control_height * 0.4),
+        Pos2::new(
+            cell.min.x,
+            cell.center().y - st.metrics.control_height * 0.4,
+        ),
         Vec2::new(w.min(cell.width()), st.metrics.control_height * 0.8),
     );
     dashed_rect(&mut p, chip, st.metrics.border, st.palette.stroke_strong);
     let text = clip_text(&mut p, text, small, chip.width() - st.spacing.padding * 0.5);
     p.text(
-        Pos2::new(chip.min.x + st.spacing.padding * 0.25, chip.center().y - small * 0.62),
+        Pos2::new(
+            chip.min.x + st.spacing.padding * 0.25,
+            chip.center().y - small * 0.62,
+        ),
         &text,
         small,
         st.palette.text_secondary,
@@ -9337,11 +9778,19 @@ fn array_editor(
     {
         let mut p = ui.painter();
         p.rect_filled(box_rect, st.rounding.small, st.palette.input);
-        p.rect_stroke(box_rect, st.rounding.small, st.metrics.border, st.palette.stroke);
+        p.rect_stroke(
+            box_rect,
+            st.rounding.small,
+            st.metrics.border,
+            st.palette.stroke,
+        );
     }
     if entries.is_empty() {
         ui.painter().text(
-            Pos2::new(box_rect.min.x + pad * 0.5, box_rect.center().y - small * 0.62),
+            Pos2::new(
+                box_rect.min.x + pad * 0.5,
+                box_rect.center().y - small * 0.62,
+            ),
             "no entries",
             small,
             st.palette.text_disabled,
@@ -9352,86 +9801,99 @@ fn array_editor(
         box_rect.shrink(st.metrics.border),
         Direction::TopDown,
         root.with(("graph_var_array", decl.slug.as_str())),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             ScrollArea::new(visible * row_h)
                 .inset(0.0)
                 .spacing(0.0)
                 .show(ui, |ui| {
-                let ew = ui.available().width();
-                for (i, entry) in entries.iter().enumerate() {
-                    let r = ui.allocate(Vec2::new(ew, row_h));
-                    {
-                        let mut p = ui.painter();
-                        if i + 1 < entries.len() {
-                            p.line_segment(
-                                Pos2::new(r.min.x, r.max.y),
-                                Pos2::new(r.max.x, r.max.y),
-                                st.metrics.border,
-                                st.palette.stroke,
+                    let ew = ui.available().width();
+                    for (i, entry) in entries.iter().enumerate() {
+                        let r = ui.allocate(Vec2::new(ew, row_h));
+                        {
+                            let mut p = ui.painter();
+                            if i + 1 < entries.len() {
+                                p.line_segment(
+                                    Pos2::new(r.min.x, r.max.y),
+                                    Pos2::new(r.max.x, r.max.y),
+                                    st.metrics.border,
+                                    st.palette.stroke,
+                                );
+                            }
+                            p.text_family(
+                                Pos2::new(r.min.x + pad * 0.25, r.center().y - small * 0.62),
+                                &i.to_string(),
+                                small,
+                                st.palette.text_disabled,
+                                None,
+                                FontFamily::Mono,
                             );
                         }
-                        p.text_family(
-                            Pos2::new(r.min.x + pad * 0.25, r.center().y - small * 0.62),
-                            &i.to_string(),
-                            small,
-                            st.palette.text_disabled,
-                            None,
-                            FontFamily::Mono,
+                        let idx_w = 12.0 * s;
+                        let handle = Rect::from_min_size(
+                            Pos2::new(r.max.x - 30.0 * s, r.min.y),
+                            Vec2::new(15.0 * s, r.height()),
                         );
-                    }
-                    let idx_w = 12.0 * s;
-                    let handle = Rect::from_min_size(
-                        Pos2::new(r.max.x - 30.0 * s, r.min.y),
-                        Vec2::new(15.0 * s, r.height()),
-                    );
-                    let kill = Rect::from_min_size(
-                        Pos2::new(r.max.x - 15.0 * s, r.min.y),
-                        Vec2::new(15.0 * s, r.height()),
-                    );
-                    let cell = Rect::from_min_max(
-                        Pos2::new(r.min.x + idx_w + pad * 0.25, r.min.y + 1.0),
-                        Pos2::new(handle.min.x - pad * 0.25, r.max.y - 1.0),
-                    );
-                    if let Some(v) = array_entry_widget(ui, cell, elem, entry, &decl.slug, i, st, root) {
-                        request = Some(VarRequest::SetEntry(decl.slug.clone(), i, v));
-                    }
-                    // ⋮⋮ reorders by one step per click — a drag inside a
-                    // scrolling six-row box is a worse gesture than a nudge,
-                    // and both land as one "Reorder Array Entry" entry.
-                    let hid = ui.alloc_id(("graph_var_entry_move", decl.slug.as_str(), i));
-                    let hresp = ui.interact(hid, handle);
-                    if hresp.hovered {
-                        ui.tooltip_for(handle, "Move down (\u{21e7} for up)");
-                    }
-                    if hresp.clicked {
-                        let up = ui.ctx().input.modifiers.contains(Modifiers::SHIFT);
-                        let to = if up { i.saturating_sub(1) } else { i + 1 };
-                        if to < entries.len() {
-                            request = Some(VarRequest::MoveEntry(decl.slug.clone(), i, to));
+                        let kill = Rect::from_min_size(
+                            Pos2::new(r.max.x - 15.0 * s, r.min.y),
+                            Vec2::new(15.0 * s, r.height()),
+                        );
+                        let cell = Rect::from_min_max(
+                            Pos2::new(r.min.x + idx_w + pad * 0.25, r.min.y + 1.0),
+                            Pos2::new(handle.min.x - pad * 0.25, r.max.y - 1.0),
+                        );
+                        if let Some(v) =
+                            array_entry_widget(ui, cell, elem, entry, &decl.slug, i, st, root)
+                        {
+                            request = Some(VarRequest::SetEntry(decl.slug.clone(), i, v));
+                        }
+                        // ⋮⋮ reorders by one step per click — a drag inside a
+                        // scrolling six-row box is a worse gesture than a nudge,
+                        // and both land as one "Reorder Array Entry" entry.
+                        let hid = ui.alloc_id(("graph_var_entry_move", decl.slug.as_str(), i));
+                        let hresp = ui.interact(hid, handle);
+                        if hresp.hovered {
+                            ui.tooltip_for(handle, "Move down (\u{21e7} for up)");
+                        }
+                        if hresp.clicked {
+                            let up = ui.ctx().input.modifiers.contains(Modifiers::SHIFT);
+                            let to = if up { i.saturating_sub(1) } else { i + 1 };
+                            if to < entries.len() {
+                                request = Some(VarRequest::MoveEntry(decl.slug.clone(), i, to));
+                            }
+                        }
+                        let kid = ui.alloc_id(("graph_var_entry_del", decl.slug.as_str(), i));
+                        let kresp = ui.interact(kid, kill);
+                        ui.painter().text(
+                            Pos2::new(handle.center().x - small * 0.3, r.center().y - small * 0.62),
+                            "\u{22ee}\u{22ee}",
+                            small,
+                            if hresp.hovered {
+                                st.palette.text
+                            } else {
+                                st.palette.text_secondary
+                            },
+                            None,
+                        );
+                        ui.painter().text(
+                            Pos2::new(kill.center().x - small * 0.3, r.center().y - small * 0.62),
+                            "\u{2715}",
+                            small,
+                            if kresp.hovered {
+                                st.palette.text
+                            } else {
+                                st.palette.text_secondary
+                            },
+                            None,
+                        );
+                        if kresp.clicked {
+                            request = Some(VarRequest::RemoveEntry(decl.slug.clone(), i));
                         }
                     }
-                    let kid = ui.alloc_id(("graph_var_entry_del", decl.slug.as_str(), i));
-                    let kresp = ui.interact(kid, kill);
-                    ui.painter().text(
-                        Pos2::new(handle.center().x - small * 0.3, r.center().y - small * 0.62),
-                        "\u{22ee}\u{22ee}",
-                        small,
-                        if hresp.hovered { st.palette.text } else { st.palette.text_secondary },
-                        None,
-                    );
-                    ui.painter().text(
-                        Pos2::new(kill.center().x - small * 0.3, r.center().y - small * 0.62),
-                        "\u{2715}",
-                        small,
-                        if kresp.hovered { st.palette.text } else { st.palette.text_secondary },
-                        None,
-                    );
-                    if kresp.clicked {
-                        request = Some(VarRequest::RemoveEntry(decl.slug.clone(), i));
-                    }
-                }
-            });
+                });
         },
     );
     let actions = Rect::from_min_size(
@@ -9439,7 +9901,13 @@ fn array_editor(
         Vec2::new(rect.width(), st.metrics.control_height),
     );
     let add = Rect::from_min_size(actions.min, Vec2::new(64.0 * s, actions.height()));
-    if strip_button(ui, root.with(("graph_var_entry_add", decl.slug.as_str())), add, "+ Entry", 0) {
+    if strip_button(
+        ui,
+        root.with(("graph_var_entry_add", decl.slug.as_str())),
+        add,
+        "+ Entry",
+        0,
+    ) {
         request = Some(VarRequest::AddEntry(decl.slug.clone()));
     }
     if entries.len() > VARS_ARRAY_ROWS {
@@ -9472,7 +9940,10 @@ fn array_entry_widget(
         cell,
         Direction::LeftToRight,
         root.with(("graph_var_entry", slug, index)),
-        UiOptions { padding: Vec2::ZERO, spacing: st.spacing.item * 0.25 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: st.spacing.item * 0.25,
+        },
         |ui| match (elem, v) {
             (PinType::Float, PropValue::Float(x)) => {
                 let mut n = x;
@@ -9552,7 +10023,10 @@ fn var_default_widget(
         cell,
         Direction::LeftToRight,
         root.with(("graph_var_default", decl.slug.as_str())),
-        UiOptions { padding: Vec2::ZERO, spacing: st.spacing.item * 0.5 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: st.spacing.item * 0.5,
+        },
         |ui| match (&decl.ty, d) {
             (PinType::Float, Some(PropValue::Float(v))) => {
                 let mut x = v;
@@ -9625,11 +10099,7 @@ fn var_default_widget(
 ///
 /// Rule 1 surface — it registers on the modal stack, so the press that
 /// dismisses it is consumed rather than also landing on the canvas.
-fn var_drop_popup(
-    ui: &mut Ui,
-    state: &mut GraphEditorState,
-    registry: &NodeRegistry,
-) {
+fn var_drop_popup(ui: &mut Ui, state: &mut GraphEditorState, registry: &NodeRegistry) {
     let Some(drop) = state.vars.drop.clone() else {
         ui.ctx_mut().modal_dismiss(var_drop_modal_id());
         return;
@@ -9661,12 +10131,20 @@ fn var_drop_popup(
             st.rounding.panel,
             st.palette.elevated.with_alpha(st.palette.popover_alpha),
         );
-        p.rect_stroke(rect, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            rect,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let mut picked: Option<bool> = None;
     for (i, (text, set)) in rows.iter().enumerate() {
         let row = Rect::from_min_size(
-            Pos2::new(rect.min.x + pad * 0.5, rect.min.y + pad * 0.5 + i as f32 * row_h),
+            Pos2::new(
+                rect.min.x + pad * 0.5,
+                rect.min.y + pad * 0.5 + i as f32 * row_h,
+            ),
             Vec2::new(w - pad, row_h),
         );
         let id = ui.alloc_id(("graph_var_drop", i));
@@ -9798,7 +10276,12 @@ fn var_confirm_dialog(
             Color::BLACK.with_alpha(st.palette.scrim_alpha),
         );
         p.rect_filled(panel, st.rounding.panel, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
         p.text(
             Pos2::new(panel.min.x + pad, panel.min.y + pad),
             &title,
@@ -9824,15 +10307,21 @@ fn var_confirm_dialog(
         ),
         Direction::LeftToRight,
         Id::new("graph_var_confirm"),
-        UiOptions { padding: Vec2::ZERO, spacing: st.spacing.item },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: st.spacing.item,
+        },
         |ui| {
             cancel = Button::new("Cancel")
                 .exact_size(Vec2::new(bw, st.metrics.control_height))
                 .show(ui)
                 .clicked;
-            let go_b =
-                Button::new(verb).exact_size(Vec2::new(bw, st.metrics.control_height));
-            let go_b = if danger { go_b.danger() } else { go_b.primary() };
+            let go_b = Button::new(verb).exact_size(Vec2::new(bw, st.metrics.control_height));
+            let go_b = if danger {
+                go_b.danger()
+            } else {
+                go_b.primary()
+            };
             go = go_b.show(ui).clicked;
         },
     );
@@ -9846,7 +10335,9 @@ fn var_confirm_dialog(
                 state.retype_variable(&slug, ty, registry);
             }
             VarConfirm::Delete { slug, .. } => {
-                if state.remove_variable(&slug, registry) && state.vars.selected.as_deref() == Some(slug.as_str()) {
+                if state.remove_variable(&slug, registry)
+                    && state.vars.selected.as_deref() == Some(slug.as_str())
+                {
                     state.vars.selected = None;
                     state.vars.rename_buf = None;
                 }
@@ -9927,7 +10418,12 @@ fn payload_confirm_dialog(
             Color::BLACK.with_alpha(st.palette.scrim_alpha),
         );
         p.rect_filled(panel, st.rounding.panel, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
         p.text(
             Pos2::new(panel.min.x + pad, panel.min.y + pad),
             &title,
@@ -9953,7 +10449,10 @@ fn payload_confirm_dialog(
         ),
         Direction::LeftToRight,
         Id::new("graph_payload_confirm"),
-        UiOptions { padding: Vec2::ZERO, spacing: st.spacing.item },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: st.spacing.item,
+        },
         |ui| {
             cancel = Button::new("Cancel")
                 .exact_size(Vec2::new(bw, st.metrics.control_height))
@@ -9973,7 +10472,9 @@ fn payload_confirm_dialog(
             PayloadConfirm::Remove { node, slug, .. } => {
                 state.remove_payload_field(node, &slug, registry);
             }
-            PayloadConfirm::Rename { node, slug, name, .. } => {
+            PayloadConfirm::Rename {
+                node, slug, name, ..
+            } => {
                 state.rename_payload_field(node, &slug, &name, registry);
             }
         }
@@ -10071,7 +10572,12 @@ fn bar_rounding(round: Rounding, bar_h: f32, card_h: f32) -> Rounding {
     if bar_h >= card_h - 0.5 {
         round
     } else {
-        Rounding { nw: round.nw, ne: round.ne, sw: 0.0, se: 0.0 }
+        Rounding {
+            nw: round.nw,
+            ne: round.ne,
+            sw: 0.0,
+            se: 0.0,
+        }
     }
 }
 
@@ -10108,11 +10614,18 @@ fn draw_annotations(
         let (wash, border) = match g.tint {
             Some(t) => {
                 let deep = ramp()[(t % 12) as usize].deep;
-                (deep.with_alpha(GROUP_WASH_ALPHA), deep.with_alpha(GROUP_BORDER_ALPHA))
+                (
+                    deep.with_alpha(GROUP_WASH_ALPHA),
+                    deep.with_alpha(GROUP_BORDER_ALPHA),
+                )
             }
             None => (
                 st.palette.panel.with_alpha(GROUP_UNTINTED_WASH_ALPHA),
-                if sel { st.palette.stroke_strong } else { st.palette.stroke },
+                if sel {
+                    st.palette.stroke_strong
+                } else {
+                    st.palette.stroke
+                },
             ),
         };
         // A 6% body wash is a tint over the canvas and the nodes inside the
@@ -10122,11 +10635,19 @@ fn draw_annotations(
             sr,
             round,
             m.border,
-            if sel { st.palette.stroke_strong } else { border },
+            if sel {
+                st.palette.stroke_strong
+            } else {
+                border
+            },
         );
         let bar_h = m.group_bar * zoom;
         let bar = Rect::from_min_size(sr.min, Vec2::new(sr.width(), bar_h));
-        p.rect_filled(bar, bar_rounding(round, bar_h, sr.height()), st.palette.header);
+        p.rect_filled(
+            bar,
+            bar_rounding(round, bar_h, sr.height()),
+            st.palette.header,
+        );
         let px = annotation_px(st.fonts.body);
         let tx = collapse_caret(&mut p, bar, g.collapsed, st, zoom, m);
         p.text(
@@ -10162,7 +10683,11 @@ fn draw_annotations(
             sr,
             round,
             m.border,
-            if sel { st.palette.focus_ring } else { st.palette.stroke_strong },
+            if sel {
+                st.palette.focus_ring
+            } else {
+                st.palette.stroke_strong
+            },
         );
 
         // Tint paints the NOTE bar's fill plus a 1px left edge, nothing else.
@@ -10181,7 +10706,10 @@ fn draw_annotations(
             let top = sr.min.y + round.nw;
             let bot = (sr.max.y - round.sw).max(top);
             p.rect_filled(
-                Rect::from_min_max(Pos2::new(sr.min.x, top), Pos2::new(sr.min.x + m.border, bot)),
+                Rect::from_min_max(
+                    Pos2::new(sr.min.x, top),
+                    Pos2::new(sr.min.x + m.border, bot),
+                ),
                 Rounding::ZERO,
                 ramp()[(t % 12) as usize].deep,
             );
@@ -10304,10 +10832,8 @@ fn draw_comment_body(
                 if y + line_h > sr.max.y {
                     return;
                 }
-                let chip = Rect::from_min_size(
-                    Pos2::new(x, y - px * 0.15),
-                    Vec2::new(w, px * 1.25),
-                );
+                let chip =
+                    Rect::from_min_size(Pos2::new(x, y - px * 0.15), Vec2::new(w, px * 1.25));
                 p.rect_filled(chip, Rounding::same(px * 0.3), st.palette.accent_soft);
                 p.text(
                     Pos2::new(x + pad * 0.5, y),
@@ -10456,10 +10982,8 @@ fn comment_ref_at(
                         x = wr.min.x + pad;
                         y += line_h;
                     }
-                    let chip = Rect::from_min_size(
-                        Pos2::new(x, y - px * 0.15),
-                        Vec2::new(w, px * 1.25),
-                    );
+                    let chip =
+                        Rect::from_min_size(Pos2::new(x, y - px * 0.15), Vec2::new(w, px * 1.25));
                     if chip.contains(pw) {
                         return Some(t.to_string());
                     }
@@ -10850,7 +11374,11 @@ fn draw_wires(
             color
         };
         // L4 collapses every wire to a hairline.
-        let width = if lod.bar_only() { 1.0 } else { w.width(is_hovered) };
+        let width = if lod.bar_only() {
+            1.0
+        } else {
+            w.width(is_hovered)
+        };
         // Flow bubbles ride the wire that is firing right now.
         // Above the cap the wire holds steady-hot (the pulse tint above
         // already does that) instead of strobing dots nobody can follow.
@@ -11026,7 +11554,11 @@ fn arc_length_midpoint(pts: &[Pos2]) -> Option<Pos2> {
     for w in pts.windows(2) {
         let seg = (w[1] - w[0]).length();
         if walked + seg >= half {
-            let t = if seg <= f32::EPSILON { 0.0 } else { (half - walked) / seg };
+            let t = if seg <= f32::EPSILON {
+                0.0
+            } else {
+                (half - walked) / seg
+            };
             return Some(Pos2::new(
                 w[0].x + (w[1].x - w[0].x) * t,
                 w[0].y + (w[1].y - w[0].y) * t,
@@ -11097,11 +11629,7 @@ fn crossed_indices(
 }
 
 /// The edges the in-flight cut would take, resolved to real `Edge` values.
-fn crossed_by_cut(
-    state: &GraphEditorState,
-    wires: &[WireGeom],
-    scope: &CanvasScope,
-) -> Vec<Edge> {
+fn crossed_by_cut(state: &GraphEditorState, wires: &[WireGeom], scope: &CanvasScope) -> Vec<Edge> {
     crossed_indices(state, wires, scope)
         .into_iter()
         .filter_map(|i| state.doc.edges.get(i).cloned())
@@ -11160,14 +11688,7 @@ fn break_badge(
 /// Paint one breakpoint octagon. Filled for the two "this will stop"
 /// states, a hollow ring for the two that will not — the same fill-means-live
 /// convention the pin dots use.
-fn draw_break_badge(
-    p: &mut Painter,
-    st: &Style,
-    c: Pos2,
-    r: f32,
-    badge: BreakBadge,
-    text_px: f32,
-) {
+fn draw_break_badge(p: &mut Painter, st: &Style, c: Pos2, r: f32, badge: BreakBadge, text_px: f32) {
     let status = Palette::invariant_status();
     let pts: Vec<Pos2> = (0..8)
         .map(|i| {
@@ -11263,18 +11784,27 @@ fn draw_nodes(
         // breakpoint glyph where there is no breakpoint would be a lie.
         let paused_here = exec.is_some_and(|v| v.paused_on(g.id));
         let invalid_break = exec.is_some_and(|v| v.break_invalid(g.id));
-        let edge_col = if g.missing { status.error } else { g.edge_color() };
+        let edge_col = if g.missing {
+            status.error
+        } else {
+            g.edge_color()
+        };
         // Find-in-graph dims what does not match, rather than hiding it —
         // context is what makes a search result mean anything.
-        let dim = match (
-            state.find.as_ref().filter(|f| f.active()),
-            var_dim,
-        ) {
+        let dim = match (state.find.as_ref().filter(|f| f.active()), var_dim) {
             (Some(f), _) => {
-                if f.matches(&g.title, &g.title) { 1.0 } else { FIND_DIM }
+                if f.matches(&g.title, &g.title) {
+                    1.0
+                } else {
+                    FIND_DIM
+                }
             }
             (None, Some(keep)) => {
-                if keep.contains(&g.id) { 1.0 } else { FIND_DIM }
+                if keep.contains(&g.id) {
+                    1.0
+                } else {
+                    FIND_DIM
+                }
             }
             (None, None) => 1.0,
         };
@@ -11321,7 +11851,11 @@ fn draw_nodes(
                 c,
                 r,
                 m.border,
-                if errored { status.error } else { fade(st.palette.stroke, dim, bg) },
+                if errored {
+                    status.error
+                } else {
+                    fade(st.palette.stroke, dim, bg)
+                },
             );
             // Below the glyph threshold the badge is the plain disc.
             if lod.glyphs() {
@@ -11359,11 +11893,13 @@ fn draw_nodes(
                 let edge_h = (m.edge * zoom).max(1.0).min(band_h);
                 let inner_r = (round.nw - edge_h).max(0.0);
                 p.rect_filled(
-                    Rect::from_min_max(
-                        Pos2::new(srect.min.x, srect.min.y + edge_h),
-                        srect.max,
-                    ),
-                    Rounding { nw: inner_r, ne: inner_r, sw: round.sw, se: round.se },
+                    Rect::from_min_max(Pos2::new(srect.min.x, srect.min.y + edge_h), srect.max),
+                    Rounding {
+                        nw: inner_r,
+                        ne: inner_r,
+                        sw: round.sw,
+                        se: round.se,
+                    },
                     fade(st.palette.elevated, dim, bg),
                 );
             }
@@ -11381,8 +11917,11 @@ fn draw_nodes(
                     Pos2::new(srect.min.x - off, srect.min.y - off),
                     Pos2::new(srect.max.x + off, srect.max.y + off),
                 );
-                let alpha =
-                    if state.primary == Some(g.id) { 1.0 } else { SELECTION_REST_ALPHA };
+                let alpha = if state.primary == Some(g.id) {
+                    1.0
+                } else {
+                    SELECTION_REST_ALPHA
+                };
                 p.rect_stroke(
                     outer,
                     Rounding::same(round.nw + off),
@@ -11404,26 +11943,30 @@ fn draw_nodes(
                     x += r * 2.0 + m.label_gap * zoom;
                 }
                 let (title_col, px) = match card.kind {
-                    AnimCardKind::Entry => {
-                        (fade(category_tag_color("Logic"), dim, bg), st.fonts.small * zoom)
-                    }
+                    AnimCardKind::Entry => (
+                        fade(category_tag_color("Logic"), dim, bg),
+                        st.fonts.small * zoom,
+                    ),
                     // An alias is a named node like a state — same face; the
                     // missing category band and the tag tell them apart.
                     AnimCardKind::State | AnimCardKind::Alias => {
                         (fade(st.palette.text, dim, bg), st.fonts.body * zoom)
                     }
                 };
-                p.text(Pos2::new(x, header_c - px * 0.62), &g.title, px, title_col, None);
+                p.text(
+                    Pos2::new(x, header_c - px * 0.62),
+                    &g.title,
+                    px,
+                    title_col,
+                    None,
+                );
                 if !g.tag.is_empty() {
                     let tag_px = m.tag_px * zoom;
                     let tw = p
                         .measure_text_family(&g.tag, tag_px, None, FontFamily::Mono)
                         .x;
                     p.text_family(
-                        Pos2::new(
-                            srect.max.x - m.pad_x * zoom - tw,
-                            header_c - tag_px * 0.62,
-                        ),
+                        Pos2::new(srect.max.x - m.pad_x * zoom - tw, header_c - tag_px * 0.62),
                         &g.tag,
                         tag_px,
                         fade(g.tag_color(), dim, bg),
@@ -11433,8 +11976,8 @@ fn draw_nodes(
                 }
                 if let Some(sub) = &card.subtitle {
                     let spx = st.fonts.small * zoom;
-                    let sub_c = srect.min.y
-                        + (m.header_h + (g.rect.height() - m.header_h) * 0.5) * zoom;
+                    let sub_c =
+                        srect.min.y + (m.header_h + (g.rect.height() - m.header_h) * 0.5) * zoom;
                     p.text_family(
                         Pos2::new(srect.min.x + m.pad_x * zoom, sub_c - spx * 0.62),
                         sub,
@@ -11492,7 +12035,12 @@ fn draw_nodes(
         );
         p.rect_filled(
             header_rect,
-            Rounding { nw: inner_r, ne: inner_r, sw: 0.0, se: 0.0 },
+            Rounding {
+                nw: inner_r,
+                ne: inner_r,
+                sw: 0.0,
+                se: 0.0,
+            },
             fade(st.palette.elevated, dim, bg),
         );
         // 1px border — hairline, never scaled away. Status color reaches the
@@ -11567,7 +12115,11 @@ fn draw_nodes(
                 Pos2::new(srect.min.x - off, srect.min.y - off),
                 Pos2::new(srect.max.x + off, srect.max.y + off),
             );
-            let alpha = if state.primary == Some(g.id) { 1.0 } else { SELECTION_REST_ALPHA };
+            let alpha = if state.primary == Some(g.id) {
+                1.0
+            } else {
+                SELECTION_REST_ALPHA
+            };
             p.rect_stroke(
                 outer,
                 Rounding::same(round.nw + off),
@@ -11667,7 +12219,10 @@ fn draw_nodes(
             // a search, which is the whole job of the 45% state.
             p.text(
                 srect.min
-                    + Vec2::new(m.pad_x * zoom + gutter, (m.header_h * zoom - title_px) * 0.5),
+                    + Vec2::new(
+                        m.pad_x * zoom + gutter,
+                        (m.header_h * zoom - title_px) * 0.5,
+                    ),
                 &title,
                 title_px,
                 fade(st.palette.text, dim, bg),
@@ -11730,7 +12285,9 @@ fn draw_nodes(
                 );
                 if wait.count > 1 {
                     let chip_text = format!("\u{d7}{}", wait.count);
-                    let cw = p.measure_text_family(&chip_text, px, None, FontFamily::Mono).x;
+                    let cw = p
+                        .measure_text_family(&chip_text, px, None, FontFamily::Mono)
+                        .x;
                     let title_w = p.measure_text(&g.title, st.fonts.body * zoom, None).x;
                     let chip = Rect::from_min_size(
                         Pos2::new(
@@ -11739,7 +12296,11 @@ fn draw_nodes(
                         ),
                         Vec2::new(cw + m.label_gap * zoom * 2.0, px * 1.6),
                     );
-                    p.rect_filled(chip, Rounding::same(m.radius * 0.4 * zoom), st.palette.accent_soft);
+                    p.rect_filled(
+                        chip,
+                        Rounding::same(m.radius * 0.4 * zoom),
+                        st.palette.accent_soft,
+                    );
                     p.text_family(
                         Pos2::new(chip.min.x + m.label_gap * zoom, chip.center().y - px * 0.62),
                         &chip_text,
@@ -11756,7 +12317,10 @@ fn draw_nodes(
         // border and badge come from the existing error path (the host sets
         // `errored`), and the reason goes *under* the node as one mono line,
         // the same reason-at-rest rule the variables panel follows.
-        if let Some(kill) = exec.and_then(|v| v.killed.as_ref()).filter(|k| k.node == Some(g.id)) {
+        if let Some(kill) = exec
+            .and_then(|v| v.killed.as_ref())
+            .filter(|k| k.node == Some(g.id))
+        {
             let px = st.fonts.small * zoom;
             if lod.glyphs() {
                 p.text_family(
@@ -11848,10 +12412,17 @@ fn draw_nodes(
                     let sr = scope.world_rect_to_screen(r);
                     let hot = pointer_world.is_some_and(|pw| r.contains(pw));
                     p.text(
-                        Pos2::new(sr.center().x - label_px * 0.35, sr.center().y - label_px * 0.5),
+                        Pos2::new(
+                            sr.center().x - label_px * 0.35,
+                            sr.center().y - label_px * 0.5,
+                        ),
                         "\u{2715}",
                         label_px,
-                        if hot { st.palette.text } else { st.palette.text_disabled },
+                        if hot {
+                            st.palette.text
+                        } else {
+                            st.palette.text_disabled
+                        },
                         None,
                     );
                 }
@@ -11889,11 +12460,16 @@ fn draw_nodes(
                         r.max.x - m.config_remove_w() - m.label_gap,
                         r.center().y,
                     );
-                    draft_cell = Some(scope.world_rect_to_screen(m.config_box(
-                        r.min.x + m.label_gap,
-                        (r.min.x + m.label_gap + m.config_value_w() * 0.5).min(cell.min.x - m.label_gap),
-                        r.center().y,
-                    )));
+                    draft_cell = Some(
+                        scope.world_rect_to_screen(
+                            m.config_box(
+                                r.min.x + m.label_gap,
+                                (r.min.x + m.label_gap + m.config_value_w() * 0.5)
+                                    .min(cell.min.x - m.label_gap),
+                                r.center().y,
+                            ),
+                        ),
+                    );
                     draw_inline_readonly(
                         &mut p,
                         scope.world_rect_to_screen(cell),
@@ -11910,7 +12486,11 @@ fn draw_nodes(
                         Pos2::new(sr.center().x - w * 0.5, sr.center().y - label_px * 0.5),
                         text,
                         label_px,
-                        if hot { st.palette.text_secondary } else { st.palette.text_disabled },
+                        if hot {
+                            st.palette.text_secondary
+                        } else {
+                            st.palette.text_disabled
+                        },
                         None,
                     );
                 }
@@ -11948,10 +12528,7 @@ fn draw_nodes(
             let c = scope.world_to_screen(pin.dot_center);
             draw_pin(&mut p, pin, c, zoom, m, st, registry);
             // Pin-level errors ring the pin itself.
-            if errors
-                .pins
-                .contains(&(g.id, pin.slug.clone(), pin.output))
-            {
+            if errors.pins.contains(&(g.id, pin.slug.clone(), pin.output)) {
                 p.circle_stroke(c, m.pin_r * zoom * 1.8, m.border, status.error);
             }
             // A ghost row gets a dashed rule so it reads as absent, not as a
@@ -11973,7 +12550,10 @@ fn draw_nodes(
             if pin.output {
                 let w = p.measure_text(&label, label_px, None).x;
                 p.text(
-                    Pos2::new(srect.max.x - m.label_inset() * zoom - w, c.y - label_px * 0.5),
+                    Pos2::new(
+                        srect.max.x - m.label_inset() * zoom - w,
+                        c.y - label_px * 0.5,
+                    ),
                     &label,
                     label_px,
                     fade(st.palette.text_secondary, dim, bg),
@@ -12004,8 +12584,7 @@ fn draw_nodes(
                     // auto-sizer reserved for it — `pin.value_w` is the very
                     // number the node was sized around, so the cell lands
                     // inside the node by construction.
-                    let cell =
-                        inline_cell_rect(srect, x + lw, pin.value_w, c.y, m, zoom);
+                    let cell = inline_cell_rect(srect, x + lw, pin.value_w, c.y, m, zoom);
                     if lod.inline_widgets()
                         && matches!(
                             kind,
@@ -12034,7 +12613,11 @@ fn draw_nodes(
             let Some(g) = geoms.iter().find(|g| g.id == w.node) else {
                 continue;
             };
-            let Some(pin) = g.pins.iter().find(|q| q.output == w.output && q.slug == w.pin) else {
+            let Some(pin) = g
+                .pins
+                .iter()
+                .find(|q| q.output == w.output && q.slug == w.pin)
+            else {
                 continue;
             };
             if !overlaps(g.rect, vis) {
@@ -12048,7 +12631,10 @@ fn draw_nodes(
             let gap = m.label_gap * zoom * 2.0;
             let chip = if w.output {
                 Rect::from_min_size(
-                    Pos2::new(scope.world_rect_to_screen(g.rect).max.x + gap, c.y - h * 0.5),
+                    Pos2::new(
+                        scope.world_rect_to_screen(g.rect).max.x + gap,
+                        c.y - h * 0.5,
+                    ),
                     Vec2::new(tw + gap * 2.0, h),
                 )
             } else {
@@ -12072,7 +12658,11 @@ fn draw_nodes(
             } else {
                 w.stale_for(WATCH_STALE_SECS)
             };
-            let alpha = if stale.is_some() || !live_value { 0.55 } else { 1.0 };
+            let alpha = if stale.is_some() || !live_value {
+                0.55
+            } else {
+                1.0
+            };
             // A stale chip dims *as a chip* — fill, border, type edge and text
             // together. Dimming only the number left a full-strength frame
             // around a faded value, which reads as a rendering fault rather
@@ -12093,7 +12683,12 @@ fn draw_nodes(
                     st.palette.stroke_strong.with_alpha(alpha),
                 );
             } else {
-                dashed_rect(&mut p, chip, m.border, st.palette.stroke_strong.with_alpha(alpha));
+                dashed_rect(
+                    &mut p,
+                    chip,
+                    m.border,
+                    st.palette.stroke_strong.with_alpha(alpha),
+                );
             }
             // 2px type-coloured left edge — which wire this value came off.
             p.rect_filled(
@@ -12111,7 +12706,9 @@ fn draw_nodes(
             );
             if let Some(secs) = stale {
                 let age = format!("{secs:.0}s");
-                let aw = p.measure_text_family(&age, px * 0.9, None, FontFamily::Mono).x;
+                let aw = p
+                    .measure_text_family(&age, px * 0.9, None, FontFamily::Mono)
+                    .x;
                 p.text_family(
                     Pos2::new(chip.max.x - gap * 0.5 - aw, chip.center().y - px * 0.62),
                     &age,
@@ -12135,8 +12732,7 @@ fn draw_nodes(
             .iter()
             .filter(|g| g.preview.is_some() && g.rect.intersect(vis).width() > 0.0)
             .collect();
-        let (start, take) =
-            preview_slice(slots.len(), frame, PREVIEW_BUDGET_PER_FRAME);
+        let (start, take) = preview_slice(slots.len(), frame, PREVIEW_BUDGET_PER_FRAME);
         let mut p = ui.painter();
         for g in slots.iter().skip(start).take(take) {
             let Some(kind) = g.preview else { continue };
@@ -12213,7 +12809,10 @@ fn payload_draft_widget(ui: &mut Ui, state: &mut GraphEditorState, cell: Rect, z
         cell,
         Direction::TopDown,
         Id::new(("graph_payload_draft", draft.node)),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = TextEdit::new(&mut draft.name)
                 .hint("field")
@@ -12280,7 +12879,11 @@ fn draw_inline_readonly(
         }
         InlineKind::Enum { value, ok, .. } | InlineKind::Choice { value, ok, .. } => {
             // Out-of-list values read as a warning, not an error.
-            let col = if *ok { st.palette.text_mono } else { status.warning };
+            let col = if *ok {
+                st.palette.text_mono
+            } else {
+                status.warning
+            };
             p.rect_filled(cell, round, st.palette.input);
             if !*ok {
                 p.rect_stroke(cell, round, m.border, status.warning);
@@ -12410,8 +13013,16 @@ fn inline_cell_w(p: &mut Painter, kind: &InlineKind, m: &GraphMetrics, st: &Styl
         // gap, the arrow itself, a little slack. The usual cap applies, but
         // yields whenever even the *current* value would not fit whole —
         // the selected value never truncates.
-        InlineKind::Enum { value, variants, ok }
-        | InlineKind::Choice { value, variants, ok } => {
+        InlineKind::Enum {
+            value,
+            variants,
+            ok,
+        }
+        | InlineKind::Choice {
+            value,
+            variants,
+            ok,
+        } => {
             let arrow = p.measure_text("\u{25BC}", st.fonts.body, None).x;
             let chrome = 20.0 + arrow + 2.0;
             let cur = both(p, st, &flagged_value(value, *ok));
@@ -12448,7 +13059,6 @@ fn clip_text(p: &mut Painter, s: &str, px: f32, max_w: f32) -> String {
 /// `id` is the caller's: the canvas band and the Details dock panel can both
 /// show the same row of the same node in one frame, and each needs its own
 /// widget identity (per-document layouts ticket 02).
-#[allow(clippy::too_many_arguments)]
 pub(super) fn inline_widget(
     ui: &mut Ui,
     state: &mut GraphEditorState,
@@ -12469,8 +13079,10 @@ pub(super) fn inline_widget(
         s.fonts.title *= zoom;
         s.sizes.checkbox *= zoom;
         s.spacing.item *= zoom;
-        s.spacing.button_padding =
-            Vec2::new(s.spacing.button_padding.x * zoom, s.spacing.button_padding.y * zoom);
+        s.spacing.button_padding = Vec2::new(
+            s.spacing.button_padding.x * zoom,
+            s.spacing.button_padding.y * zoom,
+        );
         s.metrics.control_height *= zoom;
         s.metrics.row_height *= zoom;
     }
@@ -12480,7 +13092,10 @@ pub(super) fn inline_widget(
         cell,
         Direction::TopDown,
         id,
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| match kind {
             InlineKind::Float(v) => {
                 let mut x = *v;
@@ -12528,8 +13143,12 @@ pub(super) fn inline_widget(
                     changed = Some(PropValue::Str(t));
                 }
             }
-            InlineKind::Enum { value, variants, .. }
-            | InlineKind::Choice { value, variants, .. } => {
+            InlineKind::Enum {
+                value, variants, ..
+            }
+            | InlineKind::Choice {
+                value, variants, ..
+            } => {
                 // `SelectableValue` wants a `Copy` value, so the selection is
                 // carried as an index and mapped back to the string.
                 let now = variants.iter().position(|v| v == value);
@@ -12601,7 +13220,13 @@ fn pin_doc(
     output: bool,
 ) -> Option<String> {
     let d = resolver.bind(&state.doc, registry).descriptor(node)?;
-    if output { d.output(slug) } else { d.input(slug) }?.doc.clone()
+    if output {
+        d.output(slug)
+    } else {
+        d.input(slug)
+    }?
+    .doc
+    .clone()
 }
 
 /// A node's doc line, if it declares one.
@@ -12636,11 +13261,7 @@ fn pin_ty(geoms: &[NodeGeom], node: u64, slug: &str, output: bool) -> Option<Pin
         .map(|p| p.ty.clone())
 }
 
-fn pin_under(
-    geoms: &[NodeGeom],
-    pw: Pos2,
-    hit_w: f32,
-) -> Option<(u64, String, PinType, bool)> {
+fn pin_under(geoms: &[NodeGeom], pw: Pos2, hit_w: f32) -> Option<(u64, String, PinType, bool)> {
     for g in geoms {
         for pin in &g.pins {
             let w = pin.hit_w.unwrap_or(hit_w);
@@ -12659,11 +13280,7 @@ fn pin_is_untyped(geoms: &[NodeGeom], node: u64, slug: &str, output: bool) -> bo
     geoms
         .iter()
         .find(|g| g.id == node)
-        .and_then(|g| {
-            g.pins
-                .iter()
-                .find(|p| p.output == output && p.slug == slug)
-        })
+        .and_then(|g| g.pins.iter().find(|p| p.output == output && p.slug == slug))
         .is_some_and(|p| p.untyped)
 }
 
@@ -12691,9 +13308,10 @@ fn resolve_connection(
     else {
         return false;
     };
-    let (Some(pw), Some(src_ty)) =
-        (pointer_world, pin_ty(geoms, from_node, &from_pin, from_output))
-    else {
+    let (Some(pw), Some(src_ty)) = (
+        pointer_world,
+        pin_ty(geoms, from_node, &from_pin, from_output),
+    ) else {
         return false;
     };
     let Some((tn, ts, tty, to)) = pin_under(geoms, pw, hit_w) else {
@@ -12749,7 +13367,10 @@ fn auto_connect(
             None => return,
         }
     };
-    let filter = PinFilter { ty: src.ty.clone(), need_input: src.output };
+    let filter = PinFilter {
+        ty: src.ty.clone(),
+        need_input: src.output,
+    };
     let Some(pin) = graph_palette::auto_connect_pin(&desc, &filter, &src.label) else {
         state.toast("No compatible pin");
         return;
@@ -12824,17 +13445,17 @@ fn auto_connect(
         edits.push(GraphEdit::Disconnect { edges: indexed });
     }
     edits.push(GraphEdit::Connect(edge));
-    let edit = GraphEdit::Composite { label: "Connect".to_string(), edits };
+    let edit = GraphEdit::Composite {
+        label: "Connect".to_string(),
+        edits,
+    };
     edit.apply(&mut state.doc);
     state.commit(edit, registry);
 }
 
 /// `finish_node_drag` for state-level tests, which have no `Ui` to drive.
 #[cfg(test)]
-pub(super) fn finish_node_drag_for_test(
-    state: &mut GraphEditorState,
-    registry: &NodeRegistry,
-) {
+pub(super) fn finish_node_drag_for_test(state: &mut GraphEditorState, registry: &NodeRegistry) {
     finish_node_drag(state, registry)
 }
 
@@ -12862,7 +13483,10 @@ fn finish_node_drag(state: &mut GraphEditorState, registry: &NodeRegistry) {
         (Some(pending), Some(mv)) => {
             let label = pending.description();
             state.commit(
-                GraphEdit::Composite { label, edits: vec![pending, mv] },
+                GraphEdit::Composite {
+                    label,
+                    edits: vec![pending, mv],
+                },
                 registry,
             );
         }
@@ -12878,9 +13502,17 @@ fn finish_annotation_drag(state: &mut GraphEditorState, registry: &NodeRegistry)
         return;
     };
     let min = if d.is_group {
-        state.doc.groups.get(d.index).map(|g| [g.rect[0], g.rect[1]])
+        state
+            .doc
+            .groups
+            .get(d.index)
+            .map(|g| [g.rect[0], g.rect[1]])
     } else {
-        state.doc.comments.get(d.index).map(|c| [c.rect[0], c.rect[1]])
+        state
+            .doc
+            .comments
+            .get(d.index)
+            .map(|c| [c.rect[0], c.rect[1]])
     };
     let Some(min) = min else {
         return;
@@ -12894,7 +13526,10 @@ fn finish_annotation_drag(state: &mut GraphEditorState, registry: &NodeRegistry)
                 delta,
             }
         } else {
-            GraphEdit::MoveComment { index: d.index, delta }
+            GraphEdit::MoveComment {
+                index: d.index,
+                delta,
+            }
         };
         state.commit(edit, registry);
     }
@@ -12958,10 +13593,7 @@ fn selection_bbox(state: &GraphEditorState, geoms: &[NodeGeom]) -> Option<(Vec2,
     } else {
         None
     }?;
-    Some((
-        Vec2::new(r[0], r[1]),
-        Vec2::new(r[0] + r[2], r[1] + r[3]),
-    ))
+    Some((Vec2::new(r[0], r[1]), Vec2::new(r[0] + r[2], r[1] + r[3])))
 }
 
 /// World bbox `(min, max)` of the whole graph — nodes + groups + comments.
@@ -12977,10 +13609,25 @@ fn content_bbox(state: &GraphEditorState, geoms: &[NodeGeom]) -> Option<(Vec2, V
         });
     };
     for g in state.doc.groups.iter().filter(|g| state.group_visible(g)) {
-        fold(g.rect[0], g.rect[1], g.rect[0] + g.rect[2], g.rect[1] + g.rect[3]);
+        fold(
+            g.rect[0],
+            g.rect[1],
+            g.rect[0] + g.rect[2],
+            g.rect[1] + g.rect[3],
+        );
     }
-    for c in state.doc.comments.iter().filter(|c| state.comment_visible(c)) {
-        fold(c.rect[0], c.rect[1], c.rect[0] + c.rect[2], c.rect[1] + c.rect[3]);
+    for c in state
+        .doc
+        .comments
+        .iter()
+        .filter(|c| state.comment_visible(c))
+    {
+        fold(
+            c.rect[0],
+            c.rect[1],
+            c.rect[0] + c.rect[2],
+            c.rect[1] + c.rect[3],
+        );
     }
     b
 }
@@ -12992,10 +13639,16 @@ fn edit_popup(
     registry: &NodeRegistry,
     canvas_rect: Rect,
 ) {
-    let Some((is_group, index, anchor_world, first_frame, original)) = state
-        .editing
-        .as_ref()
-        .map(|e| (e.is_group, e.index, e.anchor_world, e.first_frame, e.original.clone()))
+    let Some((is_group, index, anchor_world, first_frame, original)) =
+        state.editing.as_ref().map(|e| {
+            (
+                e.is_group,
+                e.index,
+                e.anchor_world,
+                e.first_frame,
+                e.original.clone(),
+            )
+        })
     else {
         return;
     };
@@ -13011,14 +13664,26 @@ fn edit_popup(
     {
         let mut p = ui.painter();
         p.rect_filled(rect, st.rounding.small, st.palette.elevated);
-        p.rect_stroke(rect, st.rounding.small, st.metrics.border, st.palette.accent_active);
+        p.rect_stroke(
+            rect,
+            st.rounding.small,
+            st.metrics.border,
+            st.palette.accent_active,
+        );
     }
-    let mut buffer = state.editing.as_ref().map(|e| e.buffer.clone()).unwrap_or_default();
+    let mut buffer = state
+        .editing
+        .as_ref()
+        .map(|e| e.buffer.clone())
+        .unwrap_or_default();
     let (out, _) = ui.run_at(
         rect,
         Direction::TopDown,
         Id::new(("graph_annot_edit", is_group, index)),
-        UiOptions { padding: Vec2::splat(st.metrics.border * 2.0), spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::splat(st.metrics.border * 2.0),
+            spacing: 0.0,
+        },
         |ui| {
             TextEdit::new(&mut buffer)
                 .width(w - st.metrics.border * 4.0)
@@ -13057,9 +13722,17 @@ fn edit_popup(
         };
         if applied {
             let edit = if is_group {
-                GraphEdit::SetGroupTitle { index, old: original, new: buffer }
+                GraphEdit::SetGroupTitle {
+                    index,
+                    old: original,
+                    new: buffer,
+                }
             } else {
-                GraphEdit::SetCommentText { index, old: original, new: buffer }
+                GraphEdit::SetCommentText {
+                    index,
+                    old: original,
+                    new: buffer,
+                }
             };
             state.commit(edit, registry);
         }
@@ -13098,8 +13771,7 @@ fn handle_marquee(
         && !c.blocked
     {
         if let Some(pw) = c.pointer_world {
-            if node_under(geoms, pw, c.lod, m).is_none()
-                && pin_under(geoms, pw, c.hit_w).is_none()
+            if node_under(geoms, pw, c.lod, m).is_none() && pin_under(geoms, pw, c.hit_w).is_none()
             {
                 state.marquee = Some([pw.x, pw.y]);
                 // Captured at press: releasing the modifier mid-drag must not
@@ -13205,17 +13877,21 @@ fn error_chip(
     let h = st.metrics.control_height;
 
     let count = format!("{}", errors.total());
-    let mut cw = ui.painter().measure_text_family(&count, font, None, FontFamily::Mono).x;
+    let mut cw = ui
+        .painter()
+        .measure_text_family(&count, font, None, FontFamily::Mono)
+        .x;
     cw += pad * 2.0 + font;
-    let chip = Rect::from_min_size(
-        rect.min + Vec2::splat(st.spacing.padding),
-        Vec2::new(cw, h),
-    );
+    let chip = Rect::from_min_size(rect.min + Vec2::splat(st.spacing.padding), Vec2::new(cw, h));
     let id = ui.alloc_id("graph_error_chip");
     let resp = ui.interact(id, chip);
     // Warnings alone (Task 41.7 D6) turn the chip to the warning tone: the
     // count still cycles them, but nothing is refusing.
-    let tone = if errors.only_warnings() { status.warning } else { status.error };
+    let tone = if errors.only_warnings() {
+        status.warning
+    } else {
+        status.error
+    };
     {
         let mut p = ui.painter();
         // Count chips are filters: status tint fill, status border, a dot.
@@ -13245,7 +13921,16 @@ fn error_chip(
         ui.tooltip_for(chip, &tip);
     }
     if resp.clicked {
-        cycle_error(state, errors, geoms, viewport, zoom_min, zoom_max, frame_request, registry);
+        cycle_error(
+            state,
+            errors,
+            geoms,
+            viewport,
+            zoom_min,
+            zoom_max,
+            frame_request,
+            registry,
+        );
     }
 
     // Doc-level errors have no canvas anchor, so they get compiler rows.
@@ -13254,7 +13939,10 @@ fn error_chip(
         return;
     }
     let label = format!("{} doc", errors.document.len());
-    let lw = ui.painter().measure_text_family(&label, font, None, FontFamily::Mono).x
+    let lw = ui
+        .painter()
+        .measure_text_family(&label, font, None, FontFamily::Mono)
+        .x
         + pad * 2.0;
     let more = Rect::from_min_size(
         Pos2::new(chip.max.x + st.spacing.item, chip.min.y),
@@ -13265,7 +13953,12 @@ fn error_chip(
     {
         let mut p = ui.painter();
         p.rect_filled(more, st.rounding.small, st.palette.elevated);
-        p.rect_stroke(more, st.rounding.small, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            more,
+            st.rounding.small,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
         p.text_family(
             Pos2::new(more.min.x + pad, more.center().y - font * 0.62),
             &label,
@@ -13290,7 +13983,11 @@ fn error_chip(
     }
     let mut w: f32 = 0.0;
     for r in &rows {
-        w = w.max(ui.painter().measure_text_family(r, font, None, FontFamily::Mono).x);
+        w = w.max(
+            ui.painter()
+                .measure_text_family(r, font, None, FontFamily::Mono)
+                .x,
+        );
     }
     let line_h = font * 1.7;
     let panel = Rect::from_min_size(
@@ -13300,7 +13997,12 @@ fn error_chip(
     {
         let mut p = ui.painter();
         p.rect_filled(panel, st.rounding.panel, st.palette.elevated);
-        p.rect_stroke(panel, st.rounding.panel, st.metrics.border, st.palette.stroke_strong);
+        p.rect_stroke(
+            panel,
+            st.rounding.panel,
+            st.metrics.border,
+            st.palette.stroke_strong,
+        );
     }
     let mut y = panel.min.y + pad;
     for (i, e) in errors.document.iter().enumerate() {
@@ -13313,7 +14015,8 @@ fn error_chip(
             let rid = ui.alloc_id(("graph_cycle_row", i));
             let r = ui.interact(rid, row);
             if r.hovered {
-                ui.painter().rect_filled(row, st.rounding.small, st.palette.hover);
+                ui.painter()
+                    .rect_filled(row, st.rounding.small, st.palette.hover);
             }
             if r.clicked {
                 if let Some(first) = chain.first() {
@@ -13452,7 +14155,10 @@ mod tests {
         let canvas = Rect::from_min_max(Pos2::new(100.0, 50.0), Pos2::new(1100.0, 750.0));
         // A placement well inside passes through untouched.
         let r = peek_user_rect(canvas, [40.0, 60.0], [400.0, 300.0], 1.0);
-        assert_eq!(r, Rect::from_min_size(Pos2::new(140.0, 110.0), Vec2::new(400.0, 300.0)));
+        assert_eq!(
+            r,
+            Rect::from_min_size(Pos2::new(140.0, 110.0), Vec2::new(400.0, 300.0))
+        );
         // Sizes below the minimum grow to it.
         let min = peek_min_size(1.0);
         let r = peek_user_rect(canvas, [40.0, 60.0], [10.0, 10.0], 1.0);
@@ -13699,11 +14405,14 @@ mod tests {
         }
     }
 
-
     /// Build the two pins of a reroute exactly as `build_geoms` does, so the
     /// hit-zone tests exercise the shipped layout rather than a copy of it.
     fn reroute_geom(m: &GraphMetrics, min: Pos2, untyped: bool) -> NodeGeom {
-        let d = if untyped { m.reroute_untyped_d() } else { m.reroute_d() };
+        let d = if untyped {
+            m.reroute_untyped_d()
+        } else {
+            m.reroute_d()
+        };
         let c = Pos2::new(min.x + d * 0.5, min.y + d * 0.5);
         let band = d * REROUTE_PIN_OFF;
         let pin = |slug: &str, output: bool| PinGeom {
@@ -13763,7 +14472,10 @@ mod tests {
         let g = reroute_geom(&m, Pos2::ZERO, false);
         for lod in [ZoomLod::L0, ZoomLod::L2, ZoomLod::L3, ZoomLod::L4] {
             let r = g.body_rect(lod, &m);
-            assert_eq!(r, g.rect, "a reroute has no header to collapse to ({lod:?})");
+            assert_eq!(
+                r, g.rect,
+                "a reroute has no header to collapse to ({lod:?})"
+            );
         }
     }
 
@@ -13839,8 +14551,15 @@ mod tests {
     #[test]
     fn an_inline_cell_grows_for_text_but_only_up_to_the_cap() {
         let m = GraphMetrics::new(&Style::steel());
-        assert_eq!(m.text_value_w(0.0), m.value_w, "short text keeps the reserved width");
-        assert!(m.text_value_w(90.0) > m.value_w, "a wider string widens the cell");
+        assert_eq!(
+            m.text_value_w(0.0),
+            m.value_w,
+            "short text keeps the reserved width"
+        );
+        assert!(
+            m.text_value_w(90.0) > m.value_w,
+            "a wider string widens the cell"
+        );
         assert_eq!(
             m.text_value_w(10_000.0),
             BASE_VALUE_W_MAX * m.scale,
@@ -13869,7 +14588,10 @@ mod tests {
             !widget_owns(Pos2::new(49.0, 27.0), &rects),
             "a pixel outside is the node's again, or box-select would never start"
         );
-        assert!(!widget_owns(Pos2::new(80.0, 60.0), &[]), "no widgets, no claim");
+        assert!(
+            !widget_owns(Pos2::new(80.0, 60.0), &[]),
+            "no widgets, no claim"
+        );
     }
 
     #[test]
@@ -13899,8 +14621,18 @@ mod tests {
         // Dragging a Float output onto the empty reroute's input...
         assert!(
             validate_connection(
-                &st, &NodeRegistry::new(), 1, "o", true, &PinType::Float, false,
-                7, REROUTE_IN, false, &PinType::Domain(String::new()), true,
+                &st,
+                &NodeRegistry::new(),
+                1,
+                "o",
+                true,
+                &PinType::Float,
+                false,
+                7,
+                REROUTE_IN,
+                false,
+                &PinType::Domain(String::new()),
+                true,
             )
             .is_some(),
             "an untyped reroute is an absence of a type, not a mismatch"
@@ -13908,8 +14640,18 @@ mod tests {
         // ...and dragging out of the empty reroute onto a Float input.
         assert!(
             validate_connection(
-                &st, &NodeRegistry::new(), 7, REROUTE_OUT, true, &PinType::Domain(String::new()), true,
-                1, "i", false, &PinType::Float, false,
+                &st,
+                &NodeRegistry::new(),
+                7,
+                REROUTE_OUT,
+                true,
+                &PinType::Domain(String::new()),
+                true,
+                1,
+                "i",
+                false,
+                &PinType::Float,
+                false,
             )
             .is_some(),
             "and it works in the other direction too"
@@ -13917,8 +14659,18 @@ mod tests {
         // Strictness is untouched where both sides really are typed.
         assert!(
             validate_connection(
-                &st, &NodeRegistry::new(), 1, "o", true, &PinType::Float, false,
-                2, "i", false, &PinType::Exec, false,
+                &st,
+                &NodeRegistry::new(),
+                1,
+                "o",
+                true,
+                &PinType::Float,
+                false,
+                2,
+                "i",
+                false,
+                &PinType::Exec,
+                false,
             )
             .is_none(),
             "no implicit conversions; typing stays strict"
@@ -13984,7 +14736,10 @@ mod tests {
         assert_eq!(g.rect.size(), r0.size());
         assert_eq!(g.pins[0].wire_anchor, p0 + Vec2::new(30.0, -12.0));
         assert_eq!(g.config[0].cell.min, c0.min + Vec2::new(30.0, -12.0));
-        assert!(g.pinned_pos, "a translated geom knows its position is derived");
+        assert!(
+            g.pinned_pos,
+            "a translated geom knows its position is derived"
+        );
     }
 
     #[test]
@@ -14012,7 +14767,11 @@ mod tests {
         assert_eq!(g.edge_color(), category_color("Math"));
         g.tint = Some(9);
         assert_eq!(g.edge_color(), ramp()[9].deep);
-        assert_eq!(g.tag_color(), category_tag_color("Math"), "tag keeps the category");
+        assert_eq!(
+            g.tag_color(),
+            category_tag_color("Math"),
+            "tag keeps the category"
+        );
         // Out-of-range indices wrap instead of panicking on a hand-edited asset.
         g.tint = Some(200);
         assert_eq!(g.edge_color(), ramp()[(200 % 12) as usize].deep);
@@ -14035,7 +14794,10 @@ mod tests {
         // match the node's, and the inset fill's radius must shrink by the edge.
         let radius = BASE_RADIUS;
         let band_h = radius * 2.0;
-        assert!(band_h * 0.5 >= radius, "band must not clamp its own rounding");
+        assert!(
+            band_h * 0.5 >= radius,
+            "band must not clamp its own rounding"
+        );
         let edge_h = crate::engine::editor::theme::tokens::Metrics::default().edge_accent;
         assert!(edge_h < band_h);
         assert_eq!((radius - edge_h).max(0.0), 4.0);
@@ -14053,8 +14815,14 @@ mod tests {
             inner - outer
         };
         assert!(gap_at(0.0).is_infinite(), "full width across the crown");
-        assert!(gap_at(3.0) > 0.0 && gap_at(3.0) < edge_h, "tapering round the curve");
-        assert!(gap_at(radius).abs() < 1e-5, "closed where the side goes vertical");
+        assert!(
+            gap_at(3.0) > 0.0 && gap_at(3.0) < edge_h,
+            "tapering round the curve"
+        );
+        assert!(
+            gap_at(radius).abs() < 1e-5,
+            "closed where the side goes vertical"
+        );
     }
 
     #[test]
@@ -14071,8 +14839,14 @@ mod tests {
     #[test]
     fn inline_kind_covers_every_prop_value() {
         let none: &[String] = &[];
-        assert!(matches!(InlineKind::of(&PropValue::Float(1.0), none), InlineKind::Float(_)));
-        assert!(matches!(InlineKind::of(&PropValue::Bool(true), none), InlineKind::Bool(_)));
+        assert!(matches!(
+            InlineKind::of(&PropValue::Float(1.0), none),
+            InlineKind::Float(_)
+        ));
+        assert!(matches!(
+            InlineKind::of(&PropValue::Bool(true), none),
+            InlineKind::Bool(_)
+        ));
         assert!(matches!(
             InlineKind::of(&PropValue::Color([0.0; 4]), none),
             InlineKind::Color(_)
@@ -14082,7 +14856,10 @@ mod tests {
             InlineKind::Raw(_)
         ));
         // Int and String became editable in 45-A P6.
-        assert!(matches!(InlineKind::of(&PropValue::Int(-7), none), InlineKind::Int(-7)));
+        assert!(matches!(
+            InlineKind::of(&PropValue::Int(-7), none),
+            InlineKind::Int(-7)
+        ));
         assert!(matches!(
             InlineKind::of(&PropValue::Str("hi".into()), none),
             InlineKind::Str(_)
@@ -14099,7 +14876,10 @@ mod tests {
             PropValue::Asset("textures/a.png".into()),
             PropValue::Array(vec![PropValue::Int(1), PropValue::Int(2)]),
         ] {
-            assert!(matches!(InlineKind::of(&v, none), InlineKind::Chip(_)), "{v:?}");
+            assert!(
+                matches!(InlineKind::of(&v, none), InlineKind::Chip(_)),
+                "{v:?}"
+            );
         }
         // …and the chips say something useful rather than `Debug` spew.
         assert_eq!(
@@ -14131,10 +14911,19 @@ mod tests {
         assert!(editable(PropValue::Int(1)));
         assert!(editable(PropValue::Bool(true)));
         assert!(editable(PropValue::Str("x".into())));
-        assert!(!editable(PropValue::Array(vec![])), "array literals are a non-goal");
+        assert!(
+            !editable(PropValue::Array(vec![])),
+            "array literals are a non-goal"
+        );
         assert!(!editable(PropValue::Vec3([0.0; 3])), "vectors are P7+ work");
-        assert!(!editable(PropValue::Asset("a/b.png".into())), "asset picker is not here yet");
-        assert!(!editable(PropValue::Raw("(x:1)".into())), "forward-compat data is never edited");
+        assert!(
+            !editable(PropValue::Asset("a/b.png".into())),
+            "asset picker is not here yet"
+        );
+        assert!(
+            !editable(PropValue::Raw("(x:1)".into())),
+            "forward-compat data is never edited"
+        );
     }
 
     /// The standard library's comparison nodes declare their operator
@@ -14153,7 +14942,11 @@ mod tests {
             let desc = reg.get(id).expect("registered");
             let variants = &desc.input("op").expect("an operator pin").variants;
             match InlineKind::of(&PropValue::Enum("less".into()), variants) {
-                InlineKind::Enum { value, variants: v, ok } => {
+                InlineKind::Enum {
+                    value,
+                    variants: v,
+                    ok,
+                } => {
                     assert_eq!(value, "less");
                     assert!(ok);
                     assert_eq!(v.len(), 6, "all six operators are offered on {id}");
@@ -14218,7 +15011,11 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].0, VAR_PROP);
         match &rows[0].2 {
-            InlineKind::Choice { value, variants, ok } => {
+            InlineKind::Choice {
+                value,
+                variants,
+                ok,
+            } => {
                 assert_eq!(value, "score");
                 assert_eq!(variants, &vec!["score".to_string()]);
                 assert!(ok);
@@ -14241,7 +15038,11 @@ mod tests {
         );
         assert!(matches!(rows[0].2, InlineKind::Str(_)));
         match &rows[1].2 {
-            InlineKind::Enum { value, variants, ok } => {
+            InlineKind::Enum {
+                value,
+                variants,
+                ok,
+            } => {
                 assert_eq!(value, "int");
                 assert_eq!(variants.len(), PAYLOAD_PIN_TYPES.len());
                 assert!(ok);
@@ -14264,9 +15065,7 @@ mod tests {
     /// in document order whose tick folds into the one `states` property.
     #[test]
     fn an_alias_has_a_global_row_and_one_row_per_state() {
-        use crate::engine::animation::graph::plan::{
-            ANIM_STATE_ALIAS_TYPE_ID, ANIM_STATE_TYPE_ID,
-        };
+        use crate::engine::animation::graph::plan::{ANIM_STATE_ALIAS_TYPE_ID, ANIM_STATE_TYPE_ID};
         use crate::engine::animation::graph::{ALIAS_GLOBAL_PROP, ALIAS_STATES_PROP};
         use crate::engine::node_graph::GraphDoc;
         let reg = NodeRegistry::new();
@@ -14296,7 +15095,9 @@ mod tests {
             let docd = DocDescriptors::new(&doc, &reg);
             let rows = config_rows(&doc.nodes[3], &docd);
             assert_eq!(
-                rows.iter().map(|(k, l, _)| (k.as_str(), l.as_str())).collect::<Vec<_>>(),
+                rows.iter()
+                    .map(|(k, l, _)| (k.as_str(), l.as_str()))
+                    .collect::<Vec<_>>(),
                 vec![
                     (ALIAS_GLOBAL_PROP, "Global"),
                     ("states.1", "Idle"),
@@ -14304,7 +15105,9 @@ mod tests {
                     ("states.3", "State 3"),
                 ]
             );
-            assert!(rows[1..].iter().all(|r| matches!(r.2, InlineKind::Bool(false))));
+            assert!(rows[1..]
+                .iter()
+                .all(|r| matches!(r.2, InlineKind::Bool(false))));
             assert_eq!(alias_subtitle(&doc.nodes[3], &doc), "No states");
         }
 
@@ -14315,7 +15118,11 @@ mod tests {
         doc.nodes[3].properties.insert(key, v);
         let (key, v) = config_write_back(&doc.nodes[3], "states.1", PropValue::Bool(true));
         doc.nodes[3].properties.insert(key, v);
-        assert_eq!(alias_states(&doc.nodes[3]), vec![2, 1], "list order is tick order");
+        assert_eq!(
+            alias_states(&doc.nodes[3]),
+            vec![2, 1],
+            "list order is tick order"
+        );
         {
             let docd = DocDescriptors::new(&doc, &reg);
             let rows = config_rows(&doc.nodes[3], &docd);
@@ -14356,12 +15163,15 @@ mod tests {
         nested
             .properties
             .insert(CLIP_PROP.into(), PropValue::Asset("anims/idle.anim".into()));
-        nested
-            .properties
-            .insert(GRAPH_PROP.into(), PropValue::Asset("graphs/loco.animgraph".into()));
+        nested.properties.insert(
+            GRAPH_PROP.into(),
+            PropValue::Asset("graphs/loco.animgraph".into()),
+        );
         let mut tree = test_node(2, ANIM_STATE_TYPE_ID);
-        tree.properties
-            .insert(GRAPH_PROP.into(), PropValue::Asset("graphs/loco.animgraph".into()));
+        tree.properties.insert(
+            GRAPH_PROP.into(),
+            PropValue::Asset("graphs/loco.animgraph".into()),
+        );
         let mut spaced = test_node(3, ANIM_STATE_TYPE_ID);
         spaced
             .properties
@@ -14381,16 +15191,25 @@ mod tests {
         let docd = DocDescriptors::new(&doc, &reg);
 
         let keys = |i: usize| -> Vec<String> {
-            config_rows(&doc.nodes[i], &docd).iter().map(|(k, _, _)| k.clone()).collect()
+            config_rows(&doc.nodes[i], &docd)
+                .iter()
+                .map(|(k, _, _)| k.clone())
+                .collect()
         };
         assert_eq!(keys(0), vec![CLIP_PROP, SPACE_PROP, GRAPH_PROP, SPEED_PROP]);
         let rows = config_rows(&doc.nodes[0], &docd);
         assert!(
-            rows[1..3].iter().all(|r| matches!(&r.2, InlineKind::Str(s) if s.is_empty())),
+            rows[1..3]
+                .iter()
+                .all(|r| matches!(&r.2, InlineKind::Str(s) if s.is_empty())),
             "the Blend Space and Graph rows exist empty — it is how the properties come to be"
         );
 
-        assert_eq!(keys(1), vec![GRAPH_PROP, SPEED_PROP], "clip and space rows yield to the graph");
+        assert_eq!(
+            keys(1),
+            vec![GRAPH_PROP, SPEED_PROP],
+            "clip and space rows yield to the graph"
+        );
 
         assert_eq!(
             keys(3),
@@ -14407,7 +15226,10 @@ mod tests {
             vec![CLIP_PROP, SPEED_PROP],
             "a tree region beats the graph reference — the chip row"
         );
-        assert!(matches!(&config_rows(&doc.nodes[2], &docd)[0].2, InlineKind::Chip(_)));
+        assert!(matches!(
+            &config_rows(&doc.nodes[2], &docd)[0].2,
+            InlineKind::Chip(_)
+        ));
     }
 
     /// The card subtitle speaks the same precedence as the config band and
@@ -14421,17 +15243,21 @@ mod tests {
         let reg = NodeRegistry::new();
         let mut doc = GraphDoc::default();
         doc.nodes = vec![test_node(0, ANIM_STATE_TYPE_ID)];
-        let sub = |doc: &GraphDoc| {
-            anim_state_subtitle(&doc.nodes[0], &DocDescriptors::new(doc, &reg))
-        };
+        let sub =
+            |doc: &GraphDoc| anim_state_subtitle(&doc.nodes[0], &DocDescriptors::new(doc, &reg));
         assert_eq!(sub(&doc), None);
         let set = |doc: &mut GraphDoc, k: &str, v: &str| {
-            doc.nodes[0].properties.insert(k.into(), PropValue::Asset(v.into()));
+            doc.nodes[0]
+                .properties
+                .insert(k.into(), PropValue::Asset(v.into()));
         };
         set(&mut doc, CLIP_PROP, " anims/idle.anim ");
         assert_eq!(sub(&doc).as_deref(), Some("\u{25b7} anims/idle.anim"));
         set(&mut doc, SPACE_PROP, "blendspaces/loco.blendspace");
-        assert_eq!(sub(&doc).as_deref(), Some("\u{25a6} blendspaces/loco.blendspace"));
+        assert_eq!(
+            sub(&doc).as_deref(),
+            Some("\u{25a6} blendspaces/loco.blendspace")
+        );
         set(&mut doc, GRAPH_PROP, "graphs/loco.animgraph");
         assert_eq!(sub(&doc).as_deref(), Some("\u{2750} graphs/loco.animgraph"));
         doc.regions.insert(
@@ -14650,7 +15476,10 @@ mod tests {
         // Then the marks themselves.
         assert_eq!(break_badge(Some(true), false, false, true), Some(Invalid));
         assert_eq!(break_badge(Some(true), false, false, false), Some(Armed));
-        assert_eq!(break_badge(Some(false), false, false, false), Some(Disabled));
+        assert_eq!(
+            break_badge(Some(false), false, false, false),
+            Some(Disabled)
+        );
         // A *disabled* mark is never invalid: it arms nothing, so there is
         // nothing to fail to resolve.
         assert_eq!(break_badge(Some(false), false, false, true), Some(Disabled));
@@ -14678,7 +15507,11 @@ mod tests {
         assert_eq!(insertion_target(&rows, Pos2::new(50.0, 104.0)), Some(0));
         assert_eq!(insertion_target(&rows, Pos2::new(50.0, 116.0)), Some(1));
         assert_eq!(insertion_target(&rows, Pos2::new(50.0, 124.0)), Some(1));
-        assert_eq!(insertion_target(&rows, Pos2::new(50.0, 156.0)), Some(3), "past the end");
+        assert_eq!(
+            insertion_target(&rows, Pos2::new(50.0, 156.0)),
+            Some(3),
+            "past the end"
+        );
         // Outside the column entirely: not a reorder at all.
         assert_eq!(insertion_target(&rows, Pos2::new(400.0, 116.0)), None);
         assert_eq!(insertion_target(&[], Pos2::new(50.0, 116.0)), None);
@@ -14705,8 +15538,14 @@ mod tests {
             assert_eq!(lod.config_band(), lod.rows(), "{lod:?}");
         }
         assert!(L0.inline_widgets(), "L0 — widgets live");
-        assert!(!L1.inline_widgets() && L1.values(), "L1 — plain mono values");
-        assert!(L2.config_band() && !L2.pin_labels(), "L2 — band, no row labels");
+        assert!(
+            !L1.inline_widgets() && L1.values(),
+            "L1 — plain mono values"
+        );
+        assert!(
+            L2.config_band() && !L2.pin_labels(),
+            "L2 — band, no row labels"
+        );
         assert!(!L3.config_band(), "L3 — title only, the band drops");
         // The value outlives the row label: a band with nothing in it would be
         // worse than no band, so the flattened value is drawn wherever the
@@ -14737,7 +15576,10 @@ mod tests {
         let mut sink = test_node(1, EVENT_CUSTOM_TYPE_ID);
         sink.properties
             .insert(EVENT_NAME_PROP.into(), PropValue::Str("Other".into()));
-        state.doc = GraphDoc { nodes: vec![ev, sink], ..GraphDoc::default() };
+        state.doc = GraphDoc {
+            nodes: vec![ev, sink],
+            ..GraphDoc::default()
+        };
         state.doc.edges = vec![Edge {
             from_node: 0,
             from_pin: "damage".into(),
@@ -14748,10 +15590,7 @@ mod tests {
         // With the field declared, the pin exists and only the (already
         // unknown) target pin ghosts.
         let ix = ErrorIndex::build(&validate_doc(&state.doc, &reg), &[], &[]);
-        assert!(!ix
-            .ghosts_for(0)
-            .iter()
-            .any(|(s, o)| s == "damage" && *o));
+        assert!(!ix.ghosts_for(0).iter().any(|(s, o)| s == "damage" && *o));
 
         assert!(state.remove_payload_field(0, "damage", &reg));
         let ix = ErrorIndex::build(&validate_doc(&state.doc, &reg), &[], &[]);
@@ -14780,7 +15619,10 @@ mod tests {
             let (i, array) = type_pick(GraphDomain::Script, &ty);
             assert_eq!(type_from_pick(GraphDomain::Script, i, array), ty, "{ty:?}");
         }
-        assert_eq!(type_label(&PinType::Array(Box::new(PinType::Float))), "Float[]");
+        assert_eq!(
+            type_label(&PinType::Array(Box::new(PinType::Float))),
+            "Float[]"
+        );
         // A type the picker cannot express still reads honestly in the row and
         // does not silently become Float on the way past.
         let domain = PinType::Domain("shader".into());
@@ -14794,7 +15636,11 @@ mod tests {
     fn enum_pins_become_dropdowns_only_with_declared_variants() {
         let variants = vec!["Idle".to_string(), "Run".to_string()];
         match InlineKind::of(&PropValue::Enum("Run".into()), &variants) {
-            InlineKind::Enum { value, ok, variants: v } => {
+            InlineKind::Enum {
+                value,
+                ok,
+                variants: v,
+            } => {
                 assert_eq!(value, "Run");
                 assert!(ok);
                 assert_eq!(v.len(), 2);
@@ -14822,15 +15668,18 @@ mod tests {
         assert_eq!(preview_slice(5, 99, 8), (0, 5));
 
         // Over budget: a moving window that covers everything in 3 frames.
-        let mut seen = vec![false; 20];
+        let mut seen = [false; 20];
         for frame in 0..3u64 {
             let (start, take) = preview_slice(20, frame, 8);
             assert!(take <= 8, "the cap is never exceeded");
-            for i in start..start + take {
-                seen[i] = true;
+            for s in &mut seen[start..start + take] {
+                *s = true;
             }
         }
-        assert!(seen.iter().all(|s| *s), "every slot refreshed within 3 frames");
+        assert!(
+            seen.iter().all(|s| *s),
+            "every slot refreshed within 3 frames"
+        );
         // …and it keeps cycling.
         assert_eq!(preview_slice(20, 3, 8), preview_slice(20, 0, 8));
 

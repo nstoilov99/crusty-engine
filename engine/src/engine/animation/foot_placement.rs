@@ -49,9 +49,11 @@ pub const FOOT_EVENT_UP_SUFFIX: &str = "_up";
 
 /// Did last tick fire `<chain><suffix>`? Allocation-free.
 fn fired(events: &[AnimEventFire], chain: &str, suffix: &str) -> bool {
-    events
-        .iter()
-        .any(|e| e.name.strip_prefix(chain).is_some_and(|rest| rest == suffix))
+    events.iter().any(|e| {
+        e.name
+            .strip_prefix(chain)
+            .is_some_and(|rest| rest == suffix)
+    })
 }
 
 /// This frame's ground reading under one foot (Task 41.6 P6, F1).
@@ -112,7 +114,9 @@ pub fn place_feet(
     if !active {
         let mut changed = false;
         for chain in &mut rt.ik {
-            let Some(foot) = &mut chain.foot else { continue };
+            let Some(foot) = &mut chain.foot else {
+                continue;
+            };
             changed |= targets.targets.remove(&chain.name).is_some()
                 || foot.locked
                 || foot.release.is_some();
@@ -145,7 +149,9 @@ pub fn place_feet(
     // foot's lift must not read as ground dropping away.
     let mut lowest = 0.0f32;
     for chain in &mut rt.ik {
-        let Some(foot) = &mut chain.foot else { continue };
+        let Some(foot) = &mut chain.foot else {
+            continue;
+        };
         // The animated (pre-IK) foot from the last evaluation — absent only
         // before the first one.
         let fresh = chain.animated_tip.and_then(|tip| {
@@ -490,10 +496,16 @@ mod tests {
     fn the_delta_clamps_and_tilts_the_ankle_offset_onto_the_normal() {
         // Deep chasm: the drop is capped at the pelvis reach.
         let d = terrain_delta(-5.0, 0.0, Vec3::Z, 0.1);
-        assert!((d - Vec3::new(0.0, 0.0, -MAX_PELVIS_DROP)).length() < 1e-6, "{d}");
+        assert!(
+            (d - Vec3::new(0.0, 0.0, -MAX_PELVIS_DROP)).length() < 1e-6,
+            "{d}"
+        );
         // Tall step: capped at the step reach.
         let d = terrain_delta(2.0, 0.0, Vec3::Z, 0.1);
-        assert!((d - Vec3::new(0.0, 0.0, STEP_HEIGHT)).length() < 1e-6, "{d}");
+        assert!(
+            (d - Vec3::new(0.0, 0.0, STEP_HEIGHT)).length() < 1e-6,
+            "{d}"
+        );
         // A slope tilts the 0.1 ankle lift from Z onto the normal.
         let n = Vec3::new(-0.6, 0.0, 0.8);
         let d = terrain_delta(0.0, 0.0, n, 0.1);
@@ -547,8 +559,15 @@ mod tests {
         // (it is the runner's fallback), the pelvis measures the held contact.
         rt.events.clear();
         place(&mut rt, &mut targets, 1.0, true, &mut ground(-0.4));
-        assert_eq!(foot(&rt).held.unwrap().point, held.point, "held while locked");
-        assert!((delta(&targets).z - (-0.4)).abs() < 1e-5, "fresh offset still written");
+        assert_eq!(
+            foot(&rt).held.unwrap().point,
+            held.point,
+            "held while locked"
+        );
+        assert!(
+            (delta(&targets).z - (-0.4)).abs() < 1e-5,
+            "fresh offset still written"
+        );
         assert!(
             (rt.pelvis.unwrap().offset - (-0.1)).abs() < 1e-5,
             "pelvis on the held contact"
@@ -562,7 +581,11 @@ mod tests {
         assert!(rt.throttle.force_eval_external, "the up edge forces too");
         let rel = foot(&rt).release.expect("release blend started");
         assert_eq!(rel.from, held.point);
-        assert!((rel.blend - 0.5).abs() < 1e-5, "0.05 s of a 0.1 s blend: {}", rel.blend);
+        assert!(
+            (rel.blend - 0.5).abs() < 1e-5,
+            "0.05 s of a 0.1 s blend: {}",
+            rel.blend
+        );
         assert!(
             (rt.pelvis.unwrap().offset - (-0.25)).abs() < 1e-5,
             "pelvis easing (half-way at dt 0.05) toward the fresh contact: {}",
@@ -594,7 +617,10 @@ mod tests {
         place(&mut rt, &mut targets, 0.05, true, &mut ground(-0.1));
         assert!(!foot(&rt).locked && foot(&rt).held.is_none());
         assert!(foot(&rt).release.is_some(), "release blend started");
-        assert!(rt.throttle.force_eval_external, "the release forces an evaluation");
+        assert!(
+            rt.throttle.force_eval_external,
+            "the release forces an evaluation"
+        );
     }
 
     #[test]
@@ -682,7 +708,11 @@ mod tests {
             Some(parents),
             "an unregistered own body (no handle yet) still falls back"
         );
-        assert_eq!(exclude_handle(None, None), None, "no body anywhere: no filter");
+        assert_eq!(
+            exclude_handle(None, None),
+            None,
+            "no body anywhere: no filter"
+        );
         assert_eq!(exclude_handle(None, Some(&body(None))), None);
     }
 }

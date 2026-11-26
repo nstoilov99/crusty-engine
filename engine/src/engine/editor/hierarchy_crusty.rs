@@ -808,10 +808,10 @@ fn draw_tree_guides(
     let selected_depth = chain_indices.len().saturating_sub(1);
 
     let trunk_top = |c: usize| -> bool {
-        c + 1 <= selected_depth && chain_indices[c] < row_idx && row_idx <= chain_indices[c + 1]
+        c < selected_depth && chain_indices[c] < row_idx && row_idx <= chain_indices[c + 1]
     };
     let trunk_bottom = |c: usize| -> bool {
-        c + 1 <= selected_depth && chain_indices[c] <= row_idx && row_idx < chain_indices[c + 1]
+        c < selected_depth && chain_indices[c] <= row_idx && row_idx < chain_indices[c + 1]
     };
 
     for c in 0..depth.saturating_sub(1) {
