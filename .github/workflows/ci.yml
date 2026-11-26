@@ -116,7 +116,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build pkg-config libssl-dev libvulkan-dev \
+            cmake ninja-build pkg-config libssl-dev libvulkan-dev mesa-vulkan-drivers vulkan-tools \
             libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev \
             libx11-dev libxi-dev libxcursor-dev libxrandr-dev
 

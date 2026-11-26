@@ -9,6 +9,7 @@
 //! - **T5** right-press, small move, release → context menu.
 //! - **T6** right-press, big move, release → the canvas panned and *no* menu.
 
+#[macro_use]
 mod common;
 
 use common::Harness;
@@ -90,7 +91,7 @@ fn t1_a_press_that_closes_a_menu_is_consumed() {
 fn t1_the_widget_under_a_menu_is_not_clicked() {
     // The same rule, end to end: a button sitting under an open context menu
     // must not fire on the click that dismisses the menu.
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let menu = Rect::from_min_size(Pos2::new(200.0, 20.0), Vec2::new(180.0, 120.0));
     let on_button = Pos2::new(40.0, 24.0);
 
@@ -292,7 +293,7 @@ fn canvas_frame(
 
 #[test]
 fn t5_a_right_press_that_barely_moves_is_a_context_click() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let a = Pos2::new(200.0, 150.0);
     let b = Pos2::new(203.0, 150.0); // 3px — under the 4px threshold
@@ -309,7 +310,7 @@ fn t5_a_right_press_that_barely_moves_is_a_context_click() {
 
 #[test]
 fn t6_a_right_press_that_travels_pans_and_opens_no_menu() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let a = Pos2::new(200.0, 150.0);
     let b = Pos2::new(212.0, 150.0); // 12px — well past the threshold
@@ -328,7 +329,7 @@ fn t6_a_right_press_that_travels_pans_and_opens_no_menu() {
 
 #[test]
 fn middle_drag_still_pans_without_any_threshold() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let a = Pos2::new(200.0, 150.0);
 
@@ -345,7 +346,7 @@ fn middle_drag_still_pans_without_any_threshold() {
 
 #[test]
 fn space_plus_left_drag_pans() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let a = Pos2::new(200.0, 150.0);
 
@@ -375,7 +376,7 @@ fn space_plus_left_drag_pans() {
 /// hundred micro-zooms.
 #[test]
 fn a_touchpad_flick_moves_a_few_ladder_steps_not_hundreds() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let p = Pos2::new(200.0, 150.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
@@ -404,7 +405,7 @@ fn a_touchpad_flick_moves_a_few_ladder_steps_not_hundreds() {
 
 #[test]
 fn a_plain_wheel_zooms_about_the_cursor_and_no_longer_pans() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let p = Pos2::new(300.0, 200.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
@@ -435,7 +436,7 @@ fn a_plain_wheel_zooms_about_the_cursor_and_no_longer_pans() {
 
 #[test]
 fn ctrl_wheel_leaves_the_ladder_and_zooms_past_the_ceiling() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView { pan: Vec2::ZERO, zoom: 2.20 };
     let p = Pos2::new(200.0, 150.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);
@@ -457,7 +458,7 @@ fn ctrl_wheel_leaves_the_ladder_and_zooms_past_the_ceiling() {
 
 #[test]
 fn shift_wheel_pans_horizontally_rather_than_zooming() {
-    let mut h = Harness::new([400, 300]);
+    let mut h = harness_or_skip!([400, 300]);
     let mut view = CanvasView::default();
     let p = Pos2::new(200.0, 150.0);
     canvas_frame(&mut h, &mut view, vec![Event::PointerMoved(p)]);

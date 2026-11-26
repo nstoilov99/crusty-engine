@@ -5,17 +5,17 @@
 
 #![cfg(feature = "vulkano-renderer")]
 
+#[macro_use]
 mod common;
 
 use std::cell::Cell;
 
-use common::Harness;
 use crusty_gui::context::Ui;
 use crusty_gui::math::Rect;
 
 #[test]
 fn vertical_stacking_with_uniform_spacing() {
-    let mut h = Harness::new([300, 200]);
+    let mut h = harness_or_skip!([300, 200]);
     let rects: [Cell<Rect>; 3] = Default::default();
     h.frame(Vec::new(), |ui| {
         rects[0].set(ui.button("First").rect);
@@ -37,7 +37,7 @@ fn vertical_stacking_with_uniform_spacing() {
 
 #[test]
 fn add_space_widens_the_gap_exactly() {
-    let mut h = Harness::new([300, 200]);
+    let mut h = harness_or_skip!([300, 200]);
     let plain = Cell::new(0.0f32);
     let spaced = Cell::new(0.0f32);
     h.frame(Vec::new(), |ui| {
@@ -59,7 +59,7 @@ fn add_space_widens_the_gap_exactly() {
 
 #[test]
 fn horizontal_row_places_widgets_left_to_right() {
-    let mut h = Harness::new([400, 100]);
+    let mut h = harness_or_skip!([400, 100]);
     let left = Cell::new(Rect::ZERO);
     let right = Cell::new(Rect::ZERO);
     h.frame(Vec::new(), |ui| {
@@ -81,7 +81,7 @@ fn horizontal_row_places_widgets_left_to_right() {
 
 #[test]
 fn label_width_grows_with_text() {
-    let mut h = Harness::new([400, 100]);
+    let mut h = harness_or_skip!([400, 100]);
     let short = Cell::new(Rect::ZERO);
     let long = Cell::new(Rect::ZERO);
     h.frame(Vec::new(), |ui| {
@@ -100,7 +100,7 @@ fn label_width_grows_with_text() {
 
 #[test]
 fn layout_is_stable_across_frames() {
-    let mut h = Harness::new([300, 200]);
+    let mut h = harness_or_skip!([300, 200]);
     let mut checked = false;
     let mut slider = 0.5f32;
     let rects = Cell::new([Rect::ZERO; 3]);

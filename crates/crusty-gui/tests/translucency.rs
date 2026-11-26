@@ -9,9 +9,9 @@
 //! `rect_filled_translucent` composites with real alpha. These tests are the
 //! regression: they render one over the other and read the framebuffer back.
 
+#[macro_use]
 mod common;
 
-use common::Harness;
 
 use crusty_gui::math::{Color, Pos2, Rect, Rounding, Vec2};
 use crusty_gui::paint::{PaintCmd, RectShape};
@@ -34,7 +34,7 @@ fn patch() -> Rect {
 
 #[test]
 fn a_translucent_fill_lets_the_content_under_it_through() {
-    let mut h = Harness::new([200, 200]);
+    let mut h = harness_or_skip!([200, 200]);
     let paint = over_red(PaintCmd::Rrect(RectShape::fill_translucent(
         patch(),
         Rounding::ZERO,
@@ -54,7 +54,7 @@ fn a_translucent_fill_lets_the_content_under_it_through() {
 fn the_glass_fill_is_opaque_by_construction() {
     // Not a bug — this is what panels and popovers want. The test pins the
     // distinction so nobody "fixes" glass into alpha and vice versa.
-    let mut h = Harness::new([200, 200]);
+    let mut h = harness_or_skip!([200, 200]);
     let paint = over_red(PaintCmd::Rrect(RectShape::fill(
         patch(),
         Rounding::ZERO,
@@ -72,7 +72,7 @@ fn the_glass_fill_is_opaque_by_construction() {
 
 #[test]
 fn a_translucent_fill_still_antialiases_its_rounded_corners() {
-    let mut h = Harness::new([200, 200]);
+    let mut h = harness_or_skip!([200, 200]);
     let round = Rect::from_min_size(Pos2::new(50.0, 50.0), Vec2::new(100.0, 100.0));
     let paint = vec![PaintCmd::Rrect(RectShape::fill_translucent(
         round,
@@ -98,7 +98,7 @@ fn a_translucent_fill_still_antialiases_its_rounded_corners() {
 
 #[test]
 fn opacity_scales_the_way_the_number_says() {
-    let mut h = Harness::new([200, 200]);
+    let mut h = harness_or_skip!([200, 200]);
     let mut last = 255u8;
     for alpha in [0.0_f32, 0.25, 0.5, 0.75, 1.0] {
         let paint = over_red(PaintCmd::Rrect(RectShape::fill_translucent(

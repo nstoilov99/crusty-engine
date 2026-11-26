@@ -65,9 +65,35 @@ pub struct Harness {
     time: f64,
 }
 
+/// Build a [`Harness`], or return from the test when this machine has no usable
+/// Vulkan device (GitHub's Windows runners have no ICD). Linux CI installs Mesa's
+/// lavapipe, so the GPU-backed tests still run for real there and on the build
+/// server; locally every dev machine has a GPU.
+#[macro_export]
+macro_rules! harness_or_skip {
+    ($size:expr) => {
+        match $crate::common::Harness::try_new($size) {
+            Some(h) => h,
+            None => {
+                eprintln!("skipping: no Vulkan device available on this machine");
+                return;
+            }
+        }
+    };
+}
+
 impl Harness {
     pub fn new(size: [u32; 2]) -> Self {
-        let library = VulkanLibrary::new().expect("no local vulkan library / loader");
+        Self::try_new(size).expect("no usable Vulkan device")
+    }
+
+    /// `None` when there is no Vulkan loader, no instance, or no graphics-capable
+    /// physical device. Everything after device selection still panics, because
+    /// those failures are bugs, not missing hardware.
+    pub fn try_new(size: [u32; 2]) -> Option<Self> {
+        let library = VulkanLibrary::new()
+            .map_err(|e| eprintln!("no local vulkan library / loader: {e}"))
+            .ok()?;
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
@@ -75,11 +101,13 @@ impl Harness {
                 ..Default::default()
             },
         )
-        .expect("failed to create Vulkan instance");
+        .map_err(|e| eprintln!("failed to create Vulkan instance: {e}"))
+        .ok()?;
 
         let (physical, queue_family_index) = instance
             .enumerate_physical_devices()
-            .expect("could not enumerate physical devices")
+            .map_err(|e| eprintln!("could not enumerate physical devices: {e}"))
+            .ok()?
             .filter_map(|p| {
                 p.queue_family_properties()
                     .iter()
@@ -92,8 +120,7 @@ impl Harness {
                 PhysicalDeviceType::VirtualGpu => 2,
                 PhysicalDeviceType::Cpu => 3,
                 _ => 4,
-            })
-            .expect("no graphics-capable device");
+            })?;
 
         let (device, mut queues) = Device::new(
             physical,
@@ -139,7 +166,7 @@ impl Harness {
             .expect("failed to load bundled test font");
         text.set_default_family(family);
 
-        Self {
+        Some(Self {
             device,
             queue,
             mem_alloc,
@@ -150,7 +177,7 @@ impl Harness {
             target,
             size,
             time: 0.0,
-        }
+        })
     }
 
     pub fn screen_rect(&self) -> Rect {

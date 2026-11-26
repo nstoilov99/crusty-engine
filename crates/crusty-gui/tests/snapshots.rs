@@ -11,16 +11,17 @@
 
 #![cfg(feature = "vulkano-renderer")]
 
+#[macro_use]
 mod common;
 
-use common::{click, release, Harness};
+use common::{click, release};
 use crusty_gui::context::Ui;
 use crusty_gui::input::Event;
 use crusty_gui::math::{Pos2, Rect, Vec2};
 
 #[test]
 fn widgets_basic() {
-    let mut h = Harness::new([420, 340]);
+    let mut h = harness_or_skip!([420, 340]);
     let mut checked = true;
     let mut unchecked = false;
     let mut slider = 0.3f32;
@@ -40,7 +41,7 @@ fn widgets_basic() {
 
 #[test]
 fn button_hover_and_press() {
-    let mut h = Harness::new([260, 120]);
+    let mut h = harness_or_skip!([260, 120]);
     let hover_rect = std::cell::Cell::new(Rect::ZERO);
     let press_rect = std::cell::Cell::new(Rect::ZERO);
     let build = |ui: &mut Ui| {
@@ -64,7 +65,7 @@ fn button_hover_and_press() {
 #[test]
 fn floating_window() {
     use crusty_gui::widgets::Window as GuiWindow;
-    let mut h = Harness::new([420, 340]);
+    let mut h = harness_or_skip!([420, 340]);
     let mut open = true;
     let mut slider = 0.7f32;
     let paint = h.run_frames(10, |ui| {
@@ -85,7 +86,7 @@ fn floating_window() {
 
 #[test]
 fn text_edit_focused() {
-    let mut h = Harness::new([300, 90]);
+    let mut h = harness_or_skip!([300, 90]);
     let mut value = String::from("hello");
     let mut rect = Rect::ZERO;
     h.frame(Vec::new(), |ui| {
@@ -112,7 +113,7 @@ fn text_edit_focused() {
 #[test]
 fn combo_popup_open() {
     use crusty_gui::widgets::ComboBox;
-    let mut h = Harness::new([260, 220]);
+    let mut h = harness_or_skip!([260, 220]);
     let mut quality = 1usize;
     let rect = std::cell::Cell::new(Rect::ZERO);
     let mut build = |ui: &mut Ui| {
@@ -139,7 +140,7 @@ fn combo_popup_open() {
 #[test]
 fn modal_window_dims_backdrop() {
     use crusty_gui::widgets::Window as GuiWindow;
-    let mut h = Harness::new([420, 300]);
+    let mut h = harness_or_skip!([420, 300]);
     let mut open = true;
     let paint = h.run_frames(10, |ui| {
         ui.label("root content that should be dimmed");
@@ -162,7 +163,7 @@ fn modal_window_dims_backdrop() {
 #[test]
 fn collapsing_open_and_closed() {
     use crusty_gui::widgets::CollapsingHeader;
-    let mut h = Harness::new([300, 220]);
+    let mut h = harness_or_skip!([300, 220]);
     let mut a = true;
     let mut b = false;
     let paint = h.run_frames(15, |ui| {
@@ -183,7 +184,7 @@ fn collapsing_open_and_closed() {
 fn tab_focus_ring_in_floating_window() {
     use crusty_gui::input::{Key, Modifiers};
     use crusty_gui::widgets::Window as GuiWindow;
-    let mut h = Harness::new([420, 340]);
+    let mut h = harness_or_skip!([420, 340]);
     let mut open = true;
     let mut checked = false;
     let build = |ui: &mut Ui, open: &mut bool, checked: &mut bool| {
@@ -230,7 +231,7 @@ fn tab_focus_ring_in_floating_window() {
 #[test]
 fn canvas_pan_zoom_nodes() {
     use crusty_gui::widgets::{Canvas, CanvasView};
-    let mut h = Harness::new([420, 300]);
+    let mut h = harness_or_skip!([420, 300]);
     // Non-default view: panned into negative world space, zoomed to 1.5
     // (a text-ladder step, so labels render at body*1.5).
     let mut view = CanvasView { pan: Vec2::new(-30.0, -20.0), zoom: 1.5 };
