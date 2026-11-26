@@ -8,6 +8,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # ubuntu-latest/windows-latest ship CMake 4, which refuses the cmake_minimum_required(<3.5)
+  # in shaderc-sys' bundled glslang/SPIRV-Tools sources. Let CMake configure them anyway.
+  CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
 jobs:
   # Primary: Windows (matches dev environment)
