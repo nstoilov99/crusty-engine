@@ -785,6 +785,10 @@ mod tests {
                     ..Default::default()
                 }],
                 enabled_extensions: DeviceExtensions {
+                    // The deferred renderer's colour attachment ends in
+                    // `ImageLayout::PresentSrc`, which Vulkan only permits with
+                    // VK_KHR_swapchain enabled, exactly as the real app does.
+                    khr_swapchain: true,
                     ..DeviceExtensions::empty()
                 },
                 ..Default::default()
