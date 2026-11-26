@@ -29,9 +29,21 @@ env:
   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "enabled=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
+
   fix:
+    needs: preflight
     # Fire only for bot reviews that are not plain approvals.
     if: >-
+      needs.preflight.outputs.enabled == 'true' &&
       github.event.review.user.type == 'Bot' &&
       github.event.review.state != 'approved' &&
       github.event.pull_request.draft == false &&

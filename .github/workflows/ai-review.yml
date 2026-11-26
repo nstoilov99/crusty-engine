@@ -21,10 +21,26 @@ permissions:
   id-token: write
 
 jobs:
+  # Skips (instead of failing) until CLAUDE_CODE_OAUTH_TOKEN exists. Job-level
+  # `if` cannot read secrets directly, hence the hop through an output.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: |
+          echo "enabled=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
+          [ "$HAS_TOKEN" = "true" ] || echo "::notice::CLAUDE_CODE_OAUTH_TOKEN not set; AI review skipped (see docs/ai-review-setup.md)"
+
   review:
     name: ${{ matrix.reviewer.name }}
+    needs: preflight
     # Drafts and PRs opted out with the `no-ai-review` label are skipped.
     if: >-
+      needs.preflight.outputs.enabled == 'true' &&
       github.event.pull_request.draft == false &&
       !contains(github.event.pull_request.labels.*.name, 'no-ai-review')
     runs-on: ubuntu-latest
