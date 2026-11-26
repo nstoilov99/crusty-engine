@@ -7,6 +7,12 @@
       "skillPath": "skills/engineering/ask-matt/SKILL.md",
       "computedHash": "fff0bc3373f1f44b1df71e11d1d490177c6a15be3a7da3c206145e242f18566b"
     },
+    "babysit-pr": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/babysit-pr/SKILL.md",
+      "computedHash": "e444fe1b58cc4d4ccdd1199dcb8f7b4ee43286629cb83f693eb796c4ade4a012"
+    },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -19,6 +25,12 @@
       "skillPath": "skills/engineering/codebase-design/SKILL.md",
       "computedHash": "385da7f2747bd681c24029b7aaf18b58e5649383f0402522db4233344d8fc7d5"
     },
+    "council": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/council/SKILL.md",
+      "computedHash": "a6461cb077070c3bd64afc6edcc90df173f30f72966e05b2f0234d35dd13b917"
+    },
     "diagnosing-bugs": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -30,6 +42,24 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/domain-modeling/SKILL.md",
       "computedHash": "f54e391ce6cc28052af46840e3ef8519fd5e746331255510574f0270153186db"
+    },
+    "file-pr": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/file-pr/SKILL.md",
+      "computedHash": "a9fd6713605e51961f42afa78aeb8ba4287ad5b9d14c61547ac968dfa18f649f"
+    },
+    "full-send": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/full-send/SKILL.md",
+      "computedHash": "00c066db26e978dc5492f7591a5daafdac119c7653c8a1bd8ec282688ada2476"
+    },
+    "full-stop": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/full-stop/SKILL.md",
+      "computedHash": "2d991f3b47de41650946c8595ed83d0a3702469946f60b9d33319bed2b81b098"
     },
     "grill-me": {
       "source": "mattpocock/skills",
@@ -67,6 +97,18 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "3929c6892605b67b60503ced451876e9b313d1a909ab7066fbcd9967c56ed226"
     },
+    "leaving-pr-comments": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/leaving-pr-comments/SKILL.md",
+      "computedHash": "fefbcc201134e117dfc13c2193e9bc6adb2e5b8d2e218c73aac23b5860c6a855"
+    },
+    "modernize": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/modernize/SKILL.md",
+      "computedHash": "4cff92e37c04de0c10bc694a4f83232be6b7f02d887ced5f94772344ca9b5b9d"
+    },
     "prototype": {
       "source": "mattpocock/skills",
       "sourceType": "github",
@@ -90,6 +132,18 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
       "computedHash": "91a64ff6b84297fc902d5c435436f9b5783e79c3f4e7073dd9d4af9c04a4ef50"
+    },
+    "sol-loop": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/sol-loop/SKILL.md",
+      "computedHash": "b801d3618c0f1f75ca9ea0304d3cfdb9e4d57234ce9bb3656e53561e23d13883"
+    },
+    "takeover": {
+      "source": "t3dotgg/tstack",
+      "sourceType": "github",
+      "skillPath": "skills/takeover/SKILL.md",
+      "computedHash": "1021cb2de1b36884cdf1439f77c46f0db46cbdc48768903a257a66848f19bba3"
     },
     "tdd": {
       "source": "mattpocock/skills",

@@ -134,6 +134,11 @@ Current focus; finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED
   conventional commit subjects, short and imperative, no `Co-Authored-By`
   (`.githooks/prepare-commit-msg` strips them — enable with
   `git config core.hooksPath .githooks`).
+- **PR lifecycle skills** (Theo's `t3dotgg/tstack`): `file-pr`, `babysit-pr`,
+  `sol-loop`, `council`, `full-send` / `full-stop`, `takeover`, `modernize`,
+  `leaving-pr-comments`. Council members for this repo: Claude Fable (latest),
+  GPT Sol (latest), Gemini Pro (latest); `sol-loop` reviews with GPT Sol.
+  `full-send` may merge — only on an explicit "full send".
 - **Research** that spans many files goes to Codex (read-only prompt); see
   *Cost routing* below.
 
