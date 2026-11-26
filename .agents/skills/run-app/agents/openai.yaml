@@ -1,0 +1,3 @@
+interface:
+  display_name: "Run App"
+  short_description: "Launch, smoke-test and screenshot the engine"

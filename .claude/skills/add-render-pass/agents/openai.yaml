@@ -1,0 +1,3 @@
+interface:
+  display_name: "Add Render Pass"
+  short_description: "Add a pass to the deferred pipeline"

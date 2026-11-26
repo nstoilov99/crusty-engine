@@ -1410,9 +1410,9 @@ let device = create_device(&instance)
     .expect("Failed to create Vulkan device");
 ```
 
-## Play Mode Architecture (Planned)
+## Play Mode Architecture
 
-See [VULKANO-24-PLAY-MODE.md](roadmap/VULKANO-24-PLAY-MODE.md) for the full spec.
+Shipped in Task 24 (`engine/src/engine/editor/play_mode.rs`); the plan document is local-only history.
 
 ### State Machine
 
@@ -1440,8 +1440,9 @@ Always          → input, profiling, rendering
 
 ## Future Architecture Plans
 
-- Parallel system execution (rayon, read/write access declarations)
-- SparseSet storage and query caching
-- Node-graph visual scripting (outputs Commands)
-- EntityGuid-based parent references (replace name-based)
-- Networking entity replication (via GUID)
+See `docs/roadmap/ROADMAP.md`. Architecture-level items still open:
+
+- Parallel system execution (Task 58) — needs the structural-access bit on `SystemDescriptor` first
+- Component schema / registry driving the Inspector, prefab overrides and plugin export stripping (Task 54-A)
+- Cooked asset pipeline and mmap paks (Task 44)
+- Multi-window viewport (second swapchain through the render-thread contract, Task 58.5)

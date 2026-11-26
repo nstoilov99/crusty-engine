@@ -1,0 +1,3 @@
+interface:
+  display_name: "Add Component"
+  short_description: "Add an ECS component end to end"

@@ -7,7 +7,7 @@
 | **Coordinate System** | Z-up (X=Forward/Red, Y=Right/Green, Z=Up/Blue) |
 | **Renderer** | Vulkano 0.35, Deferred Pipeline |
 | **ECS** | Custom (wrapping hecs 0.10) |
-| **GUI** | In-house `crusty-gui` (path dep `../crusty-gui`) — egui fully removed |
+| **GUI** | In-house `crusty-gui` (workspace crate `crates/crusty-gui`) — egui fully removed |
 | **Physics** | Rapier 3D 0.25 |
 | **Serialization** | RON (Rusty Object Notation) |
 
@@ -34,7 +34,7 @@ Game World (Z-up)          Vulkan Render (Y-up)
 1. **Read relevant docs** in `docs/` folder for the subsystem you're modifying
 2. **Check existing patterns** in similar files
 3. **Maintain Z-up convention** - never mix coordinate systems
-4. **Run `cargo check`** before considering work complete
+4. **Run the local gate** before considering work complete: `pwsh scripts/ci_local.ps1 -Quick` (or `bash scripts/ci_local.sh --quick`) — fmt + clippy `-D warnings` on both feature sets; the full script mirrors CI
 
 ## Key Documentation
 
@@ -43,7 +43,8 @@ Game World (Z-up)          Vulkan Render (Y-up)
 | `docs/ARCHITECTURE.md` | System architecture and module relationships |
 | `docs/KNOWLEDGE.md` | Conventions, patterns, and gotchas |
 | `docs/DECISIONS.md` | Architectural decision records |
-| `docs/TUTORIAL-ROADMAP.md` | Development roadmap and progress |
+| `docs/roadmap/ROADMAP.md` | Where we are, open follow-ups, remaining tasks (finished work: `COMPLETED.md`) |
+| `CONTEXT.md` | Domain glossary — canonical terms for graphs and animation |
 
 ## Code Rules
 
@@ -84,8 +85,9 @@ cargo run -p game_client -- --scene scenes/locomotion_demo.scene   # standalone,
 cargo run -p game_client -- --import-anim <src.fbx> <out.anim> --import-scale 0.01   # animation-only import (either build)
 ```
 
-`editor` pulls `crusty-gui` as a path dep from `../crusty-gui`. `crusty` is a
-deprecated alias for `editor` (kept for muscle memory).
+`editor` pulls the workspace crate `crates/crusty-gui`. `crusty` is a deprecated alias for `editor`. `hud` (default)
+is crusty-gui without editor machinery; `graph-scripting` (default) gates the
+interpreter; `dev_nodes` registers the demo node set.
 
 ## Threading model (rendering)
 
@@ -97,8 +99,8 @@ renderer flushes glyph uploads on record).
 
 ## GUI (crusty-gui)
 
-The editor UI is `../crusty-gui` (Phase 16 migration complete — egui is fully
-removed). Seam: `engine/src/engine/gui/crusty.rs` (`CrustyGui` main thread /
+The editor UI is the in-house `crusty-gui` crate (Phase 16 migration complete —
+egui is fully removed). Seam: `engine/src/engine/gui/crusty.rs` (`CrustyGui` main thread /
 `CrustyRenderer` render thread, `SharedTextRenderer` mutex between them; paint
 list crosses in `FramePacket`). Panels are thin drawing layers — logic stays in
 state structs and systems. Dock layout persists to `editor_layout_crusty.ron`.
@@ -108,31 +110,36 @@ use `println!` for temporary diagnostics (and remove before commit).
 
 ## Current Development Focus
 
-- Phase 16 (egui → crusty-gui migration): **complete** — egui removed
-- Task 25 (Build Pipeline and Export, Windows standalone): **complete**
-- M0 SpacetimeDB scale spike: **complete — GO** (see `docs/roadmap/VULKANO-M0-SPACETIMEDB-SPIKE.md`)
-- M2 Collision Pipeline v1 (cooked chunks): **complete** (see `docs/roadmap/VULKANO-M2-COLLISION-PIPELINE.md`)
-- M3 Greybox World v1 (`tools/greybox_gen`, deterministic; generated content checked in): **complete** (see `docs/roadmap/VULKANO-M3-GREYBOX-WORLD.md`)
-- M4 Zone & Chunk Lifecycle (WorldStreamer: budgeted cell/chunk streaming, GUID-stable reload): **complete** (see `docs/roadmap/VULKANO-M4-ZONE-CHUNK-LIFECYCLE.md`)
-- M5 Net-A (SpacetimeDB connection, identity, replication, zone-scoped subscriptions): **complete** (see `docs/roadmap/VULKANO-M5-NET-A-CONNECTION-IDENTITY.md`)
-- M6 Net-B (server-authoritative movement: shared controller, client prediction, WASM parity suite, combat groundwork): **complete** (see `docs/roadmap/VULKANO-M6-NET-B-MOVEMENT.md`)
-- M7 Net-C (combat vertical slice: ability roster, cast pipeline, death/respawn, projectiles, standalone crusty HUD behind `hud` feature): **complete** (see `docs/roadmap/VULKANO-M7-NET-C-COMBAT.md`)
-- M8 Net-D (interest management: cell anchor + hysteresis, near 3×3 full / far 7×7 coarse tiers, write hygiene, `tools/net_bots` load harness): **complete** (see `docs/roadmap/VULKANO-M8-NET-D-INTEREST.md`; load results in `docs/roadmap/M8-LOAD-REPORT.md` — sim CPU ceiling ~150 active movers/module is the next scaling constraint)
-- M9 Multiplayer Packaging (net_config.ron, export/build-dialog targets standalone/mp-client/mp-server, build-id stamp + protocol v5, `scripts/host_local.ps1` play-test loop): **complete** (see `docs/roadmap/VULKANO-M9-MP-PACKAGING.md`)
-- M9.5 Packaged Co-op Verification (smoke script, load-sanity rerun, Maincloud publish + WAN two-client check, soak monitor + runbook): **complete** (see `docs/roadmap/VULKANO-M9.5-COOP-VERIFICATION.md`) — the two-machine hour soak was skipped by decision (2026-07)
-- M9.6 Editor Net Play (server-announced `Config.world_scene` + protocol v6, deferred standalone world load with offline fallback, editor PlaySettings dropdown: Play As Client / Listen Server launcher / Number of Players): **complete** (see `docs/roadmap/VULKANO-M9.6-EDITOR-NET-PLAY.md`)
-- M10 Editor UX & Design System v1 (semantic theme tokens + 4 presets, widget state ladder + focus, settings windows, panel restyle, Edit menu with entity clipboard Cut/Copy/Paste + GUID remap, verb/object undo labels): **complete** (see `docs/roadmap/VULKANO-M10-EDITOR-UX.md`)
-- 🎯 Networked Co-op Slice milestone: **achieved** (M0–M10; hour soak waived)
-- Task 40 (Node Graph Framework & Custom Node SDK): **complete** — `engine/src/engine/node_graph/` (docs/registry/validation/migration/resolver), `crates/node_graph_macros`, graph editor on crusty-gui's `Canvas` primitive (see `docs/roadmap/VULKANO-40-NODE-GRAPH-FRAMEWORK.md`)
-- Crusty node-graph design system (docs/mockup spec, Phases 0–7): **complete** — theme tokens/ramp + design lint in CI, spec node anatomy/pins/LOD, orthogonal wire router (`graph_wire_router.rs`), Preferences ▸ Graph + toolbar, annotations/anchored errors/organization, RON clipboard + break gestures, palette/find/F8/auto-layout/sidecars; audit + rulings + deferred ledger in `docs/mockup/AUDIT.md`
-- Refactor Checkpoint #6 (Rendering API Cleanup): **complete** — legacy renderer facade retired, `DeferredPass` resize/rebind trait, graph-owned pass execution (`add_pass_with` + debug read/write cross-check), `PassPipelineBuilder`, typed `RenderError`
-- Task 39.8 (Plugin System & Module Registry): **complete** — `engine/src/engine/plugins/` (`EnginePlugin` trait, staging `PluginContext`, topo-ordered `PluginSet`, `rapier`/`dev_nodes` plugins, export feature policy), Plugin Manager in Project Settings, restart-only activation via `project.ron`. See `docs/ARCHITECTURE.md` ▸ Plugin System and `docs/PLUGINS.md` (author guide); close-out + deferred items in `docs/roadmap/ROADMAP.md`
-- Task 45-A (Graph Execution Core — visual scripting v1): **complete** — graphs run. Three engine-independent workspace crates: `crates/node_graph_types` (documents/registry/descriptors/validation), `crates/node_graph_exec` (compiler + interpreter + `Effect`), `crates/curve_asset` (`.curve` data + evaluation) — all three CI-checked standalone and for `wasm32-unknown-unknown`, which is what keeps SpacetimeDB-side execution open (D8). Engine side: `engine/src/engine/scripting/` (`GraphRunner` component, `GraphPlanCache`, `CurveCache`, effect application) behind the default-on `graph-scripting` feature/plugin; editor side: execution viz, variables panel, curve editor tab. Demo: `content/graphs/runner_demo.graph` on the Duck. See `docs/ARCHITECTURE.md` ▸ Graph Execution, `docs/KNOWLEDGE.md` ▸ Graph Execution Gotchas; close-out + deferred ledger in `docs/roadmap/ROADMAP.md` ▸ Task 45-A
-- Task 41 anim-graph editor round (2026-09): transition badges on wires, state aliases replacing Any State (runtime + cards + Details), per-document layout profiles (`dock_crusty::LayoutProfile`, layout file v2, Details / Variables / Anim Preview dock panels): **complete** — see `docs/ARCHITECTURE.md` ▸ Panel System, `docs/KNOWLEDGE.md` ▸ Layout profiles
-- Task 41.5 (Animation at Scale + IK): **complete** — palette SSBO ring + instanced skinned draws, two-phase FK with retained model space, rayon pose evaluation, update-rate throttling, two-bone/look-at IK with graph-declared chains + foot placement; baseline measured (300 characters ≈ 271 fps), P8 (clip layout) skipped on those numbers. See `docs/roadmap/VULKANO-41.5-ANIMATION-SCALE.md`, `docs/ARCHITECTURE.md` ▸ Animation at Scale
-- Task 41.6 (Locomotion Demo): **complete** — velocity-set capsule controller + orbit camera + offline anim bridge (`ClientGamePlugin`), physics presentation interpolation, foot IK v2 (terrain-delta goals, current-pose knee pole, state-aware foot lock), real Mixamo clips via animation-only import + by-name remap + footfall tool, `locomotion_demo.scene`/`.animgraph`. Run: `cargo run -p game_client --features editor` → open `scenes/locomotion_demo.scene` → F5, or `cargo run -p game_client -- --scene scenes/locomotion_demo.scene`. See `docs/ARCHITECTURE.md` ▸ Offline character & orbit camera, `docs/KNOWLEDGE.md` ▸ Locomotion & Foot IK Gotchas; close-out + deferred ledger in `docs/roadmap/ROADMAP.md` ▸ Task 41.6
-- Task 41.7 (Animation Pipeline Root): **complete** (2026-09-21; user live check pending) — the `.animgraph` root is a constrained pose graph: State Machine / Clip sources → Layered Blend Per Bone / Play Once overlays → IK Chain tail → Output Pose, in the same flat document as the machine (regions cannot nest), scoped by `CanvasScope`; per-bone layering, root clips, the event-ownership + foot-lock contract (U1), structural v3→v4 upgrade, shared `PipelineState` evaluator for runner and preview. Editor: open an `.animgraph` → pipeline canvas; double-click State Machine to enter the machine, PageUp / breadcrumb returns. See `docs/ARCHITECTURE.md` ▸ Animation Pipeline, `docs/KNOWLEDGE.md` ▸ Animation Pipeline Gotchas; close-out + deferred ledger in `docs/roadmap/ROADMAP.md` ▸ Task 41.7
-- Next: per `docs/roadmap/ROADMAP.md` (Phase 11 continues — Tasks 45, 45.5)
+Authoritative status lives in `docs/roadmap/ROADMAP.md` ▸ Status board +
+Current focus; finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED.md`.
+
+- Networked Co-op Slice milestone (M0–M10): **achieved** on packaged builds.
+- Phase 11: Tasks 40, 41, 41.5, 41.6, 41.7 and 45-A **complete**; 41.7's
+  live check by the user is pending.
+- **Next:** Task 45 (visual scripting tail) → Task 45.5 (node graph editor v2);
+  proposed after that: Task 54-A (component schema + Inspector undo).
+
+## Agent workflow
+
+- **Plan → implement → close out** a roadmap task with the `roadmap-task`
+  skill; it names every file a close-out must touch.
+- **Repo-specific recipes** (model-invoked skills in `.claude/skills/`, mirrored
+  for Codex in `.agents/skills/`): `add-node`, `add-component`,
+  `add-render-pass`, `add-editor-panel`, `run-app`. Process skills (`tdd`,
+  `code-review`, `diagnosing-bugs`, …) are the installed Matt Pocock set.
+- **Working area:** `.scratch/` (gitignored) for tickets, review transcripts,
+  recordings. Plan docs are tracked under `docs/roadmap/`.
+- **Branches / PRs:** one branch per task (`task-<N>-<slug>`), PR to `main`;
+  conventional commit subjects, short and imperative, no `Co-Authored-By`
+  (`.githooks/prepare-commit-msg` strips them — enable with
+  `git config core.hooksPath .githooks`).
+- **PR lifecycle skills** (Theo's `t3dotgg/tstack`): `file-pr`, `babysit-pr`,
+  `sol-loop`, `council`, `full-send` / `full-stop`, `takeover`, `modernize`,
+  `leaving-pr-comments`. Council members for this repo: Claude Opus 5.5,
+  GPT Sol (latest), Claude Fable 5.2; `sol-loop` reviews with GPT Sol.
+  `full-send` may merge — only on an explicit "full send".
+- **Research** that spans many files goes to Codex (read-only prompt); see
+  *Cost routing* below.
 
 ## Patched Dependencies
 
@@ -148,7 +155,7 @@ These crates are forked/patched in `crates/`:
 - If asked to do too much work at once, stop and state that clearly.
 - If computer use is helpful for completing or verifying work (screenshots,
   visual comparison, driving a running app), shell out to gpt-5.6-Sol via Codex
-  (capture with `../crusty-gui/.claude/skills/port-panel/screenshot.ps1`,
+  (capture with `scripts/screenshot.ps1`,
   compare with `codex exec -i`). Codex is configured via `.codex/config.toml`
   (model gpt-5.6-sol, workspace-write sandbox).
 
@@ -195,7 +202,7 @@ How to apply:
   upholds this on the render thread.
 - Keep panel code readable; extract helpers when nesting hurts.
 - Changes that need new crusty-gui `backend`/`shell` API are made in
-  `../crusty-gui` first; verify both repos build before commit.
+  `crates/crusty-gui` in the same commit.
 
 ## PR Guidelines
 - Do not include HTML comments (e.g. <!-- generated-by-cyrus -->)

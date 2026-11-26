@@ -1,0 +1,3 @@
+interface:
+  display_name: "Add Node"
+  short_description: "Add a node type to the node-graph system"

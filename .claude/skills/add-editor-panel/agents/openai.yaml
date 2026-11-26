@@ -1,0 +1,3 @@
+interface:
+  display_name: "Add Editor Panel"
+  short_description: "Add a crusty-gui dock panel"
