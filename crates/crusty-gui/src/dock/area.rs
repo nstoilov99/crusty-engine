@@ -968,7 +968,7 @@ fn render_drop_preview(ctx: &mut Context, candidate: &DropCandidate) {
             color: tint,
         });
         let mut border = RectShape::fill(preview, style.rounding.widget, stroke)
-            .with_stroke(2.0, stroke);
+            .with_stroke(style.metrics.edge_accent, stroke);
         border.fill = None;
         ctx.paint.push(PaintCmd::Rrect(border));
     }

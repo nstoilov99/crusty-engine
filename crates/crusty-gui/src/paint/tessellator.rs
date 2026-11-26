@@ -889,7 +889,7 @@ mod tests {
             let mesh = tess(&[PaintCmd::Path {
                 points: pts.clone(),
                 closed: false,
-                width: 2.0,
+                width: 3.0,
                 color: Color::WHITE,
             }]);
             assert!(
@@ -947,7 +947,7 @@ mod tests {
             &[PaintCmd::Path {
                 points: vec![Pos2::new(0.0, 0.0), Pos2::new(10.0, 0.0)],
                 closed: false,
-                width: 2.0,
+                width: 3.0,
                 color: Color::WHITE,
             }],
             &mut m,
