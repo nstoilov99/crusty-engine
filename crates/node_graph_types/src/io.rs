@@ -106,7 +106,15 @@ fn migrate_container(doc: &mut GraphDoc, from: u32) {
 /// its live order, because the undo stack addresses nodes and edges by index.
 pub fn serialize_graph(doc: &GraphDoc) -> Result<String, GraphIoError> {
     let canonical = canonical_form(doc);
-    let config = ron::ser::PrettyConfig::new().struct_names(false);
+    // Fixed "
+": ron defaults to the platform newline ("
+" on Windows), which
+    // would make .graph files differ by the OS that saved them and break the
+    // byte-for-byte golden tests on Linux CI.
+    let config = ron::ser::PrettyConfig::new()
+        .struct_names(false)
+        .new_line("
+".to_string());
     let mut text = ron::ser::to_string_pretty(&canonical, config)
         .map_err(|e| GraphIoError::Parse(e.to_string()))?;
     // A text file ends with a newline. Without it every diff of an asset's
