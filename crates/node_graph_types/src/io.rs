@@ -106,9 +106,7 @@ fn migrate_container(doc: &mut GraphDoc, from: u32) {
 /// its live order, because the undo stack addresses nodes and edges by index.
 pub fn serialize_graph(doc: &GraphDoc) -> Result<String, GraphIoError> {
     let canonical = canonical_form(doc);
-    // Fixed "
-": ron defaults to the platform newline ("
-" on Windows), which
+    // Pin the newline: ron defaults to the platform newline (CRLF on Windows), which
     // would make .graph files differ by the OS that saved them and break the
     // byte-for-byte golden tests on Linux CI.
     let config = ron::ser::PrettyConfig::new()
