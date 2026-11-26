@@ -7,7 +7,7 @@ comments, and a human merges from [Pyor](https://pyor.review) or GitHub.
 |---|---|---|
 | Correctness review | Claude Fable 5.1 | `.github/workflows/ai-review.yml` |
 | Design review | Claude Opus 5.5 | `.github/workflows/ai-review.yml` |
-| General review | GPT (Codex code review) | ChatGPT > Codex settings |
+| General review | GPT (Codex code review) | ChatGPT > Codex settings; rules in `AGENTS.md` |
 | Fixer | Claude Fable 5.1 | `.github/workflows/ai-fix.yml` |
 | Human gate | you, in Pyor | branch ruleset on `main` |
 
@@ -21,10 +21,11 @@ comments, and a human merges from [Pyor](https://pyor.review) or GitHub.
    New repository secret, name `CLAUDE_CODE_OAUTH_TOKEN`, value = the token.
 4. **Enable Codex review**: ChatGPT > Settings > Codex > connect GitHub, enable
    this repository, turn on Code review and Automatic reviews.
-5. **Verify the Codex bot login** on its first review (the author shown on its
-   comments) and, if it is not `chatgpt-codex-connector[bot]`, update
-   `allowed_bots` in `ai-fix.yml`. Until then the fixer ignores Codex reviews,
-   which is the safe default.
+5. **Codex model and rules**: the review model is chosen by OpenAI and is not
+   configurable per repo; what you control is the `## Code Review Rules`
+   section of `AGENTS.md`, which Codex reads for every review. Codex posts as
+   `chatgpt-codex-connector`; `ai-fix.yml` lists `chatgpt-codex-connector[bot]`.
+   If the author shown on its first review differs, update `allowed_bots`.
 6. **Install Pyor** (https://pyor.review/download) and connect this repository.
 7. **Protect main**: Settings > Rules > Rulesets > New branch ruleset, target
    `main`, enable "Require a pull request before merging" (1 approval) and
