@@ -659,7 +659,7 @@ impl InputState {
 
     /// True when the pointer is within `rect` (or there's no pointer).
     pub fn pointer_in(&self, rect: Rect) -> bool {
-        self.pointer_pos.map_or(false, |p| rect.contains(p))
+        self.pointer_pos.is_some_and(|p| rect.contains(p))
     }
 
     /// Returns true once if a press of `key` happened this frame, repeat or

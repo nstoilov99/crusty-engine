@@ -316,8 +316,8 @@ impl<'a> DockArea<'a> {
         //    and report it `detached` so the host hands it to a windowless ghost
         //    drag. Inside the bar we only reorder (above), so a sideways drag
         //    rearranges tabs and a drag away detaches — like a browser.
-        if let Some(drag) = self.state.drag.as_ref() {
-            if drag.activated
+        if let Some(drag) = self.state.drag.as_ref()
+            && drag.activated
                 && !drag.home_bar
                 && (count_tabs(self.root) > 1 || self.lone_tearoff)
             {
@@ -328,7 +328,6 @@ impl<'a> DockArea<'a> {
                 }
                 self.state.drag = None;
             }
-        }
 
         // ── External drag (a torn-off panel dragged back over us): light
         //    up drop zones at the translated cursor and re-dock on release.
@@ -661,8 +660,8 @@ fn handle_splitter_drag(
             SplitDirection::Vertical => CursorIcon::ResizeNs,
         });
     }
-    if is_active && pointer_down {
-        if let Some(p) = ctx.input.pointer_pos {
+    if is_active && pointer_down
+        && let Some(p) = ctx.input.pointer_pos {
             *ratio = match dir {
                 SplitDirection::Horizontal => {
                     ((p.x - parent_rect.min.x) / parent_rect.width()).clamp(0.05, 0.95)
@@ -672,7 +671,6 @@ fn handle_splitter_drag(
                 }
             };
         }
-    }
 }
 
 fn draw_splitter(ctx: &mut Context, splitter_rect: Rect, splitter_id: Id) {
@@ -713,12 +711,12 @@ fn draw_tabs(
         .as_ref()
         .filter(|d| d.activated)
         .map(|d| d.tab_id.clone());
-    if let Some(dtab) = drag_tab {
-        if let Some(from) = tabs.iter().position(|t| *t == dtab) {
+    if let Some(dtab) = drag_tab
+        && let Some(from) = tabs.iter().position(|t| *t == dtab) {
             let in_bar = ctx
                 .input
                 .pointer_pos
-                .map_or(false, |p| tab_bar_rect.contains(p));
+                .is_some_and(|p| tab_bar_rect.contains(p));
             if let Some(drag) = state.drag.as_mut() {
                 drag.home_bar = in_bar;
             }
@@ -740,7 +738,6 @@ fn draw_tabs(
                 *active = to;
             }
         }
-    }
 
     let mut x = tab_bar_rect.min.x + 6.0;
     let bar_h = tab_bar_rect.height();
@@ -864,8 +861,8 @@ fn draw_tabs(
 
         // Start a drag on press (don't switch yet — switching happens
         // on release without movement).
-        if ctx.input.pointer_pressed && hovered && !over_close && state.drag.is_none() {
-            if let Some(p) = ctx.input.pointer_pos {
+        if ctx.input.pointer_pressed && hovered && !over_close && state.drag.is_none()
+            && let Some(p) = ctx.input.pointer_pos {
                 state.drag = Some(DragState {
                     tab_id: tab.clone(),
                     pointer_start: p,
@@ -874,17 +871,14 @@ fn draw_tabs(
                     home_bar: false,
                 });
             }
-        }
 
         // Click without drag = switch active tab (and focus it).
-        if ctx.input.pointer_released && hovered {
-            if let Some(drag) = state.drag.as_ref() {
-                if !drag.activated && drag.tab_id == *tab {
+        if ctx.input.pointer_released && hovered
+            && let Some(drag) = state.drag.as_ref()
+                && !drag.activated && drag.tab_id == *tab {
                     *active = i;
                     state.focused_tab = Some(tab.clone());
                 }
-            }
-        }
 
         x += tab_w + 4.0;
     }
@@ -1250,11 +1244,10 @@ fn insert_at(
         DockNode::Split(_) => {
             // recurse first
             {
-                if let DockNode::Split(s) = node {
-                    if insert_at(&mut s.first, anchor, dragged, zone, at) {
+                if let DockNode::Split(s) = node
+                    && insert_at(&mut s.first, anchor, dragged, zone, at) {
                         return true;
                     }
-                }
             }
             if let DockNode::Split(s) = node {
                 insert_at(&mut s.second, anchor, dragged, zone, at)

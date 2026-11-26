@@ -274,12 +274,11 @@ impl<A: DockApp> Shell<A> {
     /// parses. A missing or stale file just leaves the defaults in place.
     fn load_layout(&mut self) {
         #[cfg(feature = "serde")]
-        if let Some(path) = self.layout_path.as_deref() {
-            if let Some((dock, memory)) = persist::load_layout(path) {
+        if let Some(path) = self.layout_path.as_deref()
+            && let Some((dock, memory)) = persist::load_layout(path) {
                 self.dock_tree = dock;
                 self.ctx.memory = memory;
             }
-        }
     }
 
     /// Write the current dock tree + UI memory to `layout_path`.
@@ -400,17 +399,15 @@ impl<A: DockApp> ApplicationHandler for Shell<A> {
                 // so translate to screen space and pump the windowless tab drag
                 // (it follows the cursor as a translucent decorator and lights up
                 // drop zones in whatever window it hovers).
-                if self.main_driving_tearoff {
-                    if let Some(main) = self.main_window.as_ref() {
-                        if let Ok(o) = main.window().inner_position() {
+                if self.main_driving_tearoff
+                    && let Some(main) = self.main_window.as_ref()
+                        && let Ok(o) = main.window().inner_position() {
                             let global = Pos2::new(o.x as f32 + pos.x, o.y as f32 + pos.y);
                             if let Some(td) = self.tab_drag.as_mut() {
                                 td.last_global = global;
                             }
                             self.route_tab_drag(event_loop, false);
                         }
-                    }
-                }
                 self.pointer_pos = Some(pos);
                 self.pending_events.push(Event::PointerMoved(pos));
             }
@@ -562,7 +559,7 @@ impl<A: DockApp> Shell<A> {
         let dt = if self.last_frame_time > 0.0 {
             // Floor at 1 ms so animations always advance even on
             // back-to-back redraws within the same OS tick.
-            (time - self.last_frame_time).max(0.001).min(0.1) as f32
+            (time - self.last_frame_time).clamp(0.001, 0.1) as f32
         } else {
             1.0 / 60.0
         };
@@ -625,7 +622,7 @@ impl<A: DockApp> Shell<A> {
         }
         let frame = PanelFrame {
             window: renderer.window().id(),
-            frame_time_ms: (dt * 1000.0) as f32,
+            frame_time_ms: (dt * 1000.0),
             ui_us: self.ui_us,
             tess_us: renderer.tess_us(),
         };
@@ -891,7 +888,7 @@ impl<A: DockApp> Shell<A> {
         host.driving_tearoff = false;
         host.decorator_frames = 0;
         let win = host.renderer.window().clone();
-        let _ = win.set_outer_position(pos);
+        win.set_outer_position(pos);
         win.set_title(&format!("{} — {tab}", self.title));
         win.set_visible(true);
         win.request_redraw();
@@ -904,13 +901,13 @@ impl<A: DockApp> Shell<A> {
     /// screen-space cursor `global` (kept out from under the pointer so it can't
     /// steal capture). No-op unless a decorator drag is active.
     fn move_decorator(&self, global: Pos2, _grab: Vec2) {
-        if let Some(id) = self.decorator_id {
-            if let Some(h) = self
+        if let Some(id) = self.decorator_id
+            && let Some(h) = self
                 .panel_windows
                 .iter()
                 .find(|h| h.renderer.window().id() == id)
             {
-                let _ = h.renderer.window().set_outer_position(PhysicalPosition::new(
+                h.renderer.window().set_outer_position(PhysicalPosition::new(
                     (global.x + DECORATOR_CURSOR_GAP).round() as i32,
                     (global.y + DECORATOR_CURSOR_GAP).round() as i32,
                 ));
@@ -923,7 +920,6 @@ impl<A: DockApp> Shell<A> {
                     h.renderer.window().request_redraw();
                 }
             }
-        }
     }
 
     /// Resolve a decorator tear-off that ended over *no* drop target by
@@ -1014,11 +1010,10 @@ impl<A: DockApp> Shell<A> {
     /// the per-move clearing in `route_tab_drag` only touches the window the cursor
     /// last hovered, which can leave another window (e.g. the source) still lit.
     fn clear_drag_overlays(&mut self) {
-        if self.main_incoming.take().is_some() {
-            if let Some(main) = self.main_window.as_ref() {
+        if self.main_incoming.take().is_some()
+            && let Some(main) = self.main_window.as_ref() {
                 main.window().request_redraw();
             }
-        }
         for h in self.panel_windows.iter_mut() {
             if h.incoming.take().is_some() {
                 h.renderer.window().request_redraw();
@@ -1135,23 +1130,20 @@ impl<A: DockApp> Shell<A> {
                 break;
             }
         }
-        if target.is_none() {
-            if let Some(main) = self.main_window.as_ref() {
-                if window_contains_global(main.window(), global) {
+        if target.is_none()
+            && let Some(main) = self.main_window.as_ref()
+                && window_contains_global(main.window(), global) {
                     target = Some(DragTarget::Main);
                 }
-            }
-        }
 
         // Clear last frame's hover everywhere so stale drop zones vanish, and
         // redraw any window we just cleared so it actually repaints without the
         // decorator/compass left over from the previous position (otherwise it
         // stays frozen showing the overlay until the next event reaches it).
-        if self.main_incoming.take().is_some() {
-            if let Some(main) = self.main_window.as_ref() {
+        if self.main_incoming.take().is_some()
+            && let Some(main) = self.main_window.as_ref() {
                 main.window().request_redraw();
             }
-        }
         for h in self.panel_windows.iter_mut() {
             if h.incoming.take().is_some() {
                 h.renderer.window().request_redraw();
@@ -1160,8 +1152,8 @@ impl<A: DockApp> Shell<A> {
 
         match target {
             Some(DragTarget::Main) => {
-                if let Some(main) = self.main_window.as_ref() {
-                    if let Ok(o) = main.window().inner_position() {
+                if let Some(main) = self.main_window.as_ref()
+                    && let Ok(o) = main.window().inner_position() {
                         let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
                         self.main_incoming = Some(ExternalDrag {
                             tab_id: tab,
@@ -1173,13 +1165,11 @@ impl<A: DockApp> Shell<A> {
                         });
                         main.window().request_redraw();
                     }
-                }
             }
             Some(DragTarget::Host(id)) => {
                 if let Some(h) =
                     self.panel_windows.iter_mut().find(|h| h.renderer.window().id() == id)
-                {
-                    if let Ok(o) = h.renderer.window().inner_position() {
+                    && let Ok(o) = h.renderer.window().inner_position() {
                         let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
                         h.incoming = Some(ExternalDrag {
                             tab_id: tab,
@@ -1191,7 +1181,6 @@ impl<A: DockApp> Shell<A> {
                         });
                         h.renderer.window().request_redraw();
                     }
-                }
             }
             None => {
                 // Dropped over no window → float it.
@@ -1376,7 +1365,7 @@ impl<A: DockApp> Shell<A> {
                 self.panel_windows[idx].parked = true;
                 self.decorator_id = self.activate_decorator(event_loop, &rep, global);
             } else {
-                let _ = win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
+                win.set_outer_position(PhysicalPosition::new(-30_000, -30_000));
                 self.panel_windows[idx].parked = true;
             }
         } else if let Some(wd) = self.window_drag.as_mut() {
@@ -1434,13 +1423,11 @@ impl<A: DockApp> Shell<A> {
                 break;
             }
         }
-        if target.is_none() {
-            if let Some(main) = self.main_window.as_ref() {
-                if window_contains_global(main.window(), global) {
+        if target.is_none()
+            && let Some(main) = self.main_window.as_ref()
+                && window_contains_global(main.window(), global) {
                     target = Some(DragTarget::Main);
                 }
-            }
-        }
 
         // Clear last frame's hover everywhere so stale drop zones vanish.
         self.main_incoming = None;
@@ -1450,8 +1437,8 @@ impl<A: DockApp> Shell<A> {
 
         match target {
             Some(DragTarget::Main) => {
-                if let Some(main) = self.main_window.as_ref() {
-                    if let Ok(o) = main.window().inner_position() {
+                if let Some(main) = self.main_window.as_ref()
+                    && let Ok(o) = main.window().inner_position() {
                         let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
                         self.main_incoming = Some(ExternalDrag {
                             tab_id: rep,
@@ -1463,13 +1450,11 @@ impl<A: DockApp> Shell<A> {
                         });
                         main.window().request_redraw();
                     }
-                }
             }
             Some(DragTarget::Host(id)) => {
                 if let Some(h) =
                     self.panel_windows.iter_mut().find(|h| h.renderer.window().id() == id)
-                {
-                    if let Ok(o) = h.renderer.window().inner_position() {
+                    && let Ok(o) = h.renderer.window().inner_position() {
                         let local = Pos2::new(global.x - o.x as f32, global.y - o.y as f32);
                         h.incoming = Some(ExternalDrag {
                             tab_id: rep,
@@ -1481,15 +1466,13 @@ impl<A: DockApp> Shell<A> {
                         });
                         h.renderer.window().request_redraw();
                     }
-                }
             }
             None => {
                 // Released over nothing: cancel and restore the source window.
-                if released {
-                    if let Some(wd) = self.window_drag.take() {
+                if released
+                    && let Some(wd) = self.window_drag.take() {
                         self.unpark_source(&wd);
                     }
-                }
             }
         }
     }
@@ -1509,7 +1492,7 @@ impl<A: DockApp> Shell<A> {
                 pw.renderer.window().set_visible(true);
             } else {
                 let pos = wd.last_global - wd.grab;
-                let _ = pw.renderer.window().set_outer_position(PhysicalPosition::new(
+                pw.renderer.window().set_outer_position(PhysicalPosition::new(
                     pos.x.round() as i32,
                     pos.y.round() as i32,
                 ));
@@ -1542,7 +1525,7 @@ impl<A: DockApp> Shell<A> {
         let pixels_per_point = pw.renderer.window().scale_factor() as f32;
         let time = pw.start.elapsed().as_secs_f64();
         let dt = if pw.last_frame_time > 0.0 {
-            (time - pw.last_frame_time).max(0.001).min(0.1) as f32
+            (time - pw.last_frame_time).clamp(0.001, 0.1) as f32
         } else {
             1.0 / 60.0
         };
@@ -1560,7 +1543,7 @@ impl<A: DockApp> Shell<A> {
         };
         let frame = PanelFrame {
             window: pw.renderer.window().id(),
-            frame_time_ms: (dt * 1000.0) as f32,
+            frame_time_ms: (dt * 1000.0),
             ui_us,
             tess_us: pw.renderer.tess_us(),
         };

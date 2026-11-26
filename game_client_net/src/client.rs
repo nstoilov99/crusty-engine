@@ -493,8 +493,8 @@ impl SpacetimeNetClient {
     }
 
     /// M8 D2 interest pump: subscriptions follow a hysteresis-stabilized
-    /// anchor cell (`re_anchor`: the anchor only moves once the position is
-    /// > 8 m outside its AABB, so border wiggle never thrashes). The anchor
+    /// anchor cell (`re_anchor`: the anchor only moves once the position is more
+    /// than 8 m outside its AABB, so border wiggle never thrashes). The anchor
     /// tracks the *predicted* position when a hint is set, the authoritative
     /// own row otherwise.
     ///

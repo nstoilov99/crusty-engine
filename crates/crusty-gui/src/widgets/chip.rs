@@ -5,8 +5,8 @@ use crate::response::Response;
 use crate::widgets::button::lighten;
 
 /// Count chip — a pill filter carrying a status color and a count
-/// (console "Errors 2"). Active = status tint fill (13%) + status border
-/// + colored dot; muted = neutral outline + gray dot. The count stays
+/// (console "Errors 2"). Active = status tint fill (13%) + status border +
+/// colored dot; muted = neutral outline + gray dot. The count stays
 /// visible either way.
 pub struct CountChip {
     label: String,

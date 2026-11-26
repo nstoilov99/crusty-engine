@@ -438,8 +438,8 @@ impl WindowRenderer {
         if self.text.atlas().has_pending() {
             // A queue-less future (`sync::now`, first frame) has nothing in
             // flight to wait for — and would trip a fence-signal assert.
-            if let Some(prev) = self.previous_frame_end.take() {
-                if prev.queue().is_some() {
+            if let Some(prev) = self.previous_frame_end.take()
+                && prev.queue().is_some() {
                     match prev.then_signal_fence_and_flush() {
                         Ok(fence) => {
                             let _ = fence.wait(None);
@@ -449,7 +449,6 @@ impl WindowRenderer {
                         }
                     }
                 }
-            }
             self.previous_frame_end = Some(sync::now(self.device.clone()).boxed());
         }
 

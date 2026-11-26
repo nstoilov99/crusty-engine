@@ -939,7 +939,7 @@ pub fn upload_rgba_texture(
 
 fn spv_bytes_to_words(bytes: &[u8]) -> Vec<u32> {
     assert!(
-        bytes.len() % 4 == 0,
+        bytes.len().is_multiple_of(4),
         "SPIR-V byte length must be a multiple of 4"
     );
     let mut words = Vec::with_capacity(bytes.len() / 4);

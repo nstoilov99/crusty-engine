@@ -611,7 +611,7 @@ impl Editor {
                     .map(|t| t.elapsed().as_secs_f64())
                     .unwrap_or_default();
                 let dt = if self.mesh_last_frame_time > 0.0 {
-                    (time - self.mesh_last_frame_time).max(0.001).min(0.1) as f32
+                    (time - self.mesh_last_frame_time).clamp(0.001, 0.1) as f32
                 } else {
                     1.0 / 60.0
                 };

@@ -360,11 +360,10 @@ impl Memory {
             if a.order == Order::Modal && front_modal.is_none_or(|(z, _)| a.z > z) {
                 front_modal = Some((a.z, id));
             }
-            if let Some(p) = pointer {
-                if a.rect().contains(p) && top.is_none_or(|(o, z, _)| (a.order, a.z) > (o, z)) {
+            if let Some(p) = pointer
+                && a.rect().contains(p) && top.is_none_or(|(o, z, _)| (a.order, a.z) > (o, z)) {
                     top = Some((a.order, a.z, id));
                 }
-            }
         }
         match (top, front_modal) {
             (Some((order, _, id)), Some((_, modal_id))) => {

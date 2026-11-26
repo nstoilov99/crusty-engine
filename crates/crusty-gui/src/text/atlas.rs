@@ -276,7 +276,7 @@ fn flush_page(
                     | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
-            upload.bytes.into_iter(),
+            upload.bytes,
         )
         .expect("failed to allocate glyph staging buffer");
 

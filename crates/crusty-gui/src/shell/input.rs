@@ -94,11 +94,10 @@ pub fn push_key_event(
         repeat: key_event.repeat,
         modifiers,
     });
-    if pressed {
-        if let Some(text) = &key_event.text {
+    if pressed
+        && let Some(text) = &key_event.text {
             pending_events.push(Event::Text(text.as_str().to_string()));
         }
-    }
 }
 
 /// Translate one winit [`WindowEvent`] into queued [`Event`]s for a window's

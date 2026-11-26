@@ -263,12 +263,11 @@ impl<'a> Ui<'a> {
         label: impl Into<String>,
         payload: impl FnOnce() -> T,
     ) -> bool {
-        if self.ctx.input.pointer_pressed && self.contains_pointer(rect) {
-            if let Some(p) = self.ctx.input.pointer_pos {
+        if self.ctx.input.pointer_pressed && self.contains_pointer(rect)
+            && let Some(p) = self.ctx.input.pointer_pos {
                 self.ctx.memory.active_widget = Some(id);
                 self.ctx.memory.data_insert::<Pos2>(id, p);
             }
-        }
 
         if self.ctx.memory.active_widget != Some(id) {
             return false;
@@ -288,8 +287,8 @@ impl<'a> Ui<'a> {
         // so the entry is marked alive each frame — `data_get` doesn't, and
         // memory GC would evict the origin after a few frames, silently
         // killing any drag slower than a quick flick.
-        if self.ctx.input.pointer_down {
-            if let (Some(p), Some(start)) = (
+        if self.ctx.input.pointer_down
+            && let (Some(p), Some(start)) = (
                 self.ctx.input.pointer_pos,
                 self.ctx.memory.data_get_mut::<Pos2>(id).map(|s| *s),
             ) {
@@ -306,7 +305,6 @@ impl<'a> Ui<'a> {
                     return true;
                 }
             }
-        }
         false
     }
 

@@ -118,11 +118,10 @@ impl<'open> Window<'open> {
         ui: &mut Ui,
         body: impl FnOnce(&mut Ui) -> R,
     ) -> Option<WindowResponse<R>> {
-        if let Some(open) = &self.open {
-            if !**open {
+        if let Some(open) = &self.open
+            && !**open {
                 return None;
             }
-        }
 
         let style = ui.style();
         let id = Id::new(("window", &self.title));
@@ -208,18 +207,16 @@ impl<'open> Window<'open> {
 
         // Resize via bottom-right grip.
         let can_resize = self.resizable && !collapsed;
-        if can_resize && pointer_pressed && on_window {
-            if let Some(p) = pointer_pos {
-                if grip_rect.contains(p) {
+        if can_resize && pointer_pressed && on_window
+            && let Some(p) = pointer_pos
+                && grip_rect.contains(p) {
                     ui.ctx_mut().memory.active_widget = Some(resize_id);
                     let mem = ui.ctx_mut().memory.get_or_default(resize_id);
                     mem.aux_vec2 = rect.max - p;
                 }
-            }
-        }
         let resizing = ui.ctx().memory.active_widget == Some(resize_id) && pointer_down;
-        if resizing {
-            if let Some(p) = pointer_pos {
+        if resizing
+            && let Some(p) = pointer_pos {
                 let grab = ui
                     .ctx()
                     .memory
@@ -228,7 +225,6 @@ impl<'open> Window<'open> {
                     .unwrap_or(Vec2::ZERO);
                 size = ((p + grab) - pos).max(min_size);
             }
-        }
 
         // Move via title bar (excluding the chevron / close buttons).
         if pointer_pressed
@@ -236,8 +232,7 @@ impl<'open> Window<'open> {
             && active != Some(resize_id)
             && !resizing
             && !self.anchor_center
-        {
-            if let Some(p) = pointer_pos {
+            && let Some(p) = pointer_pos {
                 let on_buttons = (self.collapsible && chev_rect.contains(p))
                     || (self.open.is_some() && close_rect.contains(p));
                 if title_rect.contains(p) && !on_buttons {
@@ -246,9 +241,8 @@ impl<'open> Window<'open> {
                     mem.aux_vec2 = p - pos;
                 }
             }
-        }
-        if ui.ctx().memory.active_widget == Some(drag_id) && pointer_down {
-            if let Some(p) = pointer_pos {
+        if ui.ctx().memory.active_widget == Some(drag_id) && pointer_down
+            && let Some(p) = pointer_pos {
                 let grab = ui
                     .ctx()
                     .memory
@@ -257,7 +251,6 @@ impl<'open> Window<'open> {
                     .unwrap_or(Vec2::ZERO);
                 pos = p - grab;
             }
-        }
 
         if self.anchor_center {
             pos = Pos2::new(
@@ -275,7 +268,7 @@ impl<'open> Window<'open> {
         let mut chev_hovered = false;
         if self.collapsible {
             chev_hovered =
-                on_window && pointer_pos.map_or(false, |p| chev_rect.contains(p));
+                on_window && pointer_pos.is_some_and(|p| chev_rect.contains(p));
             if pointer_pressed && chev_hovered {
                 collapsed = !collapsed;
             }
@@ -286,7 +279,7 @@ impl<'open> Window<'open> {
         let mut close_requested = false;
         if self.open.is_some() {
             close_hovered =
-                on_window && pointer_pos.map_or(false, |p| close_rect.contains(p));
+                on_window && pointer_pos.is_some_and(|p| close_rect.contains(p));
             if pointer_pressed && close_hovered {
                 close_requested = true;
             }
@@ -295,7 +288,7 @@ impl<'open> Window<'open> {
             }
             if self.close_on_click_outside
                 && pointer_pressed
-                && pointer_pos.map_or(false, |p| !rect.contains(p))
+                && pointer_pos.is_some_and(|p| !rect.contains(p))
             {
                 close_requested = true;
             }
@@ -460,7 +453,7 @@ impl<'open> Window<'open> {
         // Resize grip.
         if can_resize {
             let grip_hovered =
-                on_window && pointer_pos.map_or(false, |p| grip_rect.contains(p));
+                on_window && pointer_pos.is_some_and(|p| grip_rect.contains(p));
             let grip_color = if resizing || grip_hovered {
                 style.palette.accent_active
             } else {
@@ -502,11 +495,10 @@ impl<'open> Window<'open> {
             mem.seen_this_frame = true;
         }
 
-        if close_requested {
-            if let Some(open) = self.open {
+        if close_requested
+            && let Some(open) = self.open {
                 *open = false;
             }
-        }
 
         Some(WindowResponse { rect, inner })
     }

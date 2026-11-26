@@ -1162,6 +1162,10 @@ fn a_timeline_drives_a_real_transform_from_a_curve_asset() {
 /// runtime component rather than on the plan: a plan is shared by every
 /// instance, and freezing the scene to read one of them would take the
 /// reference away from the person reading it.
+///
+/// Drives the editor's debug controls (`editor::graph_exec_viz`, `scripting::trace`),
+/// which only exist under the `editor` feature.
+#[cfg(feature = "editor")]
 #[test]
 fn breakpoints_stop_only_the_bound_instance() {
     use crate::engine::editor::graph_exec_viz::DebugRequest;

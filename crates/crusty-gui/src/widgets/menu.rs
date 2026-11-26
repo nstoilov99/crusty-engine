@@ -67,7 +67,7 @@ impl Ui<'_> {
         let open_sibling = self.ctx().memory.data_get::<Id>(bar_key).copied();
 
         let hovered = self.contains_pointer(rect);
-        let mut is_open = self.ctx().memory.get(id).map_or(false, |m| m.bool_state);
+        let mut is_open = self.ctx().memory.get(id).is_some_and(|m| m.bool_state);
         // Another menu took over (hover-switch) since last frame: close.
         if is_open && open_sibling.is_some_and(|o| o != id) {
             is_open = false;
@@ -149,7 +149,7 @@ impl Ui<'_> {
         let rect = self.allocate(Vec2::new(self.available().width(), text_size.y + 6.0));
 
         let hovered = self.contains_pointer(rect);
-        let mut is_open = self.ctx().memory.get(id).map_or(false, |m| m.bool_state);
+        let mut is_open = self.ctx().memory.get(id).is_some_and(|m| m.bool_state);
         if self.ctx().input.pointer_pressed && hovered {
             is_open = !is_open;
         }

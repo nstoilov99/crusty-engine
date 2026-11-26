@@ -58,12 +58,11 @@ impl<'a> Slider<'a> {
             ui.ctx_mut().set_cursor_icon(CursorIcon::Grab);
         }
 
-        if pressed {
-            if let Some(p) = ui.ctx().input.pointer_pos {
+        if pressed
+            && let Some(p) = ui.ctx().input.pointer_pos {
                 let t = ((p.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
                 *self.value = min + t * span;
             }
-        }
         let mut clicked = false;
         if pointer_released && is_active && hovered {
             clicked = true;

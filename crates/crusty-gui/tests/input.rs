@@ -231,7 +231,7 @@ fn tab_cycles_focus_in_registration_order() {
     let mut ctx = Context::new();
     let ids: Vec<_> = ["a", "b", "c"]
         .iter()
-        .map(|s| crusty_gui::id::Id::new(s))
+        .map(crusty_gui::id::Id::new)
         .collect();
 
     // Tab with nothing focused lands on the first widget.
