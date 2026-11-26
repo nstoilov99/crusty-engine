@@ -111,8 +111,7 @@ pub fn serialize_graph(doc: &GraphDoc) -> Result<String, GraphIoError> {
     // byte-for-byte golden tests on Linux CI.
     let config = ron::ser::PrettyConfig::new()
         .struct_names(false)
-        .new_line("
-".to_string());
+        .new_line("\n".to_string());
     let mut text = ron::ser::to_string_pretty(&canonical, config)
         .map_err(|e| GraphIoError::Parse(e.to_string()))?;
     // A text file ends with a newline. Without it every diff of an asset's
