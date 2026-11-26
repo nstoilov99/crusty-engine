@@ -29,10 +29,10 @@ use super::mesh_editor::MeshPreviewState;
 use crate::engine::animation::components::SkeletonInstance;
 use crate::engine::animation::graph::plan::preview_mesh_of;
 use crate::engine::animation::graph::{
-    arm_masks, compile_anim_graph_with, new_extra_machines, tick_extra_machines,
-    tick_root_clocks, AnimAssetLoader, AnimGraphLoader, AnimGraphPlan, AnimGraphRuntime,
-    AnimMachine, AnimParamType, AnimParams, ClipSet, DiskAnimAssets, MachineSource,
-    PipelineState, PlanClip, PlayOnceSlot, PoseScratch, PoseSource, RootClipClock,
+    arm_masks, compile_anim_graph_with, new_extra_machines, tick_extra_machines, tick_root_clocks,
+    AnimAssetLoader, AnimGraphLoader, AnimGraphPlan, AnimGraphRuntime, AnimMachine, AnimParamType,
+    AnimParams, ClipSet, DiskAnimAssets, MachineSource, PipelineState, PlanClip, PlayOnceSlot,
+    PoseScratch, PoseSource, RootClipClock,
 };
 
 /// What the strip's chip calls the panel's own machine.
@@ -403,7 +403,10 @@ impl AnimGraphPreview {
             });
         };
         let Some(skel) = &self.skeleton else {
-            return Err(format!("{} has no skeleton \u{2014} set Preview Mesh", stem(mesh)));
+            return Err(format!(
+                "{} has no skeleton \u{2014} set Preview Mesh",
+                stem(mesh)
+            ));
         };
         if plan.states.is_empty() {
             return Err("Graph has no states".into());
@@ -444,8 +447,7 @@ impl AnimGraphPreview {
             return;
         }
         let clips = &self.clips;
-        let clip_for =
-            |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
+        let clip_for = |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
         let state = match &self.mirror {
             Some(m) => PipelineState {
                 plan: &m.plan,
@@ -674,7 +676,10 @@ mod tests {
                 "upper.anim" => clip_on(1, "Upper", 7.0),
                 _ => return None,
             };
-            Some(ClipSet { bone_names: vec!["root".into(), "child".into()], clips: vec![clip] })
+            Some(ClipSet {
+                bone_names: vec!["root".into(), "child".into()],
+                clips: vec![clip],
+            })
         }
         fn load_skeleton(&self, rel: &str) -> Option<Vec<BoneData>> {
             match rel {
@@ -708,18 +713,19 @@ mod tests {
     }
 
     fn bone_x(p: &AnimGraphPreview, i: usize) -> f32 {
-        p.skeleton.as_ref().expect("skeleton").local_transforms[i].translation.x
+        p.skeleton.as_ref().expect("skeleton").local_transforms[i]
+            .translation
+            .x
     }
 
     /// [`two_state_doc`] plus the pipeline `SM(20) ─base▶ Layer(22: bones,
     /// weight aim) ◀layer─ Clip(21: upper.anim) → Output(25)`.
     fn layer_doc(bones: &str) -> GraphDoc {
+        use crate::engine::animation::graph::plan::{ANIM_CLIP_TYPE_ID, POSE_PIN};
         use crate::engine::animation::graph::{
             ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID, ANIM_PIPE_OUTPUT_TYPE_ID,
-            LAYER_BASE_PIN, LAYER_LAYER_PIN, LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP,
-            PIPE_IN_PIN,
+            LAYER_BASE_PIN, LAYER_LAYER_PIN, LAYER_WEIGHT_PARAM_PROP, MASK_BONES_PROP, PIPE_IN_PIN,
         };
-        use crate::engine::animation::graph::plan::{ANIM_CLIP_TYPE_ID, POSE_PIN};
         let mut doc = two_state_doc();
         doc.variables.push(VarDecl {
             slug: "aim".into(),
@@ -730,7 +736,12 @@ mod tests {
         });
         doc.nodes.extend([
             node(20, ANIM_PIPE_MACHINE_TYPE_ID, None),
-            with(21, ANIM_CLIP_TYPE_ID, Some("Upper"), &[(CLIP_PROP, PropValue::Asset("upper.anim".into()))]),
+            with(
+                21,
+                ANIM_CLIP_TYPE_ID,
+                Some("Upper"),
+                &[(CLIP_PROP, PropValue::Asset("upper.anim".into()))],
+            ),
             with(
                 22,
                 ANIM_PIPE_LAYER_TYPE_ID,
@@ -955,17 +966,26 @@ mod tests {
         assert_eq!(p.status, None);
         assert_eq!(p.mesh.as_deref(), Some("b.mesh"));
         let near = |a: f32, b: f32| (a - b).abs() < 1e-4;
-        assert!(near(bone_x(&p, 0), 2.0) && near(bone_x(&p, 1), 0.0), "aim 0: the base only");
+        assert!(
+            near(bone_x(&p, 0), 2.0) && near(bone_x(&p, 1), 0.0),
+            "aim 0: the base only"
+        );
         assert!(p.apply(&AnimParamEdit::SetFloat("aim".into(), 1.0)));
         tick(&mut p, &doc, 1, 0.1);
-        assert!(near(bone_x(&p, 1), 7.0), "child follows the layer: {}", bone_x(&p, 1));
+        assert!(
+            near(bone_x(&p, 1), 7.0),
+            "child follows the layer: {}",
+            bone_x(&p, 1)
+        );
         assert!(near(bone_x(&p, 0), 2.0), "root stays on Idle");
         assert_eq!(p.state_label().as_deref(), Some("Idle"));
 
         let bad = layer_doc("nope");
         tick(&mut p, &bad, 2, 0.1);
         assert!(
-            p.status.as_deref().is_some_and(|s| s.contains("layer #22: bone 'nope' is not in the skeleton")),
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("layer #22: bone 'nope' is not in the skeleton")),
             "{:?}",
             p.status
         );

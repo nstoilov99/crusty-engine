@@ -704,7 +704,11 @@ mod tests {
         let a = serialize_graph(&doc).unwrap();
         let back = parse_graph(&a).unwrap();
         assert_eq!(back, doc);
-        assert_eq!(serialize_graph(&back).unwrap(), a, "canonical form is idempotent");
+        assert_eq!(
+            serialize_graph(&back).unwrap(),
+            a,
+            "canonical form is idempotent"
+        );
         assert!(a.contains("version: 4"), "{a}");
         assert!(a.contains("regions"), "{a}");
 
@@ -744,8 +748,14 @@ mod tests {
         let v3 = include_str!("fixtures/container_v3.graph");
         assert!(v3.contains("version: 3"), "the input fixture must stay v3");
         let doc = parse_graph(v3).unwrap();
-        assert_eq!(doc.version, GRAPH_DOC_VERSION, "loading stamps the new version");
-        assert!(doc.comments.iter().all(|c| c.family.is_none()), "v3 knew no families");
+        assert_eq!(
+            doc.version, GRAPH_DOC_VERSION,
+            "loading stamps the new version"
+        );
+        assert!(
+            doc.comments.iter().all(|c| c.family.is_none()),
+            "v3 knew no families"
+        );
         assert!(doc.groups.iter().all(|g| g.family.is_none()));
         assert_eq!(doc, v3_doc());
     }
@@ -770,14 +780,21 @@ mod tests {
     fn checked_in_v4_fixture_parses() {
         if std::env::var("UPDATE_GRAPH_FIXTURES").is_ok() {
             std::fs::write(
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/fixtures/container_v4.graph"),
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/src/fixtures/container_v4.graph"
+                ),
                 serialize_graph(&v4_doc()).unwrap(),
             )
             .unwrap();
             return; // freshly written; the compiled-in copy is stale
         }
         let text = include_str!("fixtures/container_v4.graph");
-        assert_eq!(text.matches("family").count(), 1, "untagged annotations write no field");
+        assert_eq!(
+            text.matches("family").count(),
+            1,
+            "untagged annotations write no field"
+        );
         let doc = parse_graph(text).unwrap();
         assert_eq!(doc, v4_doc());
         assert_eq!(serialize_graph(&doc).unwrap(), text, "fixed point");

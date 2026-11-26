@@ -20,9 +20,9 @@ use super::mesh_editor::MeshPreviewState;
 use crate::engine::animation::blend_space::{BlendSpace, BlendSpaceDoc};
 use crate::engine::animation::components::SkeletonInstance;
 use crate::engine::animation::graph::{
-    evaluate_pose, AnimAssetLoader, AnimGraphPlan, AnimMachine, AnimParamType, AnimParams,
-    ClipSet, MachineSource, ParamDecl, ParamValue, PlanClip, PlanMachineRef, PlanSpace, PlanState,
-    PlanTree, PoseScratch, PoseSource,
+    evaluate_pose, AnimAssetLoader, AnimGraphPlan, AnimMachine, AnimParamType, AnimParams, ClipSet,
+    MachineSource, ParamDecl, ParamValue, PlanClip, PlanMachineRef, PlanSpace, PlanState, PlanTree,
+    PoseScratch, PoseSource,
 };
 
 /// Default share of the right-hand column the preview pane takes.
@@ -454,7 +454,11 @@ mod tests {
 
     fn assets() -> Mem {
         Mem {
-            meshes: vec![("a.mesh", vec!["other"]), ("b.mesh", vec!["root", "child"]), ("c.mesh", vec![])],
+            meshes: vec![
+                ("a.mesh", vec!["other"]),
+                ("b.mesh", vec!["root", "child"]),
+                ("c.mesh", vec![]),
+            ],
             clips: vec![
                 ("walk.anim", vec!["root", "child"], clip("Walk", 2.0, 2.0)),
                 ("run.anim", vec!["root", "child"], clip("Run", 10.0, 10.0)),

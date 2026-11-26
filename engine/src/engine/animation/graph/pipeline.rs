@@ -29,9 +29,9 @@ use super::plan::{
     PlanState, PoseSource, ANIM_ANY_STATE_TYPE_ID, ANIM_CLIP_TYPE_ID, ANIM_ENTRY_TYPE_ID,
     ANIM_IK_CHAIN_TYPE_ID, ANIM_PLAY_ONCE_TYPE_ID, ANIM_STATE_ALIAS_TYPE_ID, ANIM_STATE_TYPE_ID,
     ANIM_TRANSITION_TYPE_ID, CLIP_NAME_PROP, CLIP_PROP, GRAPH_PROP, IK_ANKLE_OFFSET_PROP,
-    IK_AXIS_X_PROP, IK_AXIS_Y_PROP, IK_AXIS_Z_PROP, IK_BONES_PROP, IK_FOOT_PROP,
-    IK_MAX_ANGLE_PROP, IK_PELVIS_PROP, IK_SOLVER_LOOK_AT, IK_SOLVER_PROP, IK_SOLVER_TWO_BONE,
-    IK_WEIGHT_PARAM_PROP, POSE_PIN, SLOT_FADE_IN_PROP, SLOT_FADE_OUT_PROP, SLOT_TRIGGER_PROP,
+    IK_AXIS_X_PROP, IK_AXIS_Y_PROP, IK_AXIS_Z_PROP, IK_BONES_PROP, IK_FOOT_PROP, IK_MAX_ANGLE_PROP,
+    IK_PELVIS_PROP, IK_SOLVER_LOOK_AT, IK_SOLVER_PROP, IK_SOLVER_TWO_BONE, IK_WEIGHT_PARAM_PROP,
+    POSE_PIN, SLOT_FADE_IN_PROP, SLOT_FADE_OUT_PROP, SLOT_TRIGGER_PROP,
 };
 
 // ---------------------------------------------------------------------------
@@ -205,20 +205,36 @@ impl PlanPipeline {
     /// Slot arbitration order: the compiled wire order, or index order for
     /// an uncompiled plan.
     pub fn slot_index(&self, k: usize) -> usize {
-        if self.compiled { self.slot_order[k] } else { k }
+        if self.compiled {
+            self.slot_order[k]
+        } else {
+            k
+        }
     }
 
     pub fn slot_count(&self, uncompiled_len: usize) -> usize {
-        if self.compiled { self.slot_order.len() } else { uncompiled_len }
+        if self.compiled {
+            self.slot_order.len()
+        } else {
+            uncompiled_len
+        }
     }
 
     /// IK application order, same rule.
     pub fn ik_index(&self, k: usize) -> usize {
-        if self.compiled { self.ik_order[k] } else { k }
+        if self.compiled {
+            self.ik_order[k]
+        } else {
+            k
+        }
     }
 
     pub fn ik_count(&self, uncompiled_len: usize) -> usize {
-        if self.compiled { self.ik_order.len() } else { uncompiled_len }
+        if self.compiled {
+            self.ik_order.len()
+        } else {
+            uncompiled_len
+        }
     }
 }
 
@@ -347,7 +363,10 @@ pub fn upgrade_pipeline_root(doc: &mut GraphDoc) -> bool {
 
 /// The document's own play-once slots, sorted by node id (the pre-41.7
 /// channel order and the plan's index space).
-pub(super) fn compile_slots(doc: &GraphDoc, parameters: &[ParamDecl]) -> Result<Vec<PlanSlot>, String> {
+pub(super) fn compile_slots(
+    doc: &GraphDoc,
+    parameters: &[ParamDecl],
+) -> Result<Vec<PlanSlot>, String> {
     let mut slots: Vec<PlanSlot> = Vec::new();
     for n in doc
         .nodes
@@ -490,8 +509,7 @@ pub(super) fn compile_ik_chains(
                     ));
                 }
                 Some(PlanFootPlacement {
-                    ankle_offset: float_prop(&n.properties, IK_ANKLE_OFFSET_PROP)
-                        .unwrap_or(0.1),
+                    ankle_offset: float_prop(&n.properties, IK_ANKLE_OFFSET_PROP).unwrap_or(0.1),
                     pelvis_bone: str_prop(&n.properties, IK_PELVIS_PROP)
                         .unwrap_or_default()
                         .trim()
@@ -804,7 +822,10 @@ pub(super) fn assemble(
             .find(|c| c.node_id == id && lifted_chains.iter().all(|l| l != *c))
             .expect("every wired IK chain compiled")
     };
-    let mut ik_order: Vec<usize> = ik_walk.iter().map(|id| chain_index(host_chain(*id))).collect();
+    let mut ik_order: Vec<usize> = ik_walk
+        .iter()
+        .map(|id| chain_index(host_chain(*id)))
+        .collect();
     for c in &lifted_chains {
         let i = chain_index(c);
         if !ik_order.contains(&i) {
@@ -972,9 +993,11 @@ impl<'a> PipeCx<'a> {
             .collect();
         match inline.len() {
             0 => {
-                return Err("an animation graph needs an inline State Machine node (a State \
+                return Err(
+                    "an animation graph needs an inline State Machine node (a State \
                             Machine whose `graph` is empty)"
-                    .to_string())
+                        .to_string(),
+                )
             }
             1 => {}
             _ => return Err("an animation graph has at most one inline State Machine node".into()),
@@ -1150,9 +1173,8 @@ impl<'a> PipeCx<'a> {
     }
 
     fn wired(&self, n: &NodeInst, kind: Kind, name: &str, pin: &str) -> Result<u64, String> {
-        self.input(n, pin).ok_or_else(|| {
-            format!("{} '{name}': input '{pin}' is not wired", kind.word())
-        })
+        self.input(n, pin)
+            .ok_or_else(|| format!("{} '{name}': input '{pin}' is not wired", kind.word()))
     }
 
     /// The local-space subtree feeding `downstream` (the node whose input
@@ -1233,7 +1255,7 @@ impl<'a> PipeCx<'a> {
                     .position(|s| s.node_id == id)
                     .expect("every play-once node compiled into a slot");
                 let roots = bone_list(n, MASK_BONES_PROP);
-                let mask = (!roots.is_empty()).then(|| PlanMask {
+                let mask = (!roots.is_empty()).then_some(PlanMask {
                     roots,
                     include_root: true,
                 });

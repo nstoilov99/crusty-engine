@@ -430,7 +430,9 @@ struct SkinnedPreviewTarget<'a> {
 /// tab world; a world without them arms nothing (the runner refuses with a
 /// reason since Task 41.7).
 fn insert_anim_caches(world: &mut GameWorld) {
-    use rust_engine::engine::animation::graph::{AnimClipCache, AnimGraphPlanCache, BlendSpaceCache};
+    use rust_engine::engine::animation::graph::{
+        AnimClipCache, AnimGraphPlanCache, BlendSpaceCache,
+    };
     world.resources_mut().insert(AnimGraphPlanCache::new());
     world.resources_mut().insert(AnimClipCache::new());
     world.resources_mut().insert(BlendSpaceCache::new());

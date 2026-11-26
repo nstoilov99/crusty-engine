@@ -222,7 +222,9 @@ impl ConsoleCommand for AnimStatusCommand {
             )>()
             .iter()
         {
-            let who = name.map(|n| n.0.clone()).unwrap_or_else(|| format!("{entity:?}"));
+            let who = name
+                .map(|n| n.0.clone())
+                .unwrap_or_else(|| format!("{entity:?}"));
             let skel_line = match skel {
                 Some(s) => {
                     let posed = s

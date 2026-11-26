@@ -129,7 +129,10 @@ fn register_domains(reg: &mut NodeRegistry) {
 pub fn anim_node_registry() -> NodeRegistry {
     let mut reg = NodeRegistry::new();
     register_domains(&mut reg);
-    for d in machine_descriptors().into_iter().chain(pipeline_descriptors()) {
+    for d in machine_descriptors()
+        .into_iter()
+        .chain(pipeline_descriptors())
+    {
         reg.register(d).expect("anim library descriptors are valid");
     }
     reg
@@ -151,7 +154,8 @@ pub fn anim_pipeline_registry() -> NodeRegistry {
     let mut reg = NodeRegistry::new();
     register_domains(&mut reg);
     for d in pipeline_descriptors() {
-        reg.register(d).expect("anim pipeline descriptors are valid");
+        reg.register(d)
+            .expect("anim pipeline descriptors are valid");
     }
     reg
 }
@@ -211,7 +215,10 @@ fn pipeline_descriptors() -> Vec<NodeDescriptor> {
             "Layered Blend Per Bone",
             "Blends Layer over Base on the bones under the mask roots, weighted by a \
              Float parameter. Base is evaluated first.",
-            vec![pose_pin(LAYER_BASE_PIN, "Base"), pose_pin(LAYER_LAYER_PIN, "Layer")],
+            vec![
+                pose_pin(LAYER_BASE_PIN, "Base"),
+                pose_pin(LAYER_LAYER_PIN, "Layer"),
+            ],
             vec![pose_pin(POSE_PIN, "Pose")],
         ),
         desc(
@@ -429,8 +436,14 @@ mod tests {
                 d.outputs.iter().map(|p| p.slug.clone()).collect::<Vec<_>>(),
             )
         };
-        assert_eq!(pins(ANIM_PIPE_MACHINE_TYPE_ID), (vec![], vec![POSE_PIN.to_string()]));
-        assert_eq!(pins(ANIM_CLIP_TYPE_ID), (vec![], vec![POSE_PIN.to_string()]));
+        assert_eq!(
+            pins(ANIM_PIPE_MACHINE_TYPE_ID),
+            (vec![], vec![POSE_PIN.to_string()])
+        );
+        assert_eq!(
+            pins(ANIM_CLIP_TYPE_ID),
+            (vec![], vec![POSE_PIN.to_string()])
+        );
         assert_eq!(
             pins(ANIM_PIPE_LAYER_TYPE_ID),
             (
@@ -439,9 +452,15 @@ mod tests {
             )
         );
         for id in [ANIM_PLAY_ONCE_TYPE_ID, ANIM_IK_CHAIN_TYPE_ID] {
-            assert_eq!(pins(id), (vec![PIPE_IN_PIN.to_string()], vec![POSE_PIN.to_string()]));
+            assert_eq!(
+                pins(id),
+                (vec![PIPE_IN_PIN.to_string()], vec![POSE_PIN.to_string()])
+            );
         }
-        assert_eq!(pins(ANIM_PIPE_OUTPUT_TYPE_ID), (vec![PIPE_IN_PIN.to_string()], vec![]));
+        assert_eq!(
+            pins(ANIM_PIPE_OUTPUT_TYPE_ID),
+            (vec![PIPE_IN_PIN.to_string()], vec![])
+        );
     }
 
     /// A fresh document validates clean against the library — its one
@@ -471,14 +490,22 @@ mod tests {
         assert!(!needs_pipeline_root(&doc));
         assert!(!upgrade_pipeline_root(&mut doc), "nothing to upgrade");
         assert_eq!(doc.version, node_graph_types::GRAPH_DOC_VERSION);
-        let sm = doc.nodes.iter().find(|n| n.type_id == ANIM_PIPE_MACHINE_TYPE_ID).unwrap();
-        let out = doc.nodes.iter().find(|n| n.type_id == ANIM_PIPE_OUTPUT_TYPE_ID).unwrap();
+        let sm = doc
+            .nodes
+            .iter()
+            .find(|n| n.type_id == ANIM_PIPE_MACHINE_TYPE_ID)
+            .unwrap();
+        let out = doc
+            .nodes
+            .iter()
+            .find(|n| n.type_id == ANIM_PIPE_OUTPUT_TYPE_ID)
+            .unwrap();
         assert_eq!(sm.position, [0.0, 0.0]);
         assert_eq!(out.position, [PIPELINE_ROW_STEP, 0.0]);
-        doc.node_mut(1)
-            .unwrap()
-            .properties
-            .insert(CLIP_PROP.to_string(), PropValue::Asset("anims/idle.anim".into()));
+        doc.node_mut(1).unwrap().properties.insert(
+            CLIP_PROP.to_string(),
+            PropValue::Asset("anims/idle.anim".into()),
+        );
         let compiled = compile_anim_graph(&doc).expect("the seeded document compiles");
         assert!(compiled.warnings.is_empty(), "{:?}", compiled.warnings);
         assert_eq!(compiled.plan.pipeline.root, PlanPose::Machine(0));

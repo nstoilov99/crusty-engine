@@ -148,7 +148,8 @@ mod tests {
         let graph = node_graph_types::load_graph(&created(AssetType::Graph)).expect("graph parses");
         assert!(graph.nodes.is_empty());
 
-        let anim = node_graph_types::load_graph(&created(AssetType::AnimGraph)).expect("animgraph parses");
+        let anim =
+            node_graph_types::load_graph(&created(AssetType::AnimGraph)).expect("animgraph parses");
         // ENTRY + Idle in the machine, SM → Output on the pipeline (41.7).
         assert_eq!(anim.nodes.len(), 4);
 

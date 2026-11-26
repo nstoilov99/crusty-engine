@@ -317,7 +317,9 @@ impl TextRenderer {
                 // luminance by averaging.
                 let bytes: Vec<u8> = image
                     .data
-                    .chunks_exact(3)
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
                     .map(|c| ((c[0] as u32 + c[1] as u32 + c[2] as u32) / 3) as u8)
                     .collect();
                 self.atlas

@@ -994,7 +994,9 @@ impl PlayOnceSlot {
         let n = plan.pipeline.slot_count(plan.slots.len());
         for k in 0..n {
             let i = plan.pipeline.slot_index(k);
-            let Some(slot) = plan.slots.get(i) else { continue };
+            let Some(slot) = plan.slots.get(i) else {
+                continue;
+            };
             if params.trigger_set(&slot.trigger) == Some(true) {
                 // Arming refused missing clips; a race just leaves the
                 // trigger buffered for the next tick.
@@ -1355,8 +1357,12 @@ fn slot_events<'a, F>(
     F: Fn(&PlanClip) -> Option<&'a RawAnimationClip>,
 {
     let Some(p) = &slot.playing else { return };
-    let Some(s) = plan.slots.get(p.slot) else { return };
-    let Some(clip) = clip_for(&s.clip) else { return };
+    let Some(s) = plan.slots.get(p.slot) else {
+        return;
+    };
+    let Some(clip) = clip_for(&s.clip) else {
+        return;
+    };
     for m in &clip.events {
         if p.prev <= m.time_seconds && m.time_seconds < p.time {
             let w = envelope(s, m.time_seconds, p.len) * scale;
@@ -1606,7 +1612,9 @@ impl PipelineState<'_> {
             } => {
                 self.eval(base, clip_for, pose, scratch, level);
                 let w = layer_weight(self.params, weight_param);
-                let Some(mask) = self.masks.get(node_id) else { return };
+                let Some(mask) = self.masks.get(node_id) else {
+                    return;
+                };
                 if w <= 0.0 {
                     return;
                 }
@@ -1663,13 +1671,8 @@ impl PipelineState<'_> {
         self.events(&self.plan.pipeline.root, 1.0, clip_for, out);
     }
 
-    fn events<'a, F>(
-        &self,
-        node: &PlanPose,
-        scale: f32,
-        clip_for: &F,
-        out: &mut Vec<AnimEventFire>,
-    ) where
+    fn events<'a, F>(&self, node: &PlanPose, scale: f32, clip_for: &F, out: &mut Vec<AnimEventFire>)
+    where
         F: Fn(&PlanClip) -> Option<&'a RawAnimationClip>,
     {
         if scale <= 0.0 {
@@ -1690,12 +1693,18 @@ impl PipelineState<'_> {
                 // A root clip loops on its raw clock, like a leaf clip state.
                 if let Some(clip) = clip_for(&rc.clip) {
                     for m in &clip.events {
-                        crossings(m.time_seconds, clip.duration_seconds, clock.prev, clock.time, || {
-                            out.push(AnimEventFire {
-                                name: m.name.clone(),
-                                weight: scale,
-                            })
-                        });
+                        crossings(
+                            m.time_seconds,
+                            clip.duration_seconds,
+                            clock.prev,
+                            clock.time,
+                            || {
+                                out.push(AnimEventFire {
+                                    name: m.name.clone(),
+                                    weight: scale,
+                                })
+                            },
+                        );
                     }
                 }
             }

@@ -815,7 +815,10 @@ fn pipeline_chip(state: &GraphEditorState, n: &NodeInst, tag: String) -> String 
                 Some(PropValue::Str(s)) => s.split(',').filter(|b| !b.trim().is_empty()).count(),
                 _ => 0,
             };
-            format!("{tag} \u{b7} {roots} ROOT{}", if roots == 1 { "" } else { "S" })
+            format!(
+                "{tag} \u{b7} {roots} ROOT{}",
+                if roots == 1 { "" } else { "S" }
+            )
         }
         _ => tag,
     }
@@ -1094,7 +1097,11 @@ pub(super) fn config_rows(
             out.push((
                 LAYER_WEIGHT_PARAM_PROP.to_string(),
                 "Weight".to_string(),
-                InlineKind::Choice { value, variants, ok },
+                InlineKind::Choice {
+                    value,
+                    variants,
+                    ok,
+                },
             ));
             let include_root = !matches!(
                 n.properties.get(LAYER_INCLUDE_ROOT_PROP),
@@ -1756,8 +1763,7 @@ fn build_geoms(
                         | crate::engine::animation::graph::plan::ANIM_STATE_ALIAS_TYPE_ID
                 );
             let anim_transition = state.is_machine_scope()
-                && n.type_id
-                    == crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
+                && n.type_id == crate::engine::animation::graph::plan::ANIM_TRANSITION_TYPE_ID;
             let (inputs, outputs) = if anim_state_unfold {
                 (Vec::new(), Vec::new())
             } else {
@@ -5316,7 +5322,11 @@ fn breadcrumb_band(ui: &mut Ui, state: &GraphEditorState) -> BreadcrumbClick {
             Pos2::new(x, ty),
             machine_text,
             font,
-            if hovered { st.palette.accent_active } else { st.palette.text },
+            if hovered {
+                st.palette.accent_active
+            } else {
+                st.palette.text
+            },
             None,
         );
         x += w;
@@ -13599,10 +13609,25 @@ fn content_bbox(state: &GraphEditorState, geoms: &[NodeGeom]) -> Option<(Vec2, V
         });
     };
     for g in state.doc.groups.iter().filter(|g| state.group_visible(g)) {
-        fold(g.rect[0], g.rect[1], g.rect[0] + g.rect[2], g.rect[1] + g.rect[3]);
+        fold(
+            g.rect[0],
+            g.rect[1],
+            g.rect[0] + g.rect[2],
+            g.rect[1] + g.rect[3],
+        );
     }
-    for c in state.doc.comments.iter().filter(|c| state.comment_visible(c)) {
-        fold(c.rect[0], c.rect[1], c.rect[0] + c.rect[2], c.rect[1] + c.rect[3]);
+    for c in state
+        .doc
+        .comments
+        .iter()
+        .filter(|c| state.comment_visible(c))
+    {
+        fold(
+            c.rect[0],
+            c.rect[1],
+            c.rect[0] + c.rect[2],
+            c.rect[1] + c.rect[3],
+        );
     }
     b
 }
@@ -13862,7 +13887,11 @@ fn error_chip(
     let resp = ui.interact(id, chip);
     // Warnings alone (Task 41.7 D6) turn the chip to the warning tone: the
     // count still cycles them, but nothing is refusing.
-    let tone = if errors.only_warnings() { status.warning } else { status.error };
+    let tone = if errors.only_warnings() {
+        status.warning
+    } else {
+        status.error
+    };
     {
         let mut p = ui.painter();
         // Count chips are filters: status tint fill, status border, a dot.

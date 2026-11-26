@@ -966,7 +966,6 @@ impl AnimGraphSystem {
                         warnings.extend(c.warnings.iter().map(|w| w.message.clone()));
                         Arc::new(c.plan)
                     });
-                drop(load);
                 for w in warnings {
                     eprintln!("animgraph '{graph}': warning: {w}");
                     #[cfg(feature = "graph-scripting")]
@@ -1099,7 +1098,11 @@ pub fn arm_masks(
     plan: &AnimGraphPlan,
     skeleton: &SkeletonInstance,
 ) -> Result<BTreeMap<u64, Vec<f32>>, String> {
-    fn walk<'p>(pose: &'p PlanPose, out: &mut Vec<(u64, &'p PlanMask, String)>, plan: &AnimGraphPlan) {
+    fn walk<'p>(
+        pose: &'p PlanPose,
+        out: &mut Vec<(u64, &'p PlanMask, String)>,
+        plan: &AnimGraphPlan,
+    ) {
         match pose {
             PlanPose::Machine(_) | PlanPose::Clip(_) => {}
             PlanPose::Layer {
@@ -1120,10 +1123,10 @@ pub fn arm_masks(
                 node_id,
             } => {
                 if let Some(m) = mask {
-                    let name = plan.slots.get(*slot).map_or_else(
-                        || format!("Slot {node_id}"),
-                        |s| s.name.clone(),
-                    );
+                    let name = plan
+                        .slots
+                        .get(*slot)
+                        .map_or_else(|| format!("Slot {node_id}"), |s| s.name.clone());
                     out.push((*node_id, m, format!("play-once slot '{name}' (#{node_id})")));
                 }
                 walk(input, out, plan);
@@ -1137,9 +1140,12 @@ pub fn arm_masks(
     for (node_id, mask, who) in masked {
         let mut roots = Vec::with_capacity(mask.roots.len());
         for r in &mask.roots {
-            roots.push(bones.iter().position(|b| b.name == *r).ok_or_else(|| {
-                format!("{who}: bone '{r}' is not in the skeleton")
-            })?);
+            roots.push(
+                bones
+                    .iter()
+                    .position(|b| b.name == *r)
+                    .ok_or_else(|| format!("{who}: bone '{r}' is not in the skeleton"))?,
+            );
         }
         let weights: Vec<f32> = (0..bones.len())
             .map(|i| {
@@ -1418,7 +1424,9 @@ fn apply_ik(rt: &mut AnimGraphRuntime, skeleton: &mut SkeletonInstance) {
     let n = rt.plan.pipeline.ik_count(rt.ik.len());
     for k in 0..n {
         let i = rt.plan.pipeline.ik_index(k);
-        let Some(chain) = rt.ik.get_mut(i) else { continue };
+        let Some(chain) = rt.ik.get_mut(i) else {
+            continue;
+        };
         let weight = params
             .get_float(&chain.weight_param)
             .unwrap_or(0.0)
@@ -1651,7 +1659,13 @@ impl System for AnimGraphSystem {
                         .get::<&crate::engine::ecs::components::Name>(entity)
                         .map(|n| n.0.clone())
                         .unwrap_or_else(|_| format!("{entity:?}"));
-                    sink_line(resources, &graph, &who, format!("will not animate — {why}"), true);
+                    sink_line(
+                        resources,
+                        &graph,
+                        &who,
+                        format!("will not animate — {why}"),
+                        true,
+                    );
                 }
             }
             let _ = world.insert_one(entity, runtime);

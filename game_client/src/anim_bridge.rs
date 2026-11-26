@@ -336,7 +336,9 @@ mod tests {
         let doc = loader
             .load_graph("graphs/character.animgraph")
             .expect("shipped graph loads");
-        let plan = compile_anim_graph(&doc).expect("shipped graph compiles").plan;
+        let plan = compile_anim_graph(&doc)
+            .expect("shipped graph compiles")
+            .plan;
 
         let ty_of = |slug: &str| {
             plan.parameters
@@ -368,7 +370,9 @@ mod tests {
         let loader = DiskAnimAssets {
             content_root: std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../content"),
         };
-        let doc = loader.load_graph("graphs/character.animgraph").expect("loads");
+        let doc = loader
+            .load_graph("graphs/character.animgraph")
+            .expect("loads");
         let plan = compile_anim_graph(&doc).expect("compiles").plan;
         let mut machine = AnimMachine::new(&plan);
         let mut params = AnimParams::from_decls(&plan.parameters);

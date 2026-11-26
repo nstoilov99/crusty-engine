@@ -942,8 +942,8 @@ fn spv_bytes_to_words(bytes: &[u8]) -> Vec<u32> {
         "SPIR-V byte length must be a multiple of 4"
     );
     let mut words = Vec::with_capacity(bytes.len() / 4);
-    for chunk in bytes.chunks_exact(4) {
-        words.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    for chunk in bytes.as_chunks::<4>().0 {
+        words.push(u32::from_le_bytes(*chunk));
     }
     words
 }

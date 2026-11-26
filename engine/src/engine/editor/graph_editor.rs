@@ -1713,7 +1713,12 @@ impl GraphDomain {
                         // too, so F8 can descend into the peek.
                         let region_node = anchor_rule_refusal(&message);
                         DomainReport {
-                            errors: vec![DomainError { node, region_node, message, warning: false }],
+                            errors: vec![DomainError {
+                                node,
+                                region_node,
+                                message,
+                                warning: false,
+                            }],
                             applied_order: None,
                         }
                     }
@@ -1740,7 +1745,12 @@ impl GraphDomain {
                     Err(message) => {
                         let node = anchor_rule_refusal(&message);
                         DomainReport {
-                            errors: vec![DomainError { node, region_node: None, message, warning: false }],
+                            errors: vec![DomainError {
+                                node,
+                                region_node: None,
+                                message,
+                                warning: false,
+                            }],
                             applied_order: None,
                         }
                     }
@@ -1788,7 +1798,9 @@ fn applied_order(
         }
     }
     for (k, i) in plan.pipeline.ik_order.iter().enumerate() {
-        let Some(c) = plan.ik_chains.get(*i) else { continue };
+        let Some(c) = plan.ik_chains.get(*i) else {
+            continue;
+        };
         let is_host = doc.node(c.node_id).is_some_and(|n| {
             n.type_id == ANIM_IK_CHAIN_TYPE_ID
                 && n.title
@@ -1927,7 +1939,10 @@ pub fn anchor_anim_refusal(doc: &GraphDoc, msg: &str) -> Option<u64> {
             .split("' (#")
             .nth(1)
             .and_then(|rest| rest.split(')').next()?.parse::<u64>().ok())
-            .filter(|id| doc.node(*id).is_some_and(|n| n.type_id == ANIM_PLAY_ONCE_TYPE_ID));
+            .filter(|id| {
+                doc.node(*id)
+                    .is_some_and(|n| n.type_id == ANIM_PLAY_ONCE_TYPE_ID)
+            });
         return tagged.or_else(|| named(ANIM_PLAY_ONCE_TYPE_ID, "Slot", name));
     }
     if let Some(id) = anchor_pipeline_refusal(doc, msg) {
@@ -1998,7 +2013,7 @@ fn anchor_pipeline_refusal(doc: &GraphDoc, msg: &str) -> Option<u64> {
     let named = |type_id: Option<&str>, name: &str| -> Option<u64> {
         doc.nodes
             .iter()
-            .filter(|n| type_id.map_or(true, |t| n.type_id == t))
+            .filter(|n| type_id.is_none_or(|t| n.type_id == t))
             .find(|n| display_name(n).as_deref() == Some(name))
             .map(|n| n.id)
     };
@@ -2505,7 +2520,11 @@ impl GraphEditorState {
     /// Visible wires with their document index (the index is what the wire
     /// geometry and the machine layout key on).
     pub fn visible_edges(&self) -> impl Iterator<Item = (usize, &Edge)> + '_ {
-        self.doc.edges.iter().enumerate().filter(move |(_, e)| self.edge_visible(e))
+        self.doc
+            .edges
+            .iter()
+            .enumerate()
+            .filter(move |(_, e)| self.edge_visible(e))
     }
 
     /// An annotation tagged `pipeline` belongs to the pipeline canvas; every
@@ -2535,8 +2554,12 @@ impl GraphEditorState {
     /// annotation not anchored to a dropped node (an unanchored note is a
     /// thought, not a family member — it comes along and gets retagged).
     pub fn scope_part(&self, frag: &GraphFragment) -> GraphFragment {
-        let nodes: Vec<NodeInst> =
-            frag.nodes.iter().filter(|n| self.node_visible(n)).cloned().collect();
+        let nodes: Vec<NodeInst> = frag
+            .nodes
+            .iter()
+            .filter(|n| self.node_visible(n))
+            .cloned()
+            .collect();
         let kept: BTreeSet<u64> = nodes.iter().map(|n| n.id).collect();
         GraphFragment {
             edges: frag
@@ -2548,7 +2571,7 @@ impl GraphEditorState {
             comments: frag
                 .comments
                 .iter()
-                .filter(|c| c.anchor.map_or(true, |a| kept.contains(&a)))
+                .filter(|c| c.anchor.is_none_or(|a| kept.contains(&a)))
                 .cloned()
                 .collect(),
             groups: frag.groups.clone(),
@@ -2603,7 +2626,9 @@ impl GraphEditorState {
     /// family when it is on the other one. Answers whether the scope moved —
     /// the caller's geometry is then a frame stale, so framing waits a draw.
     pub fn reveal(&mut self, id: u64, registry: &NodeRegistry) -> bool {
-        let Some(n) = self.doc.node(id) else { return false };
+        let Some(n) = self.doc.node(id) else {
+            return false;
+        };
         let scope = CanvasScope::of_type(&n.type_id);
         self.set_scope(scope, registry)
     }
@@ -2638,7 +2663,9 @@ impl GraphEditorState {
         if !self.is_pipeline_scope() {
             return None;
         }
-        let id = self.primary.or_else(|| self.selection.iter().copied().next())?;
+        let id = self
+            .primary
+            .or_else(|| self.selection.iter().copied().next())?;
         self.is_inline_machine(id).then_some(id)
     }
 
@@ -5687,7 +5714,12 @@ impl GraphEditorState {
             ANIM_STATE_TYPE_ID => &[GRAPH_PROP, SPACE_PROP],
             _ => return None,
         };
-        if self.doc.regions.get(&id).is_some_and(|r| !r.nodes.is_empty()) {
+        if self
+            .doc
+            .regions
+            .get(&id)
+            .is_some_and(|r| !r.nodes.is_empty())
+        {
             return None;
         }
         keys.iter().find_map(|key| match n.properties.get(*key) {
@@ -8920,7 +8952,11 @@ mod tests {
                 &format!("version: {}", doc.version),
                 1,
             );
-            assert_eq!(bytes(&doc), stamped, "adding `group` must not rewrite old files");
+            assert_eq!(
+                bytes(&doc),
+                stamped,
+                "adding `group` must not rewrite old files"
+            );
         }
 
         assert!(st.set_variable_group("score", Some("State".into()), &reg));
@@ -9929,7 +9965,10 @@ mod rule_scope_tests {
         let reg = NodeRegistry::new();
         assert!(!test_state("a.graph").at_machine_level());
         let mut st = machine(Some(speed_rule()));
-        assert!(!st.at_machine_level(), "the pipeline root routes like a script");
+        assert!(
+            !st.at_machine_level(),
+            "the pipeline root routes like a script"
+        );
         st.enter_machine_scope(&reg);
         assert!(st.at_machine_level());
         assert!(st.open_rule_scope(3, &reg));
@@ -10391,7 +10430,10 @@ mod scope_tests {
     /// The shipped demo, opened exactly as a tab opens it (migration and
     /// the pipeline-root upgrade included).
     fn demo() -> GraphEditorState {
-        let content = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("content");
+        let content = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("content");
         let key = "graphs/locomotion_demo.animgraph";
         GraphEditorState::open(&content.join(key), key, &anim_node_registry())
             .expect("the demo animgraph opens")
@@ -10419,7 +10461,10 @@ mod scope_tests {
         let st = demo();
         assert_eq!(st.scope, CanvasScope::Pipeline);
         assert!(st.is_pipeline_scope() && !st.is_machine_scope());
-        assert!(!st.at_machine_level(), "the root routes like a script graph");
+        assert!(
+            !st.at_machine_level(),
+            "the root routes like a script graph"
+        );
         let listing = st.palette_registry().unwrap();
         assert!(listing.get(ANIM_PIPE_OUTPUT_TYPE_ID).is_some());
         assert!(listing.get(ANIM_STATE_TYPE_ID).is_none());
@@ -10441,9 +10486,12 @@ mod scope_tests {
                 _ => [200.0, 0.0],
             };
         }
-        st.doc.edges = vec![
-            Edge { from_node: 0, from_pin: POSE_PIN.into(), to_node: 1, to_pin: PIPE_IN_PIN.into() },
-        ];
+        st.doc.edges = vec![Edge {
+            from_node: 0,
+            from_pin: POSE_PIN.into(),
+            to_node: 1,
+            to_pin: PIPE_IN_PIN.into(),
+        }];
         // A machine-family group around the machine nodes, untagged (= machine).
         st.doc.groups.push(GroupBox {
             rect: [-20.0, -20.0, 400.0, 140.0],
@@ -10462,7 +10510,10 @@ mod scope_tests {
         // group's coordinates; the machine group must not follow them.
         assert_eq!(st.scope, CanvasScope::Pipeline);
         st.auto_layout(&rects, LayoutSpacing::default(), &reg);
-        assert_eq!(st.doc.groups[0].rect, machine_rect, "hidden canvas group untouched");
+        assert_eq!(
+            st.doc.groups[0].rect, machine_rect,
+            "hidden canvas group untouched"
+        );
     }
 
     #[test]
@@ -10480,7 +10531,10 @@ mod scope_tests {
             "SM, Clip, Layer, the two IK chains and Output"
         );
         let pipeline_edges = st.visible_edges().count();
-        assert_eq!(pipeline_edges, 5, "SM > Layer < Clip; Layer > IK > IK > Output");
+        assert_eq!(
+            pipeline_edges, 5,
+            "SM > Layer < Clip; Layer > IK > IK > Output"
+        );
 
         assert!(st.enter_machine_scope(&reg));
         assert_eq!(count(&st, ANIM_ENTRY_TYPE_ID), 1);
@@ -10507,15 +10561,27 @@ mod scope_tests {
         let reg = NodeRegistry::new();
         let mut st = two_canvases();
         st.select_only(0);
-        let root_view = CanvasView { pan: Vec2::new(10.0, 20.0), zoom: 0.5 };
+        let root_view = CanvasView {
+            pan: Vec2::new(10.0, 20.0),
+            zoom: 0.5,
+        };
         st.view = root_view;
 
         assert!(st.enter_machine_scope(&reg));
         assert!(st.selection.is_empty() && st.primary.is_none());
-        assert!(st.frame_all_on_open, "a canvas never visited frames its content");
-        assert_eq!(st.view, root_view, "until the draw frames it, the view carries over");
+        assert!(
+            st.frame_all_on_open,
+            "a canvas never visited frames its content"
+        );
+        assert_eq!(
+            st.view, root_view,
+            "until the draw frames it, the view carries over"
+        );
         assert_eq!(st.pipeline_view(), root_view);
-        let machine_view = CanvasView { pan: Vec2::new(-5.0, 7.0), zoom: 2.0 };
+        let machine_view = CanvasView {
+            pan: Vec2::new(-5.0, 7.0),
+            zoom: 2.0,
+        };
         st.view = machine_view;
         st.select_only(3);
 
@@ -10524,7 +10590,10 @@ mod scope_tests {
         assert_eq!(st.view, root_view);
         assert_eq!(st.pipeline_view(), root_view);
         assert!(st.enter_machine_scope(&reg));
-        assert_eq!(st.view, machine_view, "the machine comes back where it was left");
+        assert_eq!(
+            st.view, machine_view,
+            "the machine comes back where it was left"
+        );
         assert_eq!(st.pipeline_view(), root_view);
         assert!(!st.enter_machine_scope(&reg), "already there");
     }
@@ -10538,7 +10607,10 @@ mod scope_tests {
         assert!(st.is_machine_scope());
         assert_eq!(st.selection.iter().copied().collect::<Vec<_>>(), vec![4]);
         assert!(st.leave_machine_scope(&reg));
-        assert!(st.rule_scope.is_none(), "leaving the machine settles the peek");
+        assert!(
+            st.rule_scope.is_none(),
+            "leaving the machine settles the peek"
+        );
     }
 
     #[test]
@@ -10555,8 +10627,14 @@ mod scope_tests {
         );
         assert!(!st.is_inline_machine(0));
         assert_eq!(st.machine_descend_target(), None);
-        assert_eq!(st.file_descend_target(0).as_deref(), Some("graphs/legs.animgraph"));
-        assert_eq!(st.descend_target().as_deref(), Some("graphs/legs.animgraph"));
+        assert_eq!(
+            st.file_descend_target(0).as_deref(),
+            Some("graphs/legs.animgraph")
+        );
+        assert_eq!(
+            st.descend_target().as_deref(),
+            Some("graphs/legs.animgraph")
+        );
     }
 
     #[test]
@@ -10564,16 +10642,25 @@ mod scope_tests {
         let reg = anim_node_registry();
         let mut st = two_canvases();
         let frag = GraphFragment {
-            nodes: vec![node(10, ANIM_IK_CHAIN_TYPE_ID), node(11, ANIM_STATE_TYPE_ID)],
+            nodes: vec![
+                node(10, ANIM_IK_CHAIN_TYPE_ID),
+                node(11, ANIM_STATE_TYPE_ID),
+            ],
             edges: Vec::new(),
-            comments: vec![CommentBox { family: None, ..CommentBox::default() }],
+            comments: vec![CommentBox {
+                family: None,
+                ..CommentBox::default()
+            }],
             groups: Vec::new(),
             regions: BTreeMap::new(),
         };
         st.paste_fragment(&frag, Some([300.0, 300.0]), &reg);
         assert_eq!(st.doc.nodes.len(), 5, "the state was dropped");
         assert_eq!(st.doc.nodes.last().unwrap().type_id, ANIM_IK_CHAIN_TYPE_ID);
-        assert!(st.toasts.iter().any(|t| t.text.contains("belongs to the other canvas")));
+        assert!(st
+            .toasts
+            .iter()
+            .any(|t| t.text.contains("belongs to the other canvas")));
         assert_eq!(
             st.doc.comments.last().unwrap().family.as_deref(),
             Some(FAMILY_PIPELINE),
@@ -10603,7 +10690,10 @@ mod scope_tests {
     fn annotations_follow_their_family_tag() {
         let reg = NodeRegistry::new();
         let mut st = two_canvases();
-        st.doc.comments.push(CommentBox { family: None, ..CommentBox::default() });
+        st.doc.comments.push(CommentBox {
+            family: None,
+            ..CommentBox::default()
+        });
         st.doc.groups.push(GroupBox {
             family: Some(FAMILY_PIPELINE.to_string()),
             ..GroupBox::default()
@@ -10631,7 +10721,10 @@ mod scope_tests {
         });
         assert_eq!(st.visible_nodes().count(), 2);
         assert!(st.comment_visible(&st.doc.comments[0]));
-        assert!(!st.set_scope(CanvasScope::Machine, &reg), "scopes are an animation thing");
+        assert!(
+            !st.set_scope(CanvasScope::Machine, &reg),
+            "scopes are an animation thing"
+        );
         assert!(!st.is_machine_scope());
     }
 }
@@ -10645,8 +10738,8 @@ mod pipeline_diagnostics_tests {
     use super::*;
     use crate::engine::animation::graph::plan::{
         ANIM_CLIP_TYPE_ID, ANIM_ENTRY_TYPE_ID, ANIM_IK_CHAIN_TYPE_ID, ANIM_PLAY_ONCE_TYPE_ID,
-        ANIM_STATE_TYPE_ID, CLIP_PROP, GRAPH_PROP, IK_BONES_PROP, IK_WEIGHT_PARAM_PROP,
-        POSE_PIN, SLOT_TRIGGER_PROP, STATE_IN_PIN, STATE_OUT_PIN,
+        ANIM_STATE_TYPE_ID, CLIP_PROP, GRAPH_PROP, IK_BONES_PROP, IK_WEIGHT_PARAM_PROP, POSE_PIN,
+        SLOT_TRIGGER_PROP, STATE_IN_PIN, STATE_OUT_PIN,
     };
     use crate::engine::animation::graph::{
         new_animgraph_doc, trigger_pin_type, ANIM_PIPE_LAYER_TYPE_ID, ANIM_PIPE_MACHINE_TYPE_ID,
@@ -10694,47 +10787,96 @@ mod pipeline_diagnostics_tests {
             node(8, ANIM_PIPE_MACHINE_TYPE_ID, Some("Nested")),
             node(9, ANIM_STATE_TYPE_ID, Some("Idle")),
         ];
-        doc.node_mut(8)
-            .unwrap()
-            .properties
-            .insert(GRAPH_PROP.into(), PropValue::Asset("graphs/child.animgraph".into()));
+        doc.node_mut(8).unwrap().properties.insert(
+            GRAPH_PROP.into(),
+            PropValue::Asset("graphs/child.animgraph".into()),
+        );
         let a = |msg: &str| anchor_anim_refusal(&doc, msg);
 
         // Kind word + display name: compile refusals and warnings.
-        assert_eq!(a("state machine 'Nested': nested graph 'graphs/child.animgraph' could not be loaded"), Some(8));
+        assert_eq!(
+            a("state machine 'Nested': nested graph 'graphs/child.animgraph' could not be loaded"),
+            Some(8)
+        );
         assert_eq!(a("state machine 'Nested' nests 'graphs/child.animgraph': its IK chain Foot apply after this document's own"), Some(8));
-        assert_eq!(a("state machine 'State Machine': input 'x' is not wired"), Some(0));
+        assert_eq!(
+            a("state machine 'State Machine': input 'x' is not wired"),
+            Some(0)
+        );
         assert_eq!(a("clip 'Clip 2' names no clip (property `clip`)"), Some(2));
-        assert_eq!(a("clip 'Clip 2' is not connected to Output Pose and is ignored"), Some(2));
-        assert_eq!(a("layer 'Upper' names no bones (property `bones`: comma-separated mask roots)"), Some(3));
+        assert_eq!(
+            a("clip 'Clip 2' is not connected to Output Pose and is ignored"),
+            Some(2)
+        );
+        assert_eq!(
+            a("layer 'Upper' names no bones (property `bones`: comma-separated mask roots)"),
+            Some(3)
+        );
         assert_eq!(a("layer 'Upper': parameter 'aim' is not declared"), Some(3));
         assert_eq!(a("layer 'Upper' feeds 2 nodes \u{2014} a pose can be wired to one input only (fan-out is not supported)"), Some(3));
         assert_eq!(a("IK chain 'Left Foot' names no bones (property `bones`: comma-separated bone names, root\u{2192}tip)"), Some(4));
         assert_eq!(a("IK chain 'IK 5': the two-bone solver takes exactly 3 bones (root, mid, tip), got 2"), Some(5));
         assert_eq!(a("Output Pose 'Output Pose' has no input 'pose'"), Some(1));
-        assert_eq!(a("play-once slot 'Cast' is not connected to Output Pose and is ignored"), Some(6), "first by name");
+        assert_eq!(
+            a("play-once slot 'Cast' is not connected to Output Pose and is ignored"),
+            Some(6),
+            "first by name"
+        );
 
         // Arm-time refusals (the runtime's / preview's exact text).
-        assert_eq!(a("IK chain 'Left Foot': bone 'mixamorig:LeftFoot' is not in the skeleton"), Some(4));
-        assert_eq!(a("IK chain 'Left Foot': pelvis bone 'Hips' is not in the skeleton"), Some(4));
-        assert_eq!(a("layer #3: bone 'mixamorig:Spine' is not in the skeleton"), Some(3));
-        assert_eq!(a("layer #2: bone 'x' is not in the skeleton"), None, "2 is a clip");
-        assert_eq!(a("play-once slot 'Cast' (#7): bone 'Hand' is not in the skeleton"), Some(7), "the #id beats the namesake");
+        assert_eq!(
+            a("IK chain 'Left Foot': bone 'mixamorig:LeftFoot' is not in the skeleton"),
+            Some(4)
+        );
+        assert_eq!(
+            a("IK chain 'Left Foot': pelvis bone 'Hips' is not in the skeleton"),
+            Some(4)
+        );
+        assert_eq!(
+            a("layer #3: bone 'mixamorig:Spine' is not in the skeleton"),
+            Some(3)
+        );
+        assert_eq!(
+            a("layer #2: bone 'x' is not in the skeleton"),
+            None,
+            "2 is a clip"
+        );
+        assert_eq!(
+            a("play-once slot 'Cast' (#7): bone 'Hand' is not in the skeleton"),
+            Some(7),
+            "the #id beats the namesake"
+        );
 
         // Quoted without a kind word.
         assert_eq!(a("the pipeline loops through 'Upper'"), Some(3));
-        assert_eq!(a("'Upper' must come before the first IK Chain \u{2014} IK works in model space"), Some(3));
+        assert_eq!(
+            a("'Upper' must come before the first IK Chain \u{2014} IK works in model space"),
+            Some(3)
+        );
         assert_eq!(a("the wire from 'Idle' into 'Clip 2' crosses from the state machine into the pipeline"), Some(2));
         assert_eq!(a("the wire from 'Upper' into 'Idle' crosses from the pipeline into the state machine"), Some(9));
-        assert_eq!(a("node 5 ('anim_ik_chain') is not a pipeline node"), Some(5));
-        assert_eq!(a("a pipeline wire names node 42, which does not exist"), None);
+        assert_eq!(
+            a("node 5 ('anim_ik_chain') is not a pipeline node"),
+            Some(5)
+        );
+        assert_eq!(
+            a("a pipeline wire names node 42, which does not exist"),
+            None
+        );
 
         // The wiring family: the one node it can mean.
         assert_eq!(a("the Output Pose node has nothing wired in"), Some(1));
-        assert_eq!(a("the inline State Machine node is not wired to Output Pose"), Some(0));
+        assert_eq!(
+            a("the inline State Machine node is not wired to Output Pose"),
+            Some(0)
+        );
         doc.nodes.push(node(10, ANIM_PIPE_OUTPUT_TYPE_ID, None));
         let a = |msg: &str| anchor_anim_refusal(&doc, msg);
-        assert_eq!(a("an animation graph has exactly one Output Pose node (found 2)"), None, "two: nothing to point at");
+        assert_eq!(
+            a("an animation graph has exactly one Output Pose node (found 2)"),
+            None,
+            "two: nothing to point at"
+        );
         assert_eq!(a("state machine 'Nobody': x"), None);
     }
 
@@ -10744,13 +10886,18 @@ mod pipeline_diagnostics_tests {
         let mut st = test_state("graphs/p5.animgraph");
         st.doc.realm = GraphRealm::Client;
         let mut cast = node(1, ANIM_PLAY_ONCE_TYPE_ID, Some("Cast"));
-        cast.properties.insert(CLIP_PROP.into(), PropValue::Asset("anims/cast.anim".into()));
-        cast.properties.insert(SLOT_TRIGGER_PROP.into(), PropValue::Str("attack".into()));
+        cast.properties
+            .insert(CLIP_PROP.into(), PropValue::Asset("anims/cast.anim".into()));
+        cast.properties
+            .insert(SLOT_TRIGGER_PROP.into(), PropValue::Str("attack".into()));
         let mut foot = node(2, ANIM_IK_CHAIN_TYPE_ID, Some("Foot"));
-        foot.properties.insert(IK_BONES_PROP.into(), PropValue::Str("a, b, c".into()));
-        foot.properties.insert(IK_WEIGHT_PARAM_PROP.into(), PropValue::Str("w".into()));
+        foot.properties
+            .insert(IK_BONES_PROP.into(), PropValue::Str("a, b, c".into()));
+        foot.properties
+            .insert(IK_WEIGHT_PARAM_PROP.into(), PropValue::Str("w".into()));
         let mut idle = node(6, ANIM_STATE_TYPE_ID, Some("Idle"));
-        idle.properties.insert(CLIP_PROP.into(), PropValue::Asset("anims/idle.anim".into()));
+        idle.properties
+            .insert(CLIP_PROP.into(), PropValue::Asset("anims/idle.anim".into()));
         st.doc.nodes = vec![
             node(0, ANIM_PIPE_MACHINE_TYPE_ID, None),
             cast,
@@ -10798,7 +10945,11 @@ mod pipeline_diagnostics_tests {
         let w = &st.domain_errors[0];
         assert!(w.warning);
         assert_eq!(w.node, Some(4), "anchored on the stray clip");
-        assert!(w.message.contains("is not connected to Output Pose"), "{}", w.message);
+        assert!(
+            w.message.contains("is not connected to Output Pose"),
+            "{}",
+            w.message
+        );
         assert_eq!(st.applied_order.get(&1), Some(&1), "the one slot is #1");
         assert_eq!(st.applied_order.get(&2), Some(&1), "the one chain is #1");
         assert_eq!(st.applied_order.len(), 2);
@@ -10814,17 +10965,26 @@ mod pipeline_diagnostics_tests {
         st.after_edit(&reg);
         assert_eq!(st.domain_errors.len(), 1);
         assert!(!st.domain_errors[0].warning);
-        assert_eq!(st.applied_order.len(), 2, "the last successful order survives a refusal");
+        assert_eq!(
+            st.applied_order.len(),
+            2,
+            "the last successful order survives a refusal"
+        );
 
         // Unwire the chain: it no longer takes part, so it loses its chip.
-        st.doc.node_mut(6).unwrap().properties.insert(
-            CLIP_PROP.into(),
-            PropValue::Asset("anims/idle.anim".into()),
-        );
+        st.doc
+            .node_mut(6)
+            .unwrap()
+            .properties
+            .insert(CLIP_PROP.into(), PropValue::Asset("anims/idle.anim".into()));
         st.doc.edges.retain(|e| e.to_node != 2 && e.from_node != 2);
         st.doc.edges.push(edge(1, POSE_PIN, 3, PIPE_IN_PIN));
         st.after_edit(&reg);
-        assert!(st.domain_errors.iter().all(|e| e.warning), "{:?}", st.domain_errors);
+        assert!(
+            st.domain_errors.iter().all(|e| e.warning),
+            "{:?}",
+            st.domain_errors
+        );
         assert_eq!(st.applied_order.get(&1), Some(&1));
         assert_eq!(st.applied_order.get(&2), None, "unreachable: no chip");
     }

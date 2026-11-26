@@ -173,7 +173,10 @@ impl Time {
         if editing {
             return 0.0;
         }
-        resources.get::<Time>().map(|t| t.scaled_delta()).unwrap_or(0.0)
+        resources
+            .get::<Time>()
+            .map(|t| t.scaled_delta())
+            .unwrap_or(0.0)
     }
 
     /// Advance time by one frame with the given raw delta.
