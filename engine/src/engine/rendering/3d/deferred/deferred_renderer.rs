@@ -15,11 +15,11 @@ use crate::engine::rendering::error::RenderError;
 use crate::engine::rendering::graph::RenderGraph;
 use crate::engine::rendering::pipeline_registry::PipelineRegistry;
 use crate::engine::rendering::render_target::RenderTarget;
-use crate::engine::rendering::rendering_3d::skinning::{InstanceData, SkinnedPaletteFrame};
 use crate::engine::rendering::rendering_3d::material::{
     create_default_texture, create_default_texture_with_format, PbrMaterial, DEFAULT_ALBEDO_RGBA,
     DEFAULT_AO_RGBA, DEFAULT_METALLIC_ROUGHNESS_RGBA, DEFAULT_NORMAL_RGBA,
 };
+use crate::engine::rendering::rendering_3d::skinning::{InstanceData, SkinnedPaletteFrame};
 use glam::{Mat4, Vec3, Vec4};
 use smallvec::smallvec;
 use std::collections::HashMap;
@@ -137,10 +137,7 @@ impl PassSkinBind {
             layout,
             [
                 vulkano::descriptor_set::WriteDescriptorSet::buffer(0, region.clone()),
-                vulkano::descriptor_set::WriteDescriptorSet::buffer(
-                    1,
-                    self.vp_ubos[slot].clone(),
-                ),
+                vulkano::descriptor_set::WriteDescriptorSet::buffer(1, self.vp_ubos[slot].clone()),
                 vulkano::descriptor_set::WriteDescriptorSet::buffer(2, instances.clone()),
             ],
             [],
@@ -608,13 +605,18 @@ impl DeferredRenderer {
             .get(crate::engine::rendering::pipeline_registry::PipelineId::Geometry)
             .layout()
             .clone();
-        let default_material =
-            PbrMaterial::builder(default_albedo, default_normal, default_mr, default_ao, mat_sampler)
-                .build(
-                    allocator.clone(),
-                    descriptor_set_allocator.clone(),
-                    geom_pipeline_layout,
-                )?;
+        let default_material = PbrMaterial::builder(
+            default_albedo,
+            default_normal,
+            default_mr,
+            default_ao,
+            mat_sampler,
+        )
+        .build(
+            allocator.clone(),
+            descriptor_set_allocator.clone(),
+            geom_pipeline_layout,
+        )?;
         let default_material_set = default_material.descriptor_set.clone();
 
         let skin_binds = SkinBindCache::new(&allocator)?;
@@ -912,7 +914,8 @@ impl DeferredRenderer {
             crate::profile_scope!("command_buffer_setup");
             let present = matches!(target, RenderTarget::Swapchain { .. });
             let target_image = target.image().clone();
-            let target_framebuffer = self.get_or_create_framebuffer(target_image.clone(), present)?;
+            let target_framebuffer =
+                self.get_or_create_framebuffer(target_image.clone(), present)?;
             let depth_framebuffer = if needs_depth_framebuffer {
                 Some(self.get_or_create_grid_framebuffer(target_image, present)?)
             } else {
@@ -1017,7 +1020,12 @@ impl DeferredRenderer {
                         ctx.mark_write(id);
                     }
                     ctx.mark_write(gbuffer_depth);
-                    this.record_geometry_pass(ctx.builder, mesh_data, geom_skin_set_ref, counters_ref)
+                    this.record_geometry_pass(
+                        ctx.builder,
+                        mesh_data,
+                        geom_skin_set_ref,
+                        counters_ref,
+                    )
                 },
             );
 

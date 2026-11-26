@@ -124,8 +124,17 @@ pub fn track_color(index: usize) -> Color {
 /// through `pin_color`, which needs a `PinType` and a registry to answer.
 const FLOAT_HUE: usize = 4;
 
-pub fn curve_editor_panel(ui: &mut Ui, tab_rect: Rect, ctx: CurveEditorPanelCtx) -> CurveEditorOutput {
-    let CurveEditorPanelCtx { state, selection_outline, focused, handle_shortcuts } = ctx;
+pub fn curve_editor_panel(
+    ui: &mut Ui,
+    tab_rect: Rect,
+    ctx: CurveEditorPanelCtx,
+) -> CurveEditorOutput {
+    let CurveEditorPanelCtx {
+        state,
+        selection_outline,
+        focused,
+        handle_shortcuts,
+    } = ctx;
     let mut out = CurveEditorOutput::default();
 
     // A release that landed while this tab was not being drawn (tab switch
@@ -139,7 +148,10 @@ pub fn curve_editor_panel(ui: &mut Ui, tab_rect: Rect, ctx: CurveEditorPanelCtx)
     }
 
     let panel_id = Id::new("engine_curve_editor").with(state.path.as_str());
-    let opts = UiOptions { padding: Vec2::ZERO, spacing: 0.0 };
+    let opts = UiOptions {
+        padding: Vec2::ZERO,
+        spacing: 0.0,
+    };
     ui.run_at(tab_rect, Direction::TopDown, panel_id, opts, |ui| {
         let s = (ui.style().metrics.row_height / 22.0).max(0.1);
 
@@ -158,8 +170,10 @@ pub fn curve_editor_panel(ui: &mut Ui, tab_rect: Rect, ctx: CurveEditorPanelCtx)
         );
         sidebar(ui, side, s, panel_id, state);
 
-        let plot_rect =
-            Rect::from_min_max(Pos2::new(side.max.x, bar.max.y), Pos2::new(tab_rect.max.x, foot.min.y));
+        let plot_rect = Rect::from_min_max(
+            Pos2::new(side.max.x, bar.max.y),
+            Pos2::new(tab_rect.max.x, foot.min.y),
+        );
         let menu_at = plot(ui, plot_rect, s, selection_outline, state);
         key_menu(ui, state, menu_at);
 
@@ -199,7 +213,11 @@ fn pill(
         rect,
         st.rounding.small,
         st.metrics.border,
-        if on { st.palette.accent_active } else { st.palette.stroke },
+        if on {
+            st.palette.accent_active
+        } else {
+            st.palette.stroke
+        },
     );
     let color = if on {
         st.palette.accent_active
@@ -224,7 +242,9 @@ fn pill_width(ui: &mut Ui, label: &str, mono: Option<&str>, st: &Style) -> f32 {
     let mut p = ui.painter();
     let mut w = p.measure_text(label, st.fonts.small, None).x;
     if let Some(m) = mono {
-        w += pad * 0.5 + p.measure_text_family(m, st.fonts.small, None, FontFamily::Mono).x;
+        w += pad * 0.5
+            + p.measure_text_family(m, st.fonts.small, None, FontFamily::Mono)
+                .x;
     }
     w + pad * 2.0
 }
@@ -275,7 +295,11 @@ fn toolbar(
             Pos2::new(x, ty),
             &state.path,
             st.fonts.small,
-            if state.dirty { st.palette.text } else { st.palette.text_secondary },
+            if state.dirty {
+                st.palette.text
+            } else {
+                st.palette.text_secondary
+            },
             None,
         );
         x += w.x + pad * 0.6;
@@ -318,21 +342,39 @@ fn toolbar(
     let t_label = format!("{SNAP_TIME:.1}s");
     let w = pill_width(ui, "Snap", Some(&t_label), &st);
     let r = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, bh));
-    if pill(ui, ("curve_snap", 0), r, "Snap", Some(&t_label), state.snap.time) {
+    if pill(
+        ui,
+        ("curve_snap", 0),
+        r,
+        "Snap",
+        Some(&t_label),
+        state.snap.time,
+    ) {
         state.snap.time = !state.snap.time;
     }
     x += w + pad * 0.5;
     let v_label = format!("{SNAP_VALUE:.2}");
     let w = pill_width(ui, "Snap", Some(&v_label), &st);
     let r = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, bh));
-    if pill(ui, ("curve_snap", 1), r, "Snap", Some(&v_label), state.snap.value) {
+    if pill(
+        ui,
+        ("curve_snap", 1),
+        r,
+        "Snap",
+        Some(&v_label),
+        state.snap.value,
+    ) {
         state.snap.value = !state.snap.value;
     }
     x += w + pad;
 
     // Right end: the readout, then Save. Laid out from the right edge so the
     // hint in the middle is the only thing that ever gets squeezed.
-    let readout = format!("t {:.2}  \u{b7}  loop {:.1}s", state.playhead, state.doc.duration());
+    let readout = format!(
+        "t {:.2}  \u{b7}  loop {:.1}s",
+        state.playhead,
+        state.doc.duration()
+    );
     let save = Rect::from_min_size(
         Pos2::new(rect.max.x - pad - save_w, rect.center().y - bh * 0.5),
         Vec2::new(save_w, bh),
@@ -369,7 +411,10 @@ fn toolbar(
         save,
         Direction::LeftToRight,
         Id::new("curve_toolbar_save"),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let b = Button::new("Save").exact_size(save.size());
             let b = if state.dirty { b.primary() } else { b };
@@ -465,7 +510,10 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
         Rect::from_min_max(rect.min + Vec2::splat(pad), rect.max - Vec2::splat(pad)),
         Direction::TopDown,
         panel_id.with("sidebar"),
-        UiOptions { padding: Vec2::ZERO, spacing: pad * 0.6 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: pad * 0.6,
+        },
         |ui| {
             let w = rect.width() - pad * 2.0;
             {
@@ -504,7 +552,10 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                                 row,
                                 Direction::LeftToRight,
                                 panel_id.with(("rename", i)),
-                                UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                                UiOptions {
+                                    padding: Vec2::ZERO,
+                                    spacing: 0.0,
+                                },
                                 |ui| {
                                     out = Some(
                                         TextEdit::new(&mut r.text)
@@ -571,8 +622,7 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                                 (
                                     {
                                         let mut p = ui.painter();
-                                        p.measure_text("Delete?", st.fonts.small, None).x
-                                            + pad
+                                        p.measure_text("Delete?", st.fonts.small, None).x + pad
                                     },
                                     row.height() * 0.72,
                                 )
@@ -624,13 +674,17 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                             rx -= dw + pad * 0.4;
                         }
 
-                        let lock_rect =
-                            Rect::from_center_size(Pos2::new(rx - ih * 0.5, row.center().y), Vec2::splat(ih));
+                        let lock_rect = Rect::from_center_size(
+                            Pos2::new(rx - ih * 0.5, row.center().y),
+                            Vec2::splat(ih),
+                        );
                         let lock_id = ui.alloc_id(("curve_track_lock", i));
                         let lr = ui.interact(lock_id, lock_rect);
                         rx -= ih + pad * 0.3;
-                        let eye_rect =
-                            Rect::from_center_size(Pos2::new(rx - ih * 0.5, row.center().y), Vec2::splat(ih));
+                        let eye_rect = Rect::from_center_size(
+                            Pos2::new(rx - ih * 0.5, row.center().y),
+                            Vec2::splat(ih),
+                        );
                         let eye_id = ui.alloc_id(("curve_track_eye", i));
                         let er = ui.interact(eye_id, eye_rect);
                         rx -= ih + pad * 0.5;
@@ -676,13 +730,22 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                             // track and how long it runs, without opening it.
                             let counts = format!("{keys}k \u{b7} {dur:.1}s");
                             let cw = p
-                                .measure_text_family(&counts, st.fonts.small, None, FontFamily::Mono)
+                                .measure_text_family(
+                                    &counts,
+                                    st.fonts.small,
+                                    None,
+                                    FontFamily::Mono,
+                                )
                                 .x;
                             p.text_family(
                                 Pos2::new(rx - cw, row.center().y - st.fonts.small * 0.62),
                                 &counts,
                                 st.fonts.small,
-                                if sel { st.palette.text_mono } else { st.palette.text_disabled },
+                                if sel {
+                                    st.palette.text_mono
+                                } else {
+                                    st.palette.text_disabled
+                                },
                                 None,
                                 FontFamily::Mono,
                             );
@@ -727,7 +790,10 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
             // grow it is chrome. Submitting the field adds too, so the
             // keyboard path never needs the mouse.
             let row = Rect::from_min_size(
-                Pos2::new(rect.min.x + pad, rect.max.y - pad - st.metrics.control_height),
+                Pos2::new(
+                    rect.min.x + pad,
+                    rect.max.y - pad - st.metrics.control_height,
+                ),
                 Vec2::new(w, st.metrics.control_height),
             );
             {
@@ -752,7 +818,11 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                     Pos2::new(row.min.x + pad * 0.5, row.center().y - st.fonts.body * 0.62),
                     "+ Track",
                     st.fonts.body,
-                    if resp.hovered { st.palette.text } else { st.palette.text_secondary },
+                    if resp.hovered {
+                        st.palette.text
+                    } else {
+                        st.palette.text_secondary
+                    },
                     None,
                 );
                 if resp.clicked {
@@ -766,7 +836,10 @@ fn sidebar(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEdito
                     row,
                     Direction::LeftToRight,
                     panel_id.with("add_row"),
-                    UiOptions { padding: Vec2::ZERO, spacing: pad * 0.5 },
+                    UiOptions {
+                        padding: Vec2::ZERO,
+                        spacing: pad * 0.5,
+                    },
                     |ui| {
                         // Focus is asked for while the field is still empty —
                         // the first frame after the action was clicked.
@@ -885,7 +958,11 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
             Pos2::new(x, ty),
             &count,
             st.fonts.small,
-            if f.count > 0 { st.palette.text_mono } else { st.palette.text_disabled },
+            if f.count > 0 {
+                st.palette.text_mono
+            } else {
+                st.palette.text_disabled
+            },
             None,
             FontFamily::Mono,
         );
@@ -899,7 +976,11 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
     // would fight the caret.
     let field_w = 68.0 * s;
     for (which, value) in [(FooterField::Time, f.t), (FooterField::Value, f.value)] {
-        let label = if which == FooterField::Time { "t" } else { "value" };
+        let label = if which == FooterField::Time {
+            "t"
+        } else {
+            "value"
+        };
         let lw = {
             let mut p = ui.painter();
             let w = p.measure_text(label, st.fonts.small, None).x;
@@ -907,7 +988,11 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
                 Pos2::new(x, ty),
                 label,
                 st.fonts.small,
-                if f.count > 0 { st.palette.text_secondary } else { st.palette.text_disabled },
+                if f.count > 0 {
+                    st.palette.text_secondary
+                } else {
+                    st.palette.text_disabled
+                },
                 None,
             );
             w
@@ -926,14 +1011,22 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
             // nothing for a typed number to land on.
             let mut p = ui.painter();
             p.rect_filled(r, st.rounding.small, st.palette.input);
-            p.rect_stroke(r, st.rounding.small, st.metrics.border, st.palette.stroke.with_alpha(0.5));
+            p.rect_stroke(
+                r,
+                st.rounding.small,
+                st.metrics.border,
+                st.palette.stroke.with_alpha(0.5),
+            );
         } else {
             let mut out = None;
             ui.run_at(
                 r,
                 Direction::LeftToRight,
                 panel_id.with(("footer_field", label)),
-                UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                UiOptions {
+                    padding: Vec2::ZERO,
+                    spacing: 0.0,
+                },
                 |ui| {
                     let buf = match which {
                         FooterField::Time => &mut state.field_t,
@@ -985,7 +1078,9 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
             rect: Rect::from_min_size(Pos2::new(x, y), Vec2::new(seg_w, h)),
             text_y: ty,
             labels: &interp_labels,
-            active: f.interp.map(|i| Interp::ALL.iter().position(|a| *a == i).unwrap_or(0)),
+            active: f
+                .interp
+                .map(|i| Interp::ALL.iter().position(|a| *a == i).unwrap_or(0)),
             enabled: f.count > 0,
         },
     )
@@ -1025,7 +1120,9 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, panel_id: Id, state: &mut CurveEditor
     if f.tangent_mixed() && f.tangent_enabled {
         // Mixed is a *state*, so it gets a word, not an unexplained dark
         // control: the segments stay unlit and this says why.
-        let w = p.measure_text_family("mixed", st.fonts.small, None, FontFamily::Mono).x;
+        let w = p
+            .measure_text_family("mixed", st.fonts.small, None, FontFamily::Mono)
+            .x;
         p.text_family(
             Pos2::new(x, ty),
             "mixed",
@@ -1067,7 +1164,14 @@ struct SegGroup<'a> {
 /// A labelled segmented control. Returns the x cursor after it and the segment
 /// that was clicked.
 fn segmented_group(ui: &mut Ui, st: &Style, g: SegGroup) -> Option<(f32, Option<usize>)> {
-    let SegGroup { label, rect, text_y, labels, active, enabled } = g;
+    let SegGroup {
+        label,
+        rect,
+        text_y,
+        labels,
+        active,
+        enabled,
+    } = g;
     let pad = st.spacing.padding;
     let lw = {
         let mut p = ui.painter();
@@ -1076,7 +1180,11 @@ fn segmented_group(ui: &mut Ui, st: &Style, g: SegGroup) -> Option<(f32, Option<
             Pos2::new(rect.min.x, text_y),
             label,
             st.fonts.small,
-            if enabled { st.palette.text_secondary } else { st.palette.text_disabled },
+            if enabled {
+                st.palette.text_secondary
+            } else {
+                st.palette.text_disabled
+            },
             None,
         );
         w
@@ -1119,7 +1227,10 @@ fn plot(
         rect,
         Direction::TopDown,
         Id::new("curve_plot").with(state.path.as_str()),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let out = Canvas::new()
                 .size(rect.size())
@@ -1169,9 +1280,19 @@ const ZOOM_MAX: f32 = 12.0;
 /// middle.
 pub fn fit_view(state: &CurveEditorState, size: Vec2) -> (crusty_gui::widgets::CanvasView, f32) {
     let tracks: Vec<&Track> = if state.frame_track_only {
-        state.doc.tracks.get(state.selected_track).into_iter().collect()
+        state
+            .doc
+            .tracks
+            .get(state.selected_track)
+            .into_iter()
+            .collect()
     } else {
-        state.doc.tracks.iter().filter(|t| !t.keys.is_empty()).collect()
+        state
+            .doc
+            .tracks
+            .iter()
+            .filter(|t| !t.keys.is_empty())
+            .collect()
     };
     let mut t_max = tracks.iter().map(|t| t.duration()).fold(0.0, f32::max);
     let (mut v_min, mut v_max) = (0.0_f32, 0.0_f32);
@@ -1191,8 +1312,7 @@ pub fn fit_view(state: &CurveEditorState, size: Vec2) -> (crusty_gui::widgets::C
     // Time decides the zoom (it is the axis whose unit is fixed and shared
     // with the runtime); the value scale then fills the height that is left.
     let zoom = (size.x * 0.88 / w).clamp(ZOOM_MIN, 4.0);
-    let value_px =
-        (size.y * 0.80 / (zoom * (v_max - v_min))).clamp(VALUE_PX_MIN, VALUE_PX_MAX);
+    let value_px = (size.y * 0.80 / (zoom * (v_max - v_min))).clamp(VALUE_PX_MIN, VALUE_PX_MAX);
     // Centre the content box in the viewport: pan is the world point at the
     // canvas's top-left corner.
     let cx = w * 0.5;
@@ -1259,7 +1379,11 @@ fn draw_axes(ui: &mut Ui, scope: &CanvasScope, vpu: f32, s: f32, st: &Style) {
             Pos2::new(x, r.min.y),
             Pos2::new(x, r.max.y),
             st.metrics.border,
-            if zero { grid_major(plot_bg, false) } else { grid_minor(plot_bg) },
+            if zero {
+                grid_major(plot_bg, false)
+            } else {
+                grid_minor(plot_bg)
+            },
         );
         let label = format!("{t:.*}s", decimals(t_step));
         p.text_family(
@@ -1286,7 +1410,11 @@ fn draw_axes(ui: &mut Ui, scope: &CanvasScope, vpu: f32, s: f32, st: &Style) {
             Pos2::new(r.min.x, y),
             Pos2::new(r.max.x, y),
             st.metrics.border,
-            if zero { grid_major(plot_bg, false) } else { grid_minor(plot_bg) },
+            if zero {
+                grid_major(plot_bg, false)
+            } else {
+                grid_minor(plot_bg)
+            },
         );
         let label = format!("{v:.*}", decimals(v_step));
         p.text_family(
@@ -1314,7 +1442,13 @@ fn decimals(step: f32) -> usize {
 /// The loop extent: the document's own duration, washed along the axis strip
 /// and dropped as a dashed line. What a Timeline set to Loop actually replays,
 /// stated once and not repeated per track.
-fn draw_loop_extent(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &CurveEditorState, st: &Style) {
+fn draw_loop_extent(
+    ui: &mut Ui,
+    scope: &CanvasScope,
+    s: f32,
+    state: &CurveEditorState,
+    st: &Style,
+) {
     let vpu = state.value_px;
     let dur = state.doc.duration();
     if dur <= 0.0 {
@@ -1371,10 +1505,18 @@ fn dashed_v_line(p: &mut Painter, x: f32, y0: f32, y1: f32, w: f32, color: Color
 
 /// While a gesture is snapping, the grid line it is snapping to lights up —
 /// the feedback that tells you snapping is on *without* reading the toolbar.
-fn draw_snap_guides(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &CurveEditorState, st: &Style) {
+fn draw_snap_guides(
+    ui: &mut Ui,
+    scope: &CanvasScope,
+    s: f32,
+    state: &CurveEditorState,
+    st: &Style,
+) {
     let vpu = state.value_px;
     let Some(d) = state.drag.as_ref() else { return };
-    let snap = state.snap.effective(ui.ctx().input.modifiers.contains(Modifiers::CTRL));
+    let snap = state
+        .snap
+        .effective(ui.ctx().input.modifiers.contains(Modifiers::CTRL));
     if !snap.time && !snap.value {
         return;
     }
@@ -1392,23 +1534,41 @@ fn draw_snap_guides(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &CurveEdito
     let mut p = ui.painter();
     let color = st.palette.accent_active.with_alpha(0.7);
     if snap.time {
-        p.line_segment(Pos2::new(c.x, r.min.y), Pos2::new(c.x, r.max.y), st.metrics.border, color);
+        p.line_segment(
+            Pos2::new(c.x, r.min.y),
+            Pos2::new(c.x, r.max.y),
+            st.metrics.border,
+            color,
+        );
     }
     if snap.value {
-        p.line_segment(Pos2::new(r.min.x, c.y), Pos2::new(r.max.x, c.y), st.metrics.border, color);
+        p.line_segment(
+            Pos2::new(r.min.x, c.y),
+            Pos2::new(r.max.x, c.y),
+            st.metrics.border,
+            color,
+        );
     }
     // Committed numbers, at the cursor: the chip says what the release will
     // write, not where the pointer happens to be.
     let chip = format!("{:.3} \u{b7} {:.2}", key.t, key.value);
     let pad = st.spacing.padding;
-    let w = p.measure_text_family(&chip, st.fonts.small, None, FontFamily::Mono).x + pad;
+    let w = p
+        .measure_text_family(&chip, st.fonts.small, None, FontFamily::Mono)
+        .x
+        + pad;
     let h = st.fonts.small * 1.7;
     let cr = Rect::from_min_size(
         Pos2::new(c.x + KEY_HIT * s, c.y - h - KEY_HIT * s),
         Vec2::new(w, h),
     );
     p.rect_filled(cr, st.rounding.small, st.palette.elevated);
-    p.rect_stroke(cr, st.rounding.small, st.metrics.border, st.palette.stroke_strong);
+    p.rect_stroke(
+        cr,
+        st.rounding.small,
+        st.metrics.border,
+        st.palette.stroke_strong,
+    );
     p.text_family(
         Pos2::new(cr.min.x + pad * 0.5, cr.center().y - st.fonts.small * 0.62),
         &chip,
@@ -1436,7 +1596,14 @@ fn arm_dir(scope: &CanvasScope, vpu: f32, track: &Track, i: usize, side: ArmSide
 }
 
 /// Where an arm's handle sits, in screen pixels.
-fn arm_handle(scope: &CanvasScope, vpu: f32, track: &Track, i: usize, side: ArmSide, s: f32) -> Option<Pos2> {
+fn arm_handle(
+    scope: &CanvasScope,
+    vpu: f32,
+    track: &Track,
+    i: usize,
+    side: ArmSide,
+    s: f32,
+) -> Option<Pos2> {
     let key = track.keys.get(i)?;
     let c = to_screen(scope, vpu, key.t, key.value);
     let d = arm_dir(scope, vpu, track, i, side);
@@ -1477,7 +1644,9 @@ fn draw_tracks(
         .collect();
 
     for i in order {
-        let Some(track) = state.doc.tracks.get(i) else { continue };
+        let Some(track) = state.doc.tracks.get(i) else {
+            continue;
+        };
         if state.is_hidden(i) {
             continue;
         }
@@ -1517,7 +1686,9 @@ fn draw_tracks(
                     if !arm_live(track, k, side) {
                         continue;
                     }
-                    let Some(h) = arm_handle(scope, vpu, track, k, side, s) else { continue };
+                    let Some(h) = arm_handle(scope, vpu, track, k, side, s) else {
+                        continue;
+                    };
                     // A derived mode (Auto/Flat/Linear) still shows where its
                     // slope points — as a *ghost*, which is both an honest
                     // readout and the affordance that makes "drag to shape it"
@@ -1530,8 +1701,11 @@ fn draw_tracks(
                     if ghost && state.selection.len() > 1 {
                         continue;
                     }
-                    let col =
-                        if ghost { selection.with_alpha(GHOST_ARM_ALPHA) } else { selection };
+                    let col = if ghost {
+                        selection.with_alpha(GHOST_ARM_ALPHA)
+                    } else {
+                        selection
+                    };
                     let mut p = ui.painter();
                     // Thicker than a border: an arm lies *along* the curve it
                     // shapes, so at hairline width it disappears under the
@@ -1574,7 +1748,11 @@ fn draw_tracks(
                     if selected {
                         p.polygon_stroke(&diamond(c, key_r * 1.25 + 3.4 * s), 1.6 * s, selection);
                     } else {
-                        p.polygon_stroke(&diamond(c, key_r * 1.25), st.metrics.border, st.palette.window);
+                        p.polygon_stroke(
+                            &diamond(c, key_r * 1.25),
+                            st.metrics.border,
+                            st.palette.window,
+                        );
                     }
                 }
             }
@@ -1611,12 +1789,19 @@ fn sample_polyline(track: &Track, scope: &CanvasScope, vpu: f32, t0: f32, t1: f3
     // diagonal across one sample step, so the pair (just-before, exactly-on)
     // is what makes a hold read as a hold.
     let eps = (t1 - t0) * 1.0e-4;
-    for k in track.keys.iter().map(|k| k.t).filter(|k| *k >= t0 && *k <= t1) {
+    for k in track
+        .keys
+        .iter()
+        .map(|k| k.t)
+        .filter(|k| *k >= t0 && *k <= t1)
+    {
         ts.push((k - eps).max(t0));
         ts.push(k);
     }
     ts.sort_by(f32::total_cmp);
-    ts.iter().map(|t| to_screen(scope, vpu, *t, track.sample(*t))).collect()
+    ts.iter()
+        .map(|t| to_screen(scope, vpu, *t, track.sample(*t)))
+        .collect()
 }
 
 fn draw_marquee(ui: &mut Ui, scope: &CanvasScope, state: &CurveEditorState, st: &Style) {
@@ -1639,7 +1824,12 @@ fn draw_marquee(ui: &mut Ui, scope: &CanvasScope, state: &CurveEditorState, st: 
         Rounding::ZERO,
         st.palette.accent_active.with_alpha(MARQUEE_FILL_ALPHA),
     );
-    p.rect_stroke(r, Rounding::ZERO, st.metrics.border, st.palette.accent_active);
+    p.rect_stroke(
+        r,
+        Rounding::ZERO,
+        st.metrics.border,
+        st.palette.accent_active,
+    );
 }
 
 /// The playhead: a draggable accent cursor, its time, and what every visible
@@ -1671,7 +1861,10 @@ fn draw_playhead(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &CurveEditorSt
     let h = st.fonts.small * 1.9;
     let mut y = r.min.y + strip_h + 5.0 * s;
     let mut chip = |p: &mut Painter, text: &str, edge: Option<Color>, fg: Color| {
-        let w = p.measure_text_family(text, st.fonts.small, None, FontFamily::Mono).x + pad;
+        let w = p
+            .measure_text_family(text, st.fonts.small, None, FontFamily::Mono)
+            .x
+            + pad;
         // Flip to the left of the cursor when the right side runs out — a
         // readout you cannot read is not a readout.
         let left = x + 10.0 * s + w > r.max.x;
@@ -1711,13 +1904,23 @@ fn draw_playhead(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &CurveEditorSt
     let time = format!("{:.2}", state.playhead);
     chip(&mut p, &time, None, st.palette.accent_active);
     for (i, v) in state.playhead_readouts() {
-        chip(&mut p, &format!("{v:.2}"), Some(track_color(i)), st.palette.text_mono);
+        chip(
+            &mut p,
+            &format!("{v:.2}"),
+            Some(track_color(i)),
+            st.palette.text_mono,
+        );
     }
 }
 
 /// Everything the pointer does inside the plot. Returns the position at which
 /// the key menu should open, if this frame's right-click asked for one.
-fn interact(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &mut CurveEditorState) -> Option<Pos2> {
+fn interact(
+    ui: &mut Ui,
+    scope: &CanvasScope,
+    s: f32,
+    state: &mut CurveEditorState,
+) -> Option<Pos2> {
     let vpu = state.value_px;
     let hit_r = KEY_HIT * s;
     let r = scope.rect();
@@ -1742,7 +1945,12 @@ fn interact(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &mut CurveEditorSta
     if state.arm.is_some() {
         if let Some(p) = pointer {
             let a = state.arm.expect("arm");
-            if let Some(key) = state.doc.tracks.get(a.track).and_then(|t| t.keys.get(a.index)) {
+            if let Some(key) = state
+                .doc
+                .tracks
+                .get(a.track)
+                .and_then(|t| t.keys.get(a.index))
+            {
                 let (t, v) = to_curve(scope, vpu, p);
                 let dt = t - key.t;
                 // Value-per-second, the schema's unit. Close to vertical the
@@ -1834,12 +2042,14 @@ fn interact(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &mut CurveEditorSta
             .iter()
             .filter_map(|k| track.keys.get(*k).map(|_| *k))
             .flat_map(|k| {
-                [ArmSide::In, ArmSide::Out].into_iter().filter_map(move |side| {
-                    arm_live(track, k, side)
-                        .then(|| arm_handle(scope, vpu, track, k, side, s))
-                        .flatten()
-                        .map(|h| (k, side, Rect::from_center_size(h, Vec2::splat(hit_r * 1.6))))
-                })
+                [ArmSide::In, ArmSide::Out]
+                    .into_iter()
+                    .filter_map(move |side| {
+                        arm_live(track, k, side)
+                            .then(|| arm_handle(scope, vpu, track, k, side, s))
+                            .flatten()
+                            .map(|h| (k, side, Rect::from_center_size(h, Vec2::splat(hit_r * 1.6))))
+                    })
             })
             .collect();
         for (k, side, b) in arms {
@@ -1885,7 +2095,10 @@ fn interact(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &mut CurveEditorSta
             key.interp.label(),
             key.tangent.label()
         );
-        let anchor = Rect::from_center_size(to_screen(scope, vpu, key.t, key.value), Vec2::splat(hit_r * 2.0));
+        let anchor = Rect::from_center_size(
+            to_screen(scope, vpu, key.t, key.value),
+            Vec2::splat(hit_r * 2.0),
+        );
         show_tooltip_for(ui, anchor, &text);
     }
 
@@ -1912,8 +2125,16 @@ fn interact(ui: &mut Ui, scope: &CanvasScope, s: f32, state: &mut CurveEditorSta
         if let Some(p) = pointer {
             let (t, v) = to_curve(scope, vpu, p);
             let (t, v) = (
-                if snap.time { super::curve_editor::snap_to(t, SNAP_TIME) } else { t },
-                if snap.value { super::curve_editor::snap_to(v, SNAP_VALUE) } else { v },
+                if snap.time {
+                    super::curve_editor::snap_to(t, SNAP_TIME)
+                } else {
+                    t
+                },
+                if snap.value {
+                    super::curve_editor::snap_to(v, SNAP_VALUE)
+                } else {
+                    v
+                },
             );
             state.add_key(ti, t, v);
         }
@@ -1956,9 +2177,7 @@ fn track_under(scope: &CanvasScope, s: f32, state: &CurveEditorState, p: Pos2) -
         .tracks
         .iter()
         .enumerate()
-        .filter(|(i, tr)| {
-            *i != state.selected_track && !tr.keys.is_empty() && !state.is_hidden(*i)
-        })
+        .filter(|(i, tr)| *i != state.selected_track && !tr.keys.is_empty() && !state.is_hidden(*i))
         .map(|(i, tr)| (i, (to_screen(scope, vpu, t, tr.sample(t)).y - p.y).abs()))
         .filter(|(_, d)| *d <= grab)
         .min_by(|a, b| a.1.total_cmp(&b.1))
@@ -2050,7 +2269,10 @@ fn key_menu(ui: &mut Ui, state: &mut CurveEditorState, open_at: Option<Pos2>) {
 /// it gets said.
 fn plot_hint(ui: &mut Ui, rect: Rect, state: &CurveEditorState, st: &Style) {
     let (head, sub) = if state.doc.tracks.is_empty() {
-        ("No tracks yet".to_string(), "Add one in the sidebar to start a curve".to_string())
+        (
+            "No tracks yet".to_string(),
+            "Add one in the sidebar to start a curve".to_string(),
+        )
     } else {
         match state.doc.tracks.get(state.selected_track) {
             Some(t) if t.keys.is_empty() => (
@@ -2063,7 +2285,10 @@ fn plot_hint(ui: &mut Ui, rect: Rect, state: &CurveEditorState, st: &Style) {
     let mut p = ui.painter();
     let w = p.measure_text(&head, st.fonts.body, None).x;
     p.text(
-        Pos2::new(rect.center().x - w * 0.5, rect.center().y - st.fonts.body * 1.4),
+        Pos2::new(
+            rect.center().x - w * 0.5,
+            rect.center().y - st.fonts.body * 1.4,
+        ),
         &head,
         st.fonts.body,
         st.palette.text_secondary,
@@ -2110,7 +2335,11 @@ fn draw_toast(ui: &mut Ui, rect: Rect, state: &mut CurveEditorState) {
         Pos2::new(rect.center().x - w * 0.5, rect.max.y - pad - h),
         Vec2::new(w, h),
     );
-    p.rect_filled(chip, st.rounding.small, st.palette.elevated.with_alpha(alpha));
+    p.rect_filled(
+        chip,
+        st.rounding.small,
+        st.palette.elevated.with_alpha(alpha),
+    );
     p.rect_stroke(
         chip,
         st.rounding.small,
@@ -2137,9 +2366,7 @@ pub fn numeric_shortcut(key: char, f: &FooterState) -> Option<CurveShortcut> {
     if f.count == 0 {
         return None;
     }
-    let tangent = |m: TangentMode| {
-        f.tangent_enabled.then_some(CurveShortcut::Tangent(m))
-    };
+    let tangent = |m: TangentMode| f.tangent_enabled.then_some(CurveShortcut::Tangent(m));
     match key {
         '1' => Some(CurveShortcut::Interp(Interp::Constant)),
         '2' => Some(CurveShortcut::Interp(Interp::Linear)),
@@ -2223,8 +2450,18 @@ mod tests {
         let mut d = CurveDoc::default();
         let mut t = Track::new("h", "H");
         t.keys = vec![
-            Key { t: 0.0, value: -1.0, interp: Interp::Linear, tangent: Tangent::Auto },
-            Key { t: 2.0, value: 3.0, interp: Interp::Linear, tangent: Tangent::Auto },
+            Key {
+                t: 0.0,
+                value: -1.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 2.0,
+                value: 3.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
         ];
         d.tracks = vec![t];
         d
@@ -2262,7 +2499,11 @@ mod tests {
         for k in st.doc.tracks[0].keys.iter() {
             let (x, y) = (k.t * PX_PER_SECOND, -k.value * vpu);
             assert!(x >= scope_min.x && x <= scope_max.x, "t {} off screen", k.t);
-            assert!(y >= scope_min.y && y <= scope_max.y, "v {} off screen", k.value);
+            assert!(
+                y >= scope_min.y && y <= scope_max.y,
+                "v {} off screen",
+                k.value
+            );
         }
         assert!(view.zoom <= 4.0 + 1e-4);
 
@@ -2271,7 +2512,10 @@ mod tests {
         let (v, vpu) = fit_view(&empty, size);
         assert!(v.zoom.is_finite() && v.zoom > 0.0);
         assert!(v.pan.x.is_finite() && v.pan.y.is_finite());
-        assert!((VALUE_PX_MIN..=VALUE_PX_MAX).contains(&vpu), "value scale stays sane: {vpu}");
+        assert!(
+            (VALUE_PX_MIN..=VALUE_PX_MAX).contains(&vpu),
+            "value scale stays sane: {vpu}"
+        );
     }
 
     /// Fit track answers about one track, not the document: a second track
@@ -2282,8 +2526,18 @@ mod tests {
         let mut st = CurveEditorState::from_doc(doc(), "t.curve");
         st.add_track("Big").expect("added");
         st.doc.tracks[1].keys = vec![
-            Key { t: 0.0, value: 0.0, interp: Interp::Linear, tangent: Tangent::Auto },
-            Key { t: 40.0, value: 900.0, interp: Interp::Linear, tangent: Tangent::Auto },
+            Key {
+                t: 0.0,
+                value: 0.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 40.0,
+                value: 900.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
         ];
         st.selected_track = 0;
         st.frame_track();
@@ -2314,14 +2568,24 @@ mod tests {
     #[test]
     fn track_colors_are_ramp_entries_and_neighbours_differ() {
         let ramp = ramp();
-        assert_eq!(track_color(0), ramp[FLOAT_HUE].bright, "track 0 is the Float hue");
+        assert_eq!(
+            track_color(0),
+            ramp[FLOAT_HUE].bright,
+            "track 0 is the Float hue"
+        );
         let mut seen = Vec::new();
         for i in 0..24 {
             let c = track_color(i);
-            assert!(ramp.iter().any(|h| h.bright == c), "track {i} is not a ramp hue");
+            assert!(
+                ramp.iter().any(|h| h.bright == c),
+                "track {i} is not a ramp hue"
+            );
             assert_ne!(c, track_color(i + 1), "tracks {i} and {} collide", i + 1);
             if i < 12 {
-                assert!(!seen.contains(&c), "hue repeats before all twelve are spent");
+                assert!(
+                    !seen.contains(&c),
+                    "hue repeats before all twelve are spent"
+                );
                 seen.push(c);
             }
         }
@@ -2336,17 +2600,35 @@ mod tests {
 
         f.count = 1;
         f.tangent_enabled = false;
-        assert_eq!(numeric_shortcut('1', &f), Some(CurveShortcut::Interp(Interp::Constant)));
-        assert_eq!(numeric_shortcut('3', &f), Some(CurveShortcut::Interp(Interp::Cubic)));
+        assert_eq!(
+            numeric_shortcut('1', &f),
+            Some(CurveShortcut::Interp(Interp::Constant))
+        );
+        assert_eq!(
+            numeric_shortcut('3', &f),
+            Some(CurveShortcut::Interp(Interp::Cubic))
+        );
         for d in ['4', '5', '6', '7', '8', '9'] {
             assert_eq!(numeric_shortcut(d, &f), None, "{d} needs a cubic segment");
         }
 
         f.tangent_enabled = true;
-        assert_eq!(numeric_shortcut('4', &f), Some(CurveShortcut::Tangent(TangentMode::Auto)));
-        assert_eq!(numeric_shortcut('5', &f), Some(CurveShortcut::Tangent(TangentMode::User)));
-        assert_eq!(numeric_shortcut('6', &f), Some(CurveShortcut::Tangent(TangentMode::Break)));
-        assert_eq!(numeric_shortcut('7', &f), Some(CurveShortcut::Tangent(TangentMode::Flat)));
+        assert_eq!(
+            numeric_shortcut('4', &f),
+            Some(CurveShortcut::Tangent(TangentMode::Auto))
+        );
+        assert_eq!(
+            numeric_shortcut('5', &f),
+            Some(CurveShortcut::Tangent(TangentMode::User))
+        );
+        assert_eq!(
+            numeric_shortcut('6', &f),
+            Some(CurveShortcut::Tangent(TangentMode::Break))
+        );
+        assert_eq!(
+            numeric_shortcut('7', &f),
+            Some(CurveShortcut::Tangent(TangentMode::Flat))
+        );
         assert_eq!(numeric_shortcut('8', &f), Some(CurveShortcut::Flatten));
         assert_eq!(numeric_shortcut('9', &f), Some(CurveShortcut::Straighten));
         assert_eq!(numeric_shortcut('0', &f), None);

@@ -11,8 +11,8 @@
 //! non-resident; it retries only after leaving and re-entering the load
 //! ring. Never panics, never blocks the frame.
 
-use crate::engine::assets::model_loader::{load_model_from_bytes, Model};
 use crate::engine::assets::asset_source;
+use crate::engine::assets::model_loader::{load_model_from_bytes, Model};
 use crate::engine::collision::world::CollisionWorld;
 use crate::engine::ecs::components::{EntityGuid, MeshRenderer, Name, Transform};
 use crate::engine::rendering::rendering_3d::mesh_manager::MeshManager;
@@ -36,9 +36,17 @@ pub struct StreamedCell {
 
 enum IoRequest {
     /// Read + parse a cell's mesh file.
-    CellMesh { id: u64, coord: IVec2, mesh_rel: String },
+    CellMesh {
+        id: u64,
+        coord: IVec2,
+        mesh_rel: String,
+    },
     /// Read a cooked collision chunk's bytes.
-    Chunk { id: u64, coord: IVec2, chunk_rel: String },
+    Chunk {
+        id: u64,
+        coord: IVec2,
+        chunk_rel: String,
+    },
 }
 
 enum IoPayload {
@@ -67,7 +75,11 @@ impl IoWorker {
             .spawn(move || {
                 while let Ok(req) = req_rx.recv() {
                     let result = match req {
-                        IoRequest::CellMesh { id, coord, mesh_rel } => {
+                        IoRequest::CellMesh {
+                            id,
+                            coord,
+                            mesh_rel,
+                        } => {
                             let model = asset_source::read_bytes(&mesh_rel)
                                 .map_err(|e| e.to_string())
                                 .and_then(|bytes| {
@@ -80,7 +92,11 @@ impl IoWorker {
                                 payload: IoPayload::CellMesh(model),
                             }
                         }
-                        IoRequest::Chunk { id, coord, chunk_rel } => {
+                        IoRequest::Chunk {
+                            id,
+                            coord,
+                            chunk_rel,
+                        } => {
                             let bytes =
                                 asset_source::read_bytes(&chunk_rel).map_err(|e| e.to_string());
                             IoResult {
@@ -249,8 +265,18 @@ impl WorldStreamer {
                 )
             } else {
                 (
-                    diff_ops(center_cell, &resident_cells, &world.cell_coords(), &self.config),
-                    diff_ops(center_cell, &resident_chunks, &world.chunk_coords(), &self.config),
+                    diff_ops(
+                        center_cell,
+                        &resident_cells,
+                        &world.cell_coords(),
+                        &self.config,
+                    ),
+                    diff_ops(
+                        center_cell,
+                        &resident_chunks,
+                        &world.chunk_coords(),
+                        &self.config,
+                    ),
                 )
             }
         };
@@ -284,7 +310,9 @@ impl WorldStreamer {
     fn retry_outside_ring(&mut self, cell_loads: &[IVec2], chunk_loads: &[IVec2]) {
         let wanted_cells: HashSet<IVec2> = cell_loads.iter().copied().collect();
         let wanted_chunks: HashSet<IVec2> = chunk_loads.iter().copied().collect();
-        self.runtime.failed_cells.retain(|c| wanted_cells.contains(c));
+        self.runtime
+            .failed_cells
+            .retain(|c| wanted_cells.contains(c));
         self.runtime
             .failed_chunks
             .retain(|c| wanted_chunks.contains(c));
@@ -308,7 +336,9 @@ impl WorldStreamer {
                 if rt.cells_in_flight.contains_key(&coord) || rt.failed_cells.contains(&coord) {
                     continue;
                 }
-                let Some(cell) = world.cell(coord) else { continue };
+                let Some(cell) = world.cell(coord) else {
+                    continue;
+                };
                 let id = rt.next_request_id;
                 rt.next_request_id += 1;
                 rt.cells_in_flight.insert(coord, id);
@@ -348,7 +378,9 @@ impl WorldStreamer {
     /// (cancelled or superseded requests).
     fn collect_results(&mut self) {
         let rt = &mut self.runtime;
-        let Some(worker) = rt.worker.as_ref() else { return };
+        let Some(worker) = rt.worker.as_ref() else {
+            return;
+        };
         let drained: Vec<IoResult> = worker.rx.try_iter().collect();
         for result in drained {
             let current = match result.payload {
@@ -407,7 +439,8 @@ impl WorldStreamer {
                     Ok(model) => self.spawn_cell(coord, &model, ctx),
                     Err(e) => {
                         self.runtime.failed_cells.insert(coord);
-                        self.runtime.warn(format!("cell {coord} mesh load failed: {e}"));
+                        self.runtime
+                            .warn(format!("cell {coord} mesh load failed: {e}"));
                     }
                 }
             }
@@ -426,14 +459,16 @@ impl WorldStreamer {
 
     fn spawn_cell(&mut self, coord: IVec2, model: &Model, ctx: &mut StreamingCtx<'_>) {
         let world = self.world.as_ref().expect("active");
-        let Some(cell) = world.cell(coord) else { return };
+        let Some(cell) = world.cell(coord) else {
+            return;
+        };
         let mesh_path = cell.mesh.clone();
         let guid = EntityGuid::from_string(&cell.root_entity_guid);
         let guid_missing = guid.is_none();
 
-        if let Err(e) =
-            ctx.meshes
-                .acquire_streamed(&mesh_path, model, ctx.allocator.clone())
+        if let Err(e) = ctx
+            .meshes
+            .acquire_streamed(&mesh_path, model, ctx.allocator.clone())
         {
             self.runtime.failed_cells.insert(coord);
             self.runtime
@@ -470,8 +505,9 @@ impl WorldStreamer {
         if let Some(&expected) = world.cooked_chunks.get(&coord) {
             if fnv1a_64(bytes) != expected {
                 self.runtime.failed_chunks.insert(coord);
-                self.runtime
-                    .warn(format!("chunk {coord}: content hash mismatch (stale cook?)"));
+                self.runtime.warn(format!(
+                    "chunk {coord}: content hash mismatch (stale cook?)"
+                ));
                 return;
             }
         }

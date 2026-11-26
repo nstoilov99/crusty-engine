@@ -60,8 +60,12 @@ pub enum Context {
 }
 
 impl Context {
-    pub const ALL: [Context; 4] =
-        [Context::Canvas, Context::GraphTab, Context::Global, Context::TextEntry];
+    pub const ALL: [Context; 4] = [
+        Context::Canvas,
+        Context::GraphTab,
+        Context::Global,
+        Context::TextEntry,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -178,7 +182,10 @@ impl Chord {
                 other => return Err(ChordError::UnknownModifier(other.to_string())),
             };
         }
-        Ok(Chord { key: parse_key(last.trim())?, mods })
+        Ok(Chord {
+            key: parse_key(last.trim())?,
+            mods,
+        })
     }
 }
 
@@ -332,7 +339,7 @@ macro_rules! actions {
 }
 
 use ActionStatus::{Fixed, Live, Unimplemented};
-use Context::{Canvas, GraphTab, Global};
+use Context::{Canvas, Global, GraphTab};
 
 actions! {
     // ── Creation and deletion
@@ -419,7 +426,10 @@ impl Action {
     }
 
     pub fn from_id(id: &str) -> Option<Action> {
-        ACTIONS.iter().position(|a| a.id == id).map(|i| Action(i as u16))
+        ACTIONS
+            .iter()
+            .position(|a| a.id == id)
+            .map(|i| Action(i as u16))
     }
 
     fn def(self) -> &'static ActionDef {
@@ -579,7 +589,10 @@ impl Keymap {
     /// Every binding, flattened. Ordered by action, primary chord first.
     pub fn bindings(&self) -> impl Iterator<Item = Binding> + '_ {
         self.chords.iter().flat_map(|(a, cs)| {
-            cs.iter().map(move |c| Binding { action: *a, chord: *c })
+            cs.iter().map(move |c| Binding {
+                action: *a,
+                chord: *c,
+            })
         })
     }
 
@@ -660,7 +673,9 @@ impl Keymap {
             .filter(|r| {
                 r.action.name().to_ascii_lowercase().contains(&q)
                     || r.action.group().to_ascii_lowercase().contains(&q)
-                    || r.chords.iter().any(|c| c.label().to_ascii_lowercase().contains(&q))
+                    || r.chords
+                        .iter()
+                        .any(|c| c.label().to_ascii_lowercase().contains(&q))
             })
             .collect()
     }
@@ -717,7 +732,9 @@ impl Keymap {
             Ok(file) => Self::from_file(&file),
             Err(e) => (
                 Keymap::default(),
-                vec![format!("{KEYMAP_FILE} could not be read ({e}); using defaults")],
+                vec![format!(
+                    "{KEYMAP_FILE} could not be read ({e}); using defaults"
+                )],
             ),
         }
     }
@@ -979,7 +996,10 @@ mod tests {
     fn chords_round_trip_through_ron() {
         let km = Keymap::default();
         let text = ron::ser::to_string_pretty(&km.to_file(), Default::default()).unwrap();
-        assert!(text.contains("\"Ctrl+Shift+F9\""), "chords store as labels:\n{text}");
+        assert!(
+            text.contains("\"Ctrl+Shift+F9\""),
+            "chords store as labels:\n{text}"
+        );
         let back: KeymapFile = ron::from_str(&text).unwrap();
         let (rebuilt, problems) = Keymap::from_file(&back);
         assert!(problems.is_empty(), "{problems:?}");
@@ -995,7 +1015,10 @@ mod tests {
         assert_eq!(Chord::parse("F5").unwrap().key, Key::F(5));
         assert_eq!(Chord::parse("F").unwrap().key, Key::Char('f'));
         // Case and aliases are forgiving on input.
-        assert_eq!(Chord::parse("ctrl+delete").unwrap(), Chord::ctrl(Key::Delete));
+        assert_eq!(
+            Chord::parse("ctrl+delete").unwrap(),
+            Chord::ctrl(Key::Delete)
+        );
         assert_eq!(Chord::parse("CTRL+Del").unwrap(), Chord::ctrl(Key::Delete));
     }
 
@@ -1132,19 +1155,28 @@ mod tests {
         let file = KeymapFile {
             preset: Preset::Crusty,
             mouse_profile: None,
-            bindings: [("graph.find".to_string(), vec![Chord::parse("Ctrl+Shift+F").unwrap()])]
-                .into_iter()
-                .collect(),
+            bindings: [(
+                "graph.find".to_string(),
+                vec![Chord::parse("Ctrl+Shift+F").unwrap()],
+            )]
+            .into_iter()
+            .collect(),
         };
         let (km, problems) = Keymap::from_file(&file);
         assert!(problems.is_empty(), "{problems:?}");
-        assert_eq!(km.chord_label(Action::FIND).as_deref(), Some("Ctrl+Shift+F"));
+        assert_eq!(
+            km.chord_label(Action::FIND).as_deref(),
+            Some("Ctrl+Shift+F")
+        );
         assert_eq!(
             km.chord_label(Action::DELETE_SELECTION).as_deref(),
             Some("Del"),
             "an untouched action keeps its preset chord"
         );
-        assert_eq!(km.resolve(Chord::ctrl(Key::Char('f')), Context::GraphTab), None);
+        assert_eq!(
+            km.resolve(Chord::ctrl(Key::Char('f')), Context::GraphTab),
+            None
+        );
     }
 
     #[test]
@@ -1176,16 +1208,21 @@ mod tests {
     #[test]
     fn a_conflicting_overlay_falls_back_to_defaults_and_says_why() {
         let file = KeymapFile {
-            bindings: [("graph.group".to_string(), c("Ctrl+G"))].into_iter().collect(),
+            bindings: [("graph.group".to_string(), c("Ctrl+G"))]
+                .into_iter()
+                .collect(),
             ..Default::default()
         };
         let (km, problems) = Keymap::from_file(&file);
         assert!(
-            problems.iter().any(|p| p.contains("Group Selection")
-                && p.contains("Collapse to Subgraph")),
+            problems
+                .iter()
+                .any(|p| p.contains("Group Selection") && p.contains("Collapse to Subgraph")),
             "the message must name both actions: {problems:?}"
         );
-        assert!(problems.iter().any(|p| p.contains("using the default keymap")));
+        assert!(problems
+            .iter()
+            .any(|p| p.contains("using the default keymap")));
         assert_eq!(
             km,
             Keymap::from_preset(Preset::Crusty),
@@ -1195,7 +1232,10 @@ mod tests {
 
     #[test]
     fn an_overlay_can_switch_preset_and_the_unreal_one_differs() {
-        let file = KeymapFile { preset: Preset::Unreal, ..Default::default() };
+        let file = KeymapFile {
+            preset: Preset::Unreal,
+            ..Default::default()
+        };
         let (km, problems) = Keymap::from_file(&file);
         assert!(problems.is_empty(), "{problems:?}");
         assert_eq!(km.chord_label(Action::COMMENT).as_deref(), Some("C"));
@@ -1214,9 +1254,11 @@ mod tests {
         km.set_chords(Action::AUTO_LAYOUT, c("Alt+Y"));
         km.reset(Action::FIND);
         assert_eq!(km.chord_label(Action::FIND).as_deref(), Some("Ctrl+F"));
-        assert_eq!(km.chord_label(Action::AUTO_LAYOUT).as_deref(), Some("Alt+Y"));
+        assert_eq!(
+            km.chord_label(Action::AUTO_LAYOUT).as_deref(),
+            Some("Alt+Y")
+        );
     }
-
 
     // ── Acceptance 14: every action is reachable in preferences
 
@@ -1246,7 +1288,12 @@ mod tests {
         let rows = Keymap::default().rows();
         let ctx_order: Vec<usize> = rows
             .iter()
-            .map(|r| Context::ALL.iter().position(|c| *c == r.action.context()).unwrap())
+            .map(|r| {
+                Context::ALL
+                    .iter()
+                    .position(|c| *c == r.action.context())
+                    .unwrap()
+            })
             .collect();
         assert!(
             ctx_order.windows(2).all(|w| w[0] <= w[1]),
@@ -1259,19 +1306,29 @@ mod tests {
     #[test]
     fn preferences_search_covers_name_group_and_chord() {
         let km = Keymap::default();
-        assert!(km
-            .rows_matching("F9")
-            .iter()
-            .any(|r| r.action == Action::TOGGLE_BREAKPOINT), "chord search");
-        assert!(km
-            .rows_matching("align")
-            .iter()
-            .any(|r| r.action == Action::ALIGN_STRIP), "name search");
-        assert!(km
-            .rows_matching("bookmarks")
-            .iter()
-            .any(|r| r.action == Action::BOOKMARK_STORE), "group search");
-        assert_eq!(km.rows_matching("").len(), Action::all().count(), "empty = all");
+        assert!(
+            km.rows_matching("F9")
+                .iter()
+                .any(|r| r.action == Action::TOGGLE_BREAKPOINT),
+            "chord search"
+        );
+        assert!(
+            km.rows_matching("align")
+                .iter()
+                .any(|r| r.action == Action::ALIGN_STRIP),
+            "name search"
+        );
+        assert!(
+            km.rows_matching("bookmarks")
+                .iter()
+                .any(|r| r.action == Action::BOOKMARK_STORE),
+            "group search"
+        );
+        assert_eq!(
+            km.rows_matching("").len(),
+            Action::all().count(),
+            "empty = all"
+        );
         assert!(km.rows_matching("zzzznope").is_empty());
     }
 
@@ -1290,11 +1347,21 @@ mod tests {
             Action::ALIGN_RIGHT,
         ] {
             let label = km.chord_label(action);
-            assert!(label.is_some(), "{} is bound, so its row must show it", action.id());
+            assert!(
+                label.is_some(),
+                "{} is bound, so its row must show it",
+                action.id()
+            );
             assert!(!label.unwrap().is_empty());
         }
-        assert_eq!(km.chord_label(Action::DELETE_SELECTION).as_deref(), Some("Del"));
-        assert_eq!(km.chord_label(Action::ALIGN_TOP).as_deref(), Some("Shift+W"));
+        assert_eq!(
+            km.chord_label(Action::DELETE_SELECTION).as_deref(),
+            Some("Del")
+        );
+        assert_eq!(
+            km.chord_label(Action::ALIGN_TOP).as_deref(),
+            Some("Shift+W")
+        );
     }
 
     #[test]
@@ -1312,7 +1379,11 @@ mod tests {
         let km = Keymap::default();
         let press = |key, mods| {
             let mut i = InputState::default();
-            i.key_presses = vec![KeyPress { key, modifiers: mods, repeat: false }];
+            i.key_presses = vec![KeyPress {
+                key,
+                modifiers: mods,
+                repeat: false,
+            }];
             i
         };
 
@@ -1323,12 +1394,16 @@ mod tests {
         // Bound, listed, but its handler lands in Pass C: nothing fires, and
         // nothing complains.
         assert!(
-            km.dispatch(&press(Key::Char('q'), Modifiers::empty()), Context::Canvas).is_empty(),
+            km.dispatch(&press(Key::Char('q'), Modifiers::empty()), Context::Canvas)
+                .is_empty(),
             "an unimplemented binding dispatches to nothing, quietly"
         );
         // Canvas-only bindings are unreachable from the tab context.
         assert!(km
-            .dispatch(&press(Key::Char('c'), Modifiers::empty()), Context::GraphTab)
+            .dispatch(
+                &press(Key::Char('c'), Modifiers::empty()),
+                Context::GraphTab
+            )
             .is_empty());
         // ...but Global ones reach both.
         assert_eq!(
@@ -1343,22 +1418,28 @@ mod tests {
         use crusty_gui::context::KeyPress;
         let press = |key| {
             let mut i = InputState::default();
-            i.key_presses =
-                vec![KeyPress { key, modifiers: Modifiers::empty(), repeat: false }];
+            i.key_presses = vec![KeyPress {
+                key,
+                modifiers: Modifiers::empty(),
+                repeat: false,
+            }];
             i
         };
         assert!(
-            km.dispatch(&press(Key::Char('a')), Context::Canvas).is_empty(),
+            km.dispatch(&press(Key::Char('a')), Context::Canvas)
+                .is_empty(),
             "bare A is freed for the Shift+W/A/S/D align family"
         );
-        assert_eq!(km.dispatch(&press(Key::Home), Context::Canvas), vec![Action::FIT_GRAPH]);
+        assert_eq!(
+            km.dispatch(&press(Key::Home), Context::Canvas),
+            vec![Action::FIT_GRAPH]
+        );
         assert_eq!(
             km.dispatch(&press(Key::Char('f')), Context::Canvas),
             vec![Action::FRAME_SELECTION],
             "F keeps frame-selection",
         );
     }
-
 
     // ── Rebind persistence and preset rebasing (B2b)
 
@@ -1373,7 +1454,10 @@ mod tests {
         let file: KeymapFile = ron::from_str(&text).unwrap();
         let (reloaded, problems) = Keymap::from_file(&file);
         assert!(problems.is_empty(), "{problems:?}");
-        assert_eq!(reloaded.chord_label(Action::FIND).as_deref(), Some("Ctrl+Shift+P"));
+        assert_eq!(
+            reloaded.chord_label(Action::FIND).as_deref(),
+            Some("Ctrl+Shift+P")
+        );
         assert_eq!(reloaded, km, "a round-trip through disk changes nothing");
         assert_eq!(
             reloaded.resolve(Chord::ctrl(Key::Char('f')), Context::GraphTab),
@@ -1415,7 +1499,11 @@ mod tests {
             Some("C"),
             "and the new preset's own value applies"
         );
-        assert_eq!(km.mouse_profile, MouseProfile::Unreal, "the dialect follows");
+        assert_eq!(
+            km.mouse_profile,
+            MouseProfile::Unreal,
+            "the dialect follows"
+        );
         assert_eq!(km, Keymap::from_preset(Preset::Unreal), "nothing lingers");
     }
 
@@ -1432,9 +1520,7 @@ mod tests {
             let km = Keymap::from_preset(p);
             assert!(km.conflicts().is_empty(), "{p:?}: {:?}", km.conflicts());
 
-            for (action, want) in
-                [(Action::DEBUG_RESUME, "F11"), (Action::DEBUG_STEP, "F10")]
-            {
+            for (action, want) in [(Action::DEBUG_RESUME, "F11"), (Action::DEBUG_STEP, "F10")] {
                 let chord = Chord::parse(want).unwrap();
                 assert_eq!(km.chord_label(action).as_deref(), Some(want));
                 // The P6c lesson: a Canvas binding shadows a GraphTab one
@@ -1482,7 +1568,11 @@ mod tests {
             .expect("the collision must be visible on the probe");
         // Order within the pair is the map's, not the user's, so the page
         // reads "the other one" rather than assuming a side.
-        let other = if clash.first == Action::GROUP { clash.second } else { clash.first };
+        let other = if clash.first == Action::GROUP {
+            clash.second
+        } else {
+            clash.first
+        };
         assert_eq!(other, Action::COLLAPSE, "and it names who already holds it");
         assert_eq!(
             km.chord_label(Action::GROUP).as_deref(),
@@ -1513,10 +1603,21 @@ mod tests {
         let file: KeymapFile = ron::from_str(text).expect("hand-written file must parse");
         let (km, problems) = Keymap::from_file(&file);
         assert!(problems.is_empty(), "{problems:?}");
-        assert_eq!(km.chord_label(Action::FIND).as_deref(), Some("Ctrl+Shift+F"));
+        assert_eq!(
+            km.chord_label(Action::FIND).as_deref(),
+            Some("Ctrl+Shift+F")
+        );
         assert_eq!(km.chords_for(Action::AUTO_LAYOUT).len(), 2);
-        assert_eq!(km.chord_label(Action::GROUP).as_deref(), Some("C"), "untouched");
-        assert_eq!(km.mouse_profile, MouseProfile::Crusty, "absent field follows the preset");
+        assert_eq!(
+            km.chord_label(Action::GROUP).as_deref(),
+            Some("C"),
+            "untouched"
+        );
+        assert_eq!(
+            km.mouse_profile,
+            MouseProfile::Crusty,
+            "absent field follows the preset"
+        );
     }
 
     #[test]

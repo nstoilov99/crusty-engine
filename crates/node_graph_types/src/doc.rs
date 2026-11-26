@@ -155,7 +155,10 @@ impl PinType {
             "mesh" => PinType::Mesh,
             "entity" => PinType::Entity,
             "exec" => PinType::Exec,
-            other => match other.strip_prefix("array<").and_then(|x| x.strip_suffix('>')) {
+            other => match other
+                .strip_prefix("array<")
+                .and_then(|x| x.strip_suffix('>'))
+            {
                 Some(inner) => PinType::Array(Box::new(PinType::from_type_slug(inner)?)),
                 None => PinType::Domain(other.strip_prefix("domain:")?.to_string()),
             },

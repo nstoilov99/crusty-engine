@@ -19,16 +19,16 @@ use crusty_gui::widgets::{
 
 use super::build_dialog::BuildTarget;
 use super::editor_prefs::{EditorPrefs, ThemePreset, PREFS_FILE};
-use super::keymap::{Action, ActionStatus, Chord, Context, Keymap, MouseProfile, Preset};
-use crusty_gui::input::Key;
 use super::graph_prefs::{CrossingStyle, ExecWirePrefs, TurnAnchor, TurnPriority, WireStyle};
 use super::graph_wire_router::{self as router, RouteMeta};
+use super::keymap::{Action, ActionStatus, Chord, Context, Keymap, MouseProfile, Preset};
+use super::play_settings::NetPlayMode;
+use super::project_config::{ProjectConfig, PROJECT_FILE, SERVER_WORLD_SCENE};
 use super::theme::{wire_color, Density, UI_SCALE_MAX, UI_SCALE_MIN};
 use super::widgets::segmented_control;
 use crate::engine::node_graph::PinType;
-use super::play_settings::NetPlayMode;
-use super::project_config::{ProjectConfig, PROJECT_FILE, SERVER_WORLD_SCENE};
 use crate::engine::utils::window_config::VSyncMode;
+use crusty_gui::input::Key;
 
 const SIDEBAR_W: f32 = 158.0;
 const HEADER_H: f32 = 36.0;
@@ -45,7 +45,12 @@ const FIELD_H: f32 = 18.0;
 const PREFS_CATS: &[(&str, &[&str])] = &[
     (
         "Appearance",
-        &["Theme preset", "Translucent popovers", "UI scale", "Density"],
+        &[
+            "Theme preset",
+            "Translucent popovers",
+            "UI scale",
+            "Density",
+        ],
     ),
     (
         "Viewport",
@@ -121,10 +126,18 @@ const PROJECT_CATS: &[(&str, &[&str])] = &[
         ],
     ),
     ("Physics", &["Gravity Z", "Fixed timestep"]),
-    ("Networking", &["Server host", "Module name", "Auto connect"]),
+    (
+        "Networking",
+        &["Server host", "Module name", "Auto connect"],
+    ),
     (
         "Streaming",
-        &["Load radius", "Unload radius", "Frame budget", "Max in flight"],
+        &[
+            "Load radius",
+            "Unload radius",
+            "Frame budget",
+            "Max in flight",
+        ],
     ),
     ("Build", &["Default target", "Output directory"]),
     // 39.8 D8 delta 4: the Plugin Manager is a Project Settings page — the
@@ -489,22 +502,33 @@ fn draw_keymap_rows(
 
     // ── Preset + Reset All
     let preset = keymap.preset;
-    if setting_row(ui, f, "Preset", preset != Preset::default(), Some("default Crusty"), false, |ui| {
-        ComboBox::new("keymap_preset")
-            .selected_text(preset.label())
-            .width(160.0)
-            .show_ui(ui, |ui| {
-                for p in Preset::ALL {
-                    let mut sel = preset;
-                    if SelectableValue::new(&mut sel, p, p.label()).show(ui).clicked {
-                        // Rebasing drops every overlay entry, including ones
-                        // that happened to match the old preset's default —
-                        // switching preset means "give me that preset".
-                        *keymap = Keymap::from_preset(p);
+    if setting_row(
+        ui,
+        f,
+        "Preset",
+        preset != Preset::default(),
+        Some("default Crusty"),
+        false,
+        |ui| {
+            ComboBox::new("keymap_preset")
+                .selected_text(preset.label())
+                .width(160.0)
+                .show_ui(ui, |ui| {
+                    for p in Preset::ALL {
+                        let mut sel = preset;
+                        if SelectableValue::new(&mut sel, p, p.label())
+                            .show(ui)
+                            .clicked
+                        {
+                            // Rebasing drops every overlay entry, including ones
+                            // that happened to match the old preset's default —
+                            // switching preset means "give me that preset".
+                            *keymap = Keymap::from_preset(p);
+                        }
                     }
-                }
-            });
-    }) {
+                });
+        },
+    ) {
         *keymap = Keymap::from_preset(Preset::default());
     }
     if *keymap != Keymap::from_preset(preset) || keymap.preset != preset {
@@ -724,7 +748,11 @@ fn keymap_row(
             for (i, c) in chords.iter().enumerate() {
                 // The primary chord is the one menus and tooltips show, so it
                 // reads at full strength; alternates sit back at 55%.
-                let col = if i == 0 { pal.text } else { pal.text.with_alpha(0.55) };
+                let col = if i == 0 {
+                    pal.text
+                } else {
+                    pal.text.with_alpha(0.55)
+                };
                 let label = c.label();
                 let adv = ui.painter().text_family(
                     Pos2::new(x, start.y + 6.0),
@@ -740,7 +768,10 @@ fn keymap_row(
                 Pos2::new(start.x + GUTTER_W + LABEL_W - 4.0, start.y),
                 Vec2::new(200.0, ROW_H),
             );
-            if ui.interact(Id::new(("keymap_chord", action.id())), hit).clicked {
+            if ui
+                .interact(Id::new(("keymap_chord", action.id())), hit)
+                .clicked
+            {
                 *capture = Some(action);
             }
         }
@@ -803,9 +834,11 @@ fn keymap_row(
                     // undoing.
                     let mut probe = keymap.clone();
                     probe.set_chords(action, vec![chord]);
-                    match probe.conflicts().into_iter().find(|c| {
-                        c.first == action || c.second == action
-                    }) {
+                    match probe
+                        .conflicts()
+                        .into_iter()
+                        .find(|c| c.first == action || c.second == action)
+                    {
                         Some(c) => {
                             let other = if c.first == action { c.second } else { c.first };
                             *pending = Some((action, chord, other.name().to_string()));
@@ -855,7 +888,11 @@ fn setting_row(
                 status.overridden,
             );
         }
-        let label_color = if modified { pal.text } else { pal.text_secondary };
+        let label_color = if modified {
+            pal.text
+        } else {
+            pal.text_secondary
+        };
         ui.painter().text(
             Pos2::new(start.x + GUTTER_W, start.y + 6.0),
             label,
@@ -944,7 +981,13 @@ fn slider_drag(ui: &mut Ui, value: &mut f32, range: std::ops::RangeInclusive<f32
         .show(ui);
 }
 
-fn drag(ui: &mut Ui, value: &mut f32, speed: f64, range: std::ops::RangeInclusive<f32>, suffix: &str) {
+fn drag(
+    ui: &mut Ui,
+    value: &mut f32,
+    speed: f64,
+    range: std::ops::RangeInclusive<f32>,
+    suffix: &str,
+) {
     let field_bg = ui.style().palette.input;
     DragValue::new(value)
         .speed(speed)
@@ -1102,7 +1145,12 @@ fn wire_preview(ui: &mut Ui, prefs: &super::graph_prefs::WirePrefs) {
     };
     let p = |x: f32, y: f32| Pos2::new(rect.min.x + x * s, rect.min.y + y * s);
 
-    let ty = [PinType::Exec, PinType::Float, PinType::Float, PinType::Float];
+    let ty = [
+        PinType::Exec,
+        PinType::Float,
+        PinType::Float,
+        PinType::Float,
+    ];
     let samples: Vec<(Pos2, Pos2, usize, PinType)> = PREVIEW_SAMPLES
         .iter()
         .zip(ty)
@@ -1234,27 +1282,33 @@ pub fn editor_prefs_window(ui: &mut Ui, state: &mut SettingsState, keymap: &mut 
                 let pending = &mut state.keybind_pending;
                 let collapsed = &mut state.keybind_collapsed;
                 let reset_confirm = &mut state.keymap_reset_confirm;
-                ui.run_at(content, Direction::TopDown, Id::new("prefs_content"), opts, |ui| {
-                    let h = ui.available_size().y;
-                    ScrollArea::new(h)
-                        .auto_shrink(false)
-                        .inset(0.0)
-                        .spacing(0.0)
-                        .show(ui, |ui| {
-                            draw_prefs_rows(ui, &filter, selected, prefs, vsync);
-                            if show_keys {
-                                keymap_changed |= draw_keymap_rows(
-                                    ui,
-                                    &filter,
-                                    keymap,
-                                    kb,
-                                    pending,
-                                    collapsed,
-                                    reset_confirm,
-                                );
-                            }
-                        });
-                });
+                ui.run_at(
+                    content,
+                    Direction::TopDown,
+                    Id::new("prefs_content"),
+                    opts,
+                    |ui| {
+                        let h = ui.available_size().y;
+                        ScrollArea::new(h)
+                            .auto_shrink(false)
+                            .inset(0.0)
+                            .spacing(0.0)
+                            .show(ui, |ui| {
+                                draw_prefs_rows(ui, &filter, selected, prefs, vsync);
+                                if show_keys {
+                                    keymap_changed |= draw_keymap_rows(
+                                        ui,
+                                        &filter,
+                                        keymap,
+                                        kb,
+                                        pending,
+                                        collapsed,
+                                        reset_confirm,
+                                    );
+                                }
+                            });
+                    },
+                );
             }
             if keymap_changed {
                 state.mark_keymap_dirty();
@@ -1264,9 +1318,15 @@ pub fn editor_prefs_window(ui: &mut Ui, state: &mut SettingsState, keymap: &mut 
                 padding: Vec2::new(10.0, 4.0),
                 spacing: 8.0,
             };
-            ui.run_at(footer, Direction::LeftToRight, Id::new("prefs_footer"), fopts, |ui| {
-                draw_prefs_footer(ui, footer, state);
-            });
+            ui.run_at(
+                footer,
+                Direction::LeftToRight,
+                Id::new("prefs_footer"),
+                fopts,
+                |ui| {
+                    draw_prefs_footer(ui, footer, state);
+                },
+            );
         });
 
     if !open {
@@ -1302,9 +1362,17 @@ fn draw_prefs_rows(
             p.theme_preset = d.theme_preset;
         }
         let m = p.popover_translucent != d.popover_translucent;
-        if setting_row(ui, f, "Translucent popovers", m, Some("default on"), false, |ui| {
-            Toggle::new(&mut p.popover_translucent, "").show(ui);
-        }) {
+        if setting_row(
+            ui,
+            f,
+            "Translucent popovers",
+            m,
+            Some("default on"),
+            false,
+            |ui| {
+                Toggle::new(&mut p.popover_translucent, "").show(ui);
+            },
+        ) {
             p.popover_translucent = d.popover_translucent;
         }
         // One master knob: every editor metric is a base value × ui_scale.
@@ -1317,21 +1385,29 @@ fn draw_prefs_rows(
             p.ui_scale = d.ui_scale;
         }
         let m = Density::from_ui_scale(p.ui_scale) != Some(Density::default());
-        if setting_row(ui, f, "Density", m, Some("default Comfortable"), false, |ui| {
-            let picked = Density::from_ui_scale(p.ui_scale);
-            let mut den = picked.unwrap_or_default();
-            ComboBox::new("prefs_density")
-                .selected_text(picked.map(|d| d.label()).unwrap_or("Custom"))
-                .width(140.0)
-                .show_ui(ui, |ui| {
-                    for d2 in Density::ALL {
-                        SelectableValue::new(&mut den, d2, d2.label()).show(ui);
-                    }
-                });
-            if picked != Some(den) {
-                p.ui_scale = den.ui_scale();
-            }
-        }) {
+        if setting_row(
+            ui,
+            f,
+            "Density",
+            m,
+            Some("default Comfortable"),
+            false,
+            |ui| {
+                let picked = Density::from_ui_scale(p.ui_scale);
+                let mut den = picked.unwrap_or_default();
+                ComboBox::new("prefs_density")
+                    .selected_text(picked.map(|d| d.label()).unwrap_or("Custom"))
+                    .width(140.0)
+                    .show_ui(ui, |ui| {
+                        for d2 in Density::ALL {
+                            SelectableValue::new(&mut den, d2, d2.label()).show(ui);
+                        }
+                    });
+                if picked != Some(den) {
+                    p.ui_scale = den.ui_scale();
+                }
+            },
+        ) {
             p.ui_scale = Density::default().ui_scale();
         }
     }
@@ -1483,7 +1559,11 @@ fn draw_prefs_rows(
                 &mut p.console_show_warning,
                 d.console_show_warning,
             ),
-            ("Show errors", &mut p.console_show_error, d.console_show_error),
+            (
+                "Show errors",
+                &mut p.console_show_error,
+                d.console_show_error,
+            ),
         ] {
             let m = *value != def;
             if setting_row(ui, f, label, m, Some("default on"), false, |ui| {
@@ -1616,9 +1696,24 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
 
     let m = p.graph.wires.horizontal_offset != dw.horizontal_offset;
     let hint = format!("default {}px", fmt_f(dw.horizontal_offset));
-    if gated_row(ui, f, "Horizontal offset", m, Some(&hint), ortho, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.horizontal_offset, 0.25, 0.0..=64.0, "px");
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Horizontal offset",
+        m,
+        Some(&hint),
+        ortho,
+        |ui, on| {
+            num_body(
+                ui,
+                on,
+                &mut p.graph.wires.horizontal_offset,
+                0.25,
+                0.0..=64.0,
+                "px",
+            );
+        },
+    ) {
         p.graph.wires.horizontal_offset = dw.horizontal_offset;
     }
 
@@ -1640,7 +1735,14 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     let m = p.graph.wires.corner_radius != dw.corner_radius;
     let hint = format!("default {}px", fmt_f(dw.corner_radius));
     if gated_row(ui, f, "Corner radius", m, Some(&hint), ortho, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.corner_radius, 0.25, 0.0..=32.0, "px");
+        num_body(
+            ui,
+            on,
+            &mut p.graph.wires.corner_radius,
+            0.25,
+            0.0..=32.0,
+            "px",
+        );
     }) {
         p.graph.wires.corner_radius = dw.corner_radius;
     }
@@ -1661,11 +1763,19 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     }
 
     let m = p.graph.wires.disable_pin_offset != dw.disable_pin_offset;
-    if gated_row(ui, f, "Disable pin offset", m, Some("default off"), ortho, |ui, on| {
-        Checkbox::new(&mut p.graph.wires.disable_pin_offset, "")
-            .enabled(on)
-            .show(ui);
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Disable pin offset",
+        m,
+        Some("default off"),
+        ortho,
+        |ui, on| {
+            Checkbox::new(&mut p.graph.wires.disable_pin_offset, "")
+                .enabled(on)
+                .show(ui);
+        },
+    ) {
         p.graph.wires.disable_pin_offset = dw.disable_pin_offset;
     }
 
@@ -1681,7 +1791,12 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
         Some("default off"),
         ortho,
         |ui, on| {
-            if Checkbox::new(&mut override_on, "").enabled(on).show(ui).clicked && on {
+            if Checkbox::new(&mut override_on, "")
+                .enabled(on)
+                .show(ui)
+                .clicked
+                && on
+            {
                 p.graph.wires.exec_overwrite = override_on.then(ExecWirePrefs::default);
             }
         },
@@ -1747,11 +1862,19 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     // -- Bundling ---------------------------------------------------------
     section_bar(ui, "Bundling");
     let m = p.graph.wires.bundle_enabled != dw.bundle_enabled;
-    if gated_row(ui, f, "Bundle overlapping wires", m, Some("default on"), ortho, |ui, on| {
-        Checkbox::new(&mut p.graph.wires.bundle_enabled, "")
-            .enabled(on)
-            .show(ui);
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Bundle overlapping wires",
+        m,
+        Some("default on"),
+        ortho,
+        |ui, on| {
+            Checkbox::new(&mut p.graph.wires.bundle_enabled, "")
+                .enabled(on)
+                .show(ui);
+        },
+    ) {
         p.graph.wires.bundle_enabled = dw.bundle_enabled;
     }
     // Same nesting rule again: the parameters follow their own toggle.
@@ -1759,36 +1882,82 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
 
     let m = p.graph.wires.bundle_offset != dw.bundle_offset;
     let hint = format!("default {}px", fmt_f(dw.bundle_offset));
-    if gated_row(ui, f, "Bundle offset", m, Some(&hint), bundle_on, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.bundle_offset, 0.1, 0.0..=16.0, "px");
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Bundle offset",
+        m,
+        Some(&hint),
+        bundle_on,
+        |ui, on| {
+            num_body(
+                ui,
+                on,
+                &mut p.graph.wires.bundle_offset,
+                0.1,
+                0.0..=16.0,
+                "px",
+            );
+        },
+    ) {
         p.graph.wires.bundle_offset = dw.bundle_offset;
     }
 
     let m = p.graph.wires.bundle_merge_offset != dw.bundle_merge_offset;
     let hint = format!("default {}px", fmt_f(dw.bundle_merge_offset));
-    if gated_row(ui, f, "Merge offset", m, Some(&hint), bundle_on, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.bundle_merge_offset, 0.25, 0.0..=64.0, "px");
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Merge offset",
+        m,
+        Some(&hint),
+        bundle_on,
+        |ui, on| {
+            num_body(
+                ui,
+                on,
+                &mut p.graph.wires.bundle_merge_offset,
+                0.25,
+                0.0..=64.0,
+                "px",
+            );
+        },
+    ) {
         p.graph.wires.bundle_merge_offset = dw.bundle_merge_offset;
     }
 
     let m = p.graph.wires.bundle_push_outside != dw.bundle_push_outside;
-    if gated_row(ui, f, "Push outside", m, Some("default off"), bundle_on, |ui, on| {
-        Checkbox::new(&mut p.graph.wires.bundle_push_outside, "")
-            .enabled(on)
-            .show(ui);
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Push outside",
+        m,
+        Some("default off"),
+        bundle_on,
+        |ui, on| {
+            Checkbox::new(&mut p.graph.wires.bundle_push_outside, "")
+                .enabled(on)
+                .show(ui);
+        },
+    ) {
         p.graph.wires.bundle_push_outside = dw.bundle_push_outside;
     }
 
     let m = p.graph.wires.bundle_max != dw.bundle_max;
     let hint = format!("default {}", dw.bundle_max);
-    if gated_row(ui, f, "Max wires per lane", m, Some(&hint), bundle_on, |ui, on| {
-        let mut v = p.graph.wires.bundle_max as f32;
-        num_body(ui, on, &mut v, 0.1, 1.0..=32.0, "");
-        p.graph.wires.bundle_max = v.round().max(1.0) as u32;
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Max wires per lane",
+        m,
+        Some(&hint),
+        bundle_on,
+        |ui, on| {
+            let mut v = p.graph.wires.bundle_max as f32;
+            num_body(ui, on, &mut v, 0.1, 1.0..=32.0, "");
+            p.graph.wires.bundle_max = v.round().max(1.0) as u32;
+        },
+    ) {
         p.graph.wires.bundle_max = dw.bundle_max;
     }
 
@@ -1814,9 +1983,24 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     let cross_on = p.graph.wires.crossing != CrossingStyle::None;
     let m = p.graph.wires.crossing_size != dw.crossing_size;
     let hint = format!("default {}px", fmt_f(dw.crossing_size));
-    if gated_row(ui, f, "Crossing size", m, Some(&hint), cross_on, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.crossing_size, 0.1, 1.0..=16.0, "px");
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Crossing size",
+        m,
+        Some(&hint),
+        cross_on,
+        |ui, on| {
+            num_body(
+                ui,
+                on,
+                &mut p.graph.wires.crossing_size,
+                0.1,
+                1.0..=16.0,
+                "px",
+            );
+        },
+    ) {
         p.graph.wires.crossing_size = dw.crossing_size;
     }
 
@@ -1824,35 +2008,66 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     section_bar(ui, "Flow bubbles");
     let db = dw.bubbles;
     let m = p.graph.wires.bubbles.enabled != db.enabled;
-    if setting_row(ui, f, "Show flow bubbles", m, Some("default on"), false, |ui| {
-        Checkbox::new(&mut p.graph.wires.bubbles.enabled, "").show(ui);
-    }) {
+    if setting_row(
+        ui,
+        f,
+        "Show flow bubbles",
+        m,
+        Some("default on"),
+        false,
+        |ui| {
+            Checkbox::new(&mut p.graph.wires.bubbles.enabled, "").show(ui);
+        },
+    ) {
         p.graph.wires.bubbles.enabled = db.enabled;
     }
     let bub = p.graph.wires.bubbles.enabled;
 
     let m = p.graph.wires.bubbles.exec_only != db.exec_only;
-    if gated_row(ui, f, "Exec wires only", m, Some("default on"), bub, |ui, on| {
-        Checkbox::new(&mut p.graph.wires.bubbles.exec_only, "")
-            .enabled(on)
-            .show(ui);
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Exec wires only",
+        m,
+        Some("default on"),
+        bub,
+        |ui, on| {
+            Checkbox::new(&mut p.graph.wires.bubbles.exec_only, "")
+                .enabled(on)
+                .show(ui);
+        },
+    ) {
         p.graph.wires.bubbles.exec_only = db.exec_only;
     }
 
     let m = p.graph.wires.bubbles.selected_only != db.selected_only;
-    if gated_row(ui, f, "Selected nodes only", m, Some("default off"), bub, |ui, on| {
-        Checkbox::new(&mut p.graph.wires.bubbles.selected_only, "")
-            .enabled(on)
-            .show(ui);
-    }) {
+    if gated_row(
+        ui,
+        f,
+        "Selected nodes only",
+        m,
+        Some("default off"),
+        bub,
+        |ui, on| {
+            Checkbox::new(&mut p.graph.wires.bubbles.selected_only, "")
+                .enabled(on)
+                .show(ui);
+        },
+    ) {
         p.graph.wires.bubbles.selected_only = db.selected_only;
     }
 
     let m = p.graph.wires.bubbles.size != db.size;
     let hint = format!("default {}px", fmt_f(db.size));
     if gated_row(ui, f, "Size", m, Some(&hint), bub, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.bubbles.size, 0.1, 1.0..=12.0, "px");
+        num_body(
+            ui,
+            on,
+            &mut p.graph.wires.bubbles.size,
+            0.1,
+            1.0..=12.0,
+            "px",
+        );
     }) {
         p.graph.wires.bubbles.size = db.size;
     }
@@ -1860,7 +2075,14 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     let m = p.graph.wires.bubbles.speed != db.speed;
     let hint = format!("default {}", fmt_f(db.speed));
     if gated_row(ui, f, "Speed", m, Some(&hint), bub, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.bubbles.speed, 1.0, 10.0..=600.0, "px/s");
+        num_body(
+            ui,
+            on,
+            &mut p.graph.wires.bubbles.speed,
+            1.0,
+            10.0..=600.0,
+            "px/s",
+        );
     }) {
         p.graph.wires.bubbles.speed = db.speed;
     }
@@ -1868,7 +2090,14 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     let m = p.graph.wires.bubbles.spacing != db.spacing;
     let hint = format!("default {}px", fmt_f(db.spacing));
     if gated_row(ui, f, "Spacing", m, Some(&hint), bub, |ui, on| {
-        num_body(ui, on, &mut p.graph.wires.bubbles.spacing, 0.5, 8.0..=200.0, "px");
+        num_body(
+            ui,
+            on,
+            &mut p.graph.wires.bubbles.spacing,
+            0.5,
+            8.0..=200.0,
+            "px",
+        );
     }) {
         p.graph.wires.bubbles.spacing = db.spacing;
     }
@@ -1888,9 +2117,17 @@ fn draw_graph_rows(ui: &mut Ui, f: &Filter, p: &mut EditorPrefs, d: &EditorPrefs
     }
     let hint = format!("default {}", fmt_f(d.graph.zoom_max));
     let m = p.graph.zoom_max != d.graph.zoom_max;
-    if setting_row(ui, f, "Max zoom (Ctrl+wheel)", m, Some(&hint), false, |ui| {
-        drag(ui, &mut p.graph.zoom_max, 0.1, 2.2..=8.0, "\u{00d7}");
-    }) {
+    if setting_row(
+        ui,
+        f,
+        "Max zoom (Ctrl+wheel)",
+        m,
+        Some(&hint),
+        false,
+        |ui| {
+            drag(ui, &mut p.graph.zoom_max, 0.1, 2.2..=8.0, "\u{00d7}");
+        },
+    ) {
         p.graph.zoom_max = d.graph.zoom_max;
     }
 }
@@ -2027,9 +2264,15 @@ pub fn project_settings_window(
                     padding: Vec2::new(10.0, 4.0),
                     spacing: 8.0,
                 };
-                ui.run_at(footer, Direction::LeftToRight, Id::new("project_footer"), fopts, |ui| {
-                    draw_project_footer(ui, footer, state);
-                });
+                ui.run_at(
+                    footer,
+                    Direction::LeftToRight,
+                    Id::new("project_footer"),
+                    fopts,
+                    |ui| {
+                        draw_project_footer(ui, footer, state);
+                    },
+                );
                 return;
             }
 
@@ -2056,10 +2299,10 @@ pub fn project_settings_window(
                                     continue;
                                 }
                                 section_bar(ui, &page.title.clone());
-                                page.page
-                                    .draw(ui, &mut crate::engine::plugins::PluginSettingsCtx {
-                                        project,
-                                    });
+                                page.page.draw(
+                                    ui,
+                                    &mut crate::engine::plugins::PluginSettingsCtx { project },
+                                );
                             }
                         });
                 },
@@ -2311,18 +2554,26 @@ fn draw_project_footer(ui: &mut Ui, footer: Rect, state: &mut SettingsState) {
     } else {
         let text = "Saved";
         let w = ui.painter().measure_text(text, 11.0, None).x;
-        ui.painter()
-            .text(Pos2::new(footer.max.x - 8.0 - w, cy - 5.5), text, 11.0, status.success, None);
+        ui.painter().text(
+            Pos2::new(footer.max.x - 8.0 - w, cy - 5.5),
+            text,
+            11.0,
+            status.success,
+            None,
+        );
     }
 }
 #[cfg(test)]
 mod tests {
+    use super::super::graph_prefs::WirePrefs;
     use super::*;
     use crusty_gui::math::Pos2;
-    use super::super::graph_prefs::WirePrefs;
 
     fn route_sample(i: usize, style: WireStyle) -> Vec<Pos2> {
-        let prefs = WirePrefs { style, ..Default::default() };
+        let prefs = WirePrefs {
+            style,
+            ..Default::default()
+        };
         let (a, b, bi) = PREVIEW_SAMPLES[i];
         let rects = [];
         router::route(
@@ -2429,9 +2680,16 @@ mod tests {
             "Min zoom",
             "Max zoom (Ctrl+wheel)",
         ] {
-            assert!(rows.contains(&label), "'{label}' is missing from the search index");
+            assert!(
+                rows.contains(&label),
+                "'{label}' is missing from the search index"
+            );
         }
-        assert!(!rows.iter().any(|r| r.to_lowercase().contains("minimum distance")));
-        assert!(!rows.iter().any(|r| r.to_lowercase().contains("below minimum")));
+        assert!(!rows
+            .iter()
+            .any(|r| r.to_lowercase().contains("minimum distance")));
+        assert!(!rows
+            .iter()
+            .any(|r| r.to_lowercase().contains("below minimum")));
     }
 }

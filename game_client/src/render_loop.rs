@@ -102,7 +102,8 @@ impl DrawRecord {
 /// sort is deterministic frame to frame and allocates no merge scratch
 /// (the stable `sort_by_key` would, every frame, on the hot path).
 fn sort_draw_records(records: &mut [DrawRecord]) {
-    records.sort_unstable_by_key(|r| (r.material_index, r.mesh_idx, r.mat_ptr, !r.in_camera, r.seq));
+    records
+        .sort_unstable_by_key(|r| (r.material_index, r.mesh_idx, r.mat_ptr, !r.in_camera, r.seq));
 }
 
 thread_local! {
@@ -204,7 +205,11 @@ pub fn prepare_mesh_data(
             // descriptor upload): count = skeletons written this frame,
             // ms = time writing palettes into the ring.
             let t0 = bench.then(std::time::Instant::now);
-            let base = match skinning.write_palette(entity.to_bits().get(), skel.revision, &skel.palette) {
+            let base = match skinning.write_palette(
+                entity.to_bits().get(),
+                skel.revision,
+                &skel.palette,
+            ) {
                 Ok(base) => base,
                 Err(_) => {
                     warn_once_per_path("palette ring write for", &mesh_renderer.mesh_path);
@@ -285,7 +290,10 @@ pub fn prepare_mesh_data(
                     // Host-write failure (effectively never). Truncate the
                     // batch: the written records are a prefix of the group,
                     // so the visible-first accounting stays consistent.
-                    warn_once_per_path("instance ring write for submesh", &group[0].mesh_idx.to_string());
+                    warn_once_per_path(
+                        "instance ring write for submesh",
+                        &group[0].mesh_idx.to_string(),
+                    );
                     break;
                 }
             }

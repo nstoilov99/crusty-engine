@@ -195,16 +195,20 @@ mod tests {
         drain_into_console(&mut sink, &mut console);
 
         assert!(sink.is_empty(), "drained, not copied");
-        let rows: Vec<(CLevel, String)> = console
-            .iter()
-            .map(|m| (m.level, m.text.clone()))
-            .collect();
+        let rows: Vec<(CLevel, String)> =
+            console.iter().map(|m| (m.level, m.text.clone())).collect();
         assert_eq!(
             rows,
             vec![
                 (CLevel::Info, "[graph graphs/t.graph on Duck] i".to_string()),
-                (CLevel::Warning, "[graph graphs/t.graph on Duck] w".to_string()),
-                (CLevel::Error, "[graph graphs/t.graph on Duck] e".to_string()),
+                (
+                    CLevel::Warning,
+                    "[graph graphs/t.graph on Duck] w".to_string()
+                ),
+                (
+                    CLevel::Error,
+                    "[graph graphs/t.graph on Duck] e".to_string()
+                ),
             ],
             "order preserved, level becomes severity, the tag survives"
         );
@@ -233,6 +237,10 @@ mod tests {
         drain_into_console(&mut sink, &mut console);
         let first = console.iter().next().unwrap();
         assert_eq!(first.level, CLevel::Warning);
-        assert!(first.text.contains("2 log line(s) dropped"), "{}", first.text);
+        assert!(
+            first.text.contains("2 log line(s) dropped"),
+            "{}",
+            first.text
+        );
     }
 }

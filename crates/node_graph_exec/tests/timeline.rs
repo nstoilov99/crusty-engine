@@ -46,8 +46,18 @@ impl CurveWorld {
             slug: "height".into(),
             label: "Height".into(),
             keys: vec![
-                Key { t: 0.0, value: 0.0, interp: Interp::Linear, tangent: Default::default() },
-                Key { t: 1.0, value: 10.0, interp: Interp::Linear, tangent: Default::default() },
+                Key {
+                    t: 0.0,
+                    value: 0.0,
+                    interp: Interp::Linear,
+                    tangent: Default::default(),
+                },
+                Key {
+                    t: 1.0,
+                    value: 10.0,
+                    interp: Interp::Linear,
+                    tangent: Default::default(),
+                },
             ],
         }];
         let mut curves = BTreeMap::new();
@@ -56,7 +66,9 @@ impl CurveWorld {
     }
 
     fn empty() -> Self {
-        Self { curves: BTreeMap::new() }
+        Self {
+            curves: BTreeMap::new(),
+        }
     }
 }
 
@@ -114,8 +126,10 @@ fn doc(enter_pin: &str, looping: bool, duration: f32) -> GraphDoc {
     let mut tl = node(1, TIMELINE_TYPE_ID);
     tl.properties
         .insert(CURVE_PROP.into(), PropValue::Asset(CURVE_PATH.into()));
-    tl.properties.insert("looping".into(), PropValue::Bool(looping));
-    tl.properties.insert("duration".into(), PropValue::Float(duration));
+    tl.properties
+        .insert("looping".into(), PropValue::Bool(looping));
+    tl.properties
+        .insert("duration".into(), PropValue::Float(duration));
     let mut done = node(3, PRINT);
     done.properties
         .insert("text".into(), PropValue::Str("done".into()));
@@ -178,7 +192,10 @@ fn run_split(
     let mut effects: Vec<Effect> = Vec::new();
     for i in 0..ticks {
         at_tick(i, &mut inst);
-        let t = TickInput { dt, time: i as f64 * dt as f64 };
+        let t = TickInput {
+            dt,
+            time: i as f64 * dt as f64,
+        };
         tick(&plan, &mut inst, &impls, t, world, &mut effects);
     }
     let logs = effects
@@ -202,7 +219,12 @@ fn run_split(
 #[test]
 fn a_timeline_updates_once_per_tick_and_finishes_once() {
     // dt 0.25 over a 1s curve: t = 0, .25, .5, .75, 1.0(end).
-    let logs = run(&doc(TIMELINE_PLAY_PIN, false, 0.0), 8, 0.25, &CurveWorld::new());
+    let logs = run(
+        &doc(TIMELINE_PLAY_PIN, false, 0.0),
+        8,
+        0.25,
+        &CurveWorld::new(),
+    );
     assert_eq!(
         logs,
         vec!["0", "2.5", "5", "7.5", "10", "done"],
@@ -217,8 +239,16 @@ fn a_timeline_updates_once_per_tick_and_finishes_once() {
 /// every lap.
 #[test]
 fn looping_wraps_and_never_finishes() {
-    let logs = run(&doc(TIMELINE_PLAY_PIN, true, 0.0), 10, 0.4, &CurveWorld::new());
-    assert!(!logs.contains(&"done".to_string()), "a loop has no end: {logs:?}");
+    let logs = run(
+        &doc(TIMELINE_PLAY_PIN, true, 0.0),
+        10,
+        0.4,
+        &CurveWorld::new(),
+    );
+    assert!(
+        !logs.contains(&"done".to_string()),
+        "a loop has no end: {logs:?}"
+    );
     // t = 0, .4, .8, then 1.2 wraps to .2 — carrying the overshoot, not
     // snapping to 0 — then .6, then 1.0 wraps to ~0 and the cycle repeats.
     let got: Vec<f32> = logs.iter().map(|s| s.parse().unwrap()).collect();
@@ -235,10 +265,12 @@ fn looping_wraps_and_never_finishes() {
 fn stop_ends_the_run_without_firing_finished() {
     // A second entry node fires Stop on a custom event queued at tick 3.
     let mut d = doc(TIMELINE_PLAY_PIN, false, 0.0);
-    d.nodes.push(node(5, node_graph_types::EVENT_CUSTOM_TYPE_ID));
-    d.nodes[5]
-        .properties
-        .insert(node_graph_types::EVENT_NAME_PROP.into(), PropValue::Str("halt".into()));
+    d.nodes
+        .push(node(5, node_graph_types::EVENT_CUSTOM_TYPE_ID));
+    d.nodes[5].properties.insert(
+        node_graph_types::EVENT_NAME_PROP.into(),
+        PropValue::Str("halt".into()),
+    );
     d.edges.push(edge(5, EXEC_OUT_PIN, 1, TIMELINE_STOP_PIN));
 
     let (logs, _) = run_with(&d, 8, 0.25, &CurveWorld::new(), |i, inst| {
@@ -250,17 +282,29 @@ fn stop_ends_the_run_without_firing_finished() {
             );
         }
     });
-    assert!(!logs.contains(&"done".to_string()), "Stop is not Finished: {logs:?}");
+    assert!(
+        !logs.contains(&"done".to_string()),
+        "Stop is not Finished: {logs:?}"
+    );
     // Queued at tick 3, delivered at tick 4 (no reentrancy, D3) — and the
     // playing activation started first, so it takes tick 4's Update before the
     // Stop activation runs. Stopping is therefore visible from tick 5 on.
-    assert_eq!(logs, vec!["0", "2.5", "5", "7.5"], "and it stops advancing: {logs:?}");
+    assert_eq!(
+        logs,
+        vec!["0", "2.5", "5", "7.5"],
+        "and it stops advancing: {logs:?}"
+    );
 }
 
 /// Reverse from a standing start plays the curve backwards from its end.
 #[test]
 fn reverse_from_stopped_plays_backwards_from_the_end() {
-    let logs = run(&doc(TIMELINE_REVERSE_PIN, false, 0.0), 8, 0.25, &CurveWorld::new());
+    let logs = run(
+        &doc(TIMELINE_REVERSE_PIN, false, 0.0),
+        8,
+        0.25,
+        &CurveWorld::new(),
+    );
     assert_eq!(logs, vec!["10", "7.5", "5", "2.5", "0", "done"], "{logs:?}");
 }
 
@@ -268,7 +312,12 @@ fn reverse_from_stopped_plays_backwards_from_the_end() {
 /// sampled in its own time base, so a 2s override stretches a 1s curve.
 #[test]
 fn a_duration_override_stretches_the_run() {
-    let logs = run(&doc(TIMELINE_PLAY_PIN, false, 2.0), 12, 0.5, &CurveWorld::new());
+    let logs = run(
+        &doc(TIMELINE_PLAY_PIN, false, 2.0),
+        12,
+        0.5,
+        &CurveWorld::new(),
+    );
     // t = 0, .5, 1.0, 1.5, then 2.0 = the end. Past 1s the curve clamps at 10.
     assert_eq!(logs, vec!["0", "5", "10", "10", "10", "done"], "{logs:?}");
 }
@@ -287,7 +336,10 @@ fn a_curve_that_does_not_resolve_fails_validation() {
     )
     .expect_err("a Timeline with no reachable curve must not compile");
     let text = err.to_string();
-    assert!(text.contains(CURVE_PATH), "the error names the asset: {text}");
+    assert!(
+        text.contains(CURVE_PATH),
+        "the error names the asset: {text}"
+    );
 }
 
 /// …and if the asset goes missing *after* compilation — deleted, or simply
@@ -313,7 +365,10 @@ fn a_missing_curve_stops_the_activation_and_says_so() {
         })
         .collect();
     assert_eq!(failed.len(), 1, "{failed:?}");
-    assert!(failed[0].contains(CURVE_PATH), "the error names the asset: {failed:?}");
+    assert!(
+        failed[0].contains(CURVE_PATH),
+        "the error names the asset: {failed:?}"
+    );
     // The *instance* is not halted — one broken Timeline does not take the
     // whole graph down (only the budget does that).
     assert!(inst.halted.is_none());
@@ -329,9 +384,12 @@ fn a_timeline_advances_while_a_delay_in_its_update_chain_waits() {
     // Update -> Print(height) -> Delay(0.6) -> Print("late").
     let mut d = doc(TIMELINE_PLAY_PIN, false, 0.0);
     let mut delay = node(5, node_graph_exec::nodes::DELAY);
-    delay.properties.insert("duration".into(), PropValue::Float(0.6));
+    delay
+        .properties
+        .insert("duration".into(), PropValue::Float(0.6));
     let mut late = node(6, PRINT);
-    late.properties.insert("text".into(), PropValue::Str("late".into()));
+    late.properties
+        .insert("text".into(), PropValue::Str("late".into()));
     d.nodes.push(delay);
     d.nodes.push(late);
     d.edges.push(edge(2, EXEC_OUT_PIN, 5, EXEC_IN_PIN));
@@ -358,9 +416,13 @@ fn play_frees_its_caller_and_a_delay_after_it_waits_alongside() {
     let mut d = doc(TIMELINE_PLAY_PIN, false, 0.0);
     d.nodes.push(node(5, node_graph_exec::nodes::SEQUENCE));
     let mut delay = node(6, node_graph_exec::nodes::DELAY);
-    delay.properties.insert("duration".into(), PropValue::Float(0.9));
+    delay
+        .properties
+        .insert("duration".into(), PropValue::Float(0.9));
     let mut waited = node(7, PRINT);
-    waited.properties.insert("text".into(), PropValue::Str("waited".into()));
+    waited
+        .properties
+        .insert("text".into(), PropValue::Str("waited".into()));
     d.nodes.push(delay);
     d.nodes.push(waited);
     d.edges.retain(|e| !(e.from_node == 0));
@@ -379,7 +441,10 @@ fn play_frees_its_caller_and_a_delay_after_it_waits_alongside() {
     // The caller's activation is genuinely done once its Delay resumed; the
     // run kept ticking without it.
     assert!(
-        matches!(inst.threads[0].state, node_graph_exec::ThreadState::Finished),
+        matches!(
+            inst.threads[0].state,
+            node_graph_exec::ThreadState::Finished
+        ),
         "{:?}",
         inst.threads[0].state
     );
@@ -393,13 +458,16 @@ fn a_running_timeline_survives_a_round_trip_mid_play() {
     let reg = registry();
     let d = doc(TIMELINE_PLAY_PIN, false, 0.0);
     let world = CurveWorld::new();
-    let plan = compile_with_curves(&d, "test.graph", &reg, &BTreeMap::new(), &world)
-        .expect("compile");
+    let plan =
+        compile_with_curves(&d, "test.graph", &reg, &BTreeMap::new(), &world).expect("compile");
     let impls = impls();
     let mut inst = GraphInstance::new(&plan, EntityRef::SelfEntity, 1);
     let mut effects: Vec<Effect> = Vec::new();
     for i in 0..3 {
-        let t = TickInput { dt: 0.25, time: i as f64 * 0.25 };
+        let t = TickInput {
+            dt: 0.25,
+            time: i as f64 * 0.25,
+        };
         tick(&plan, &mut inst, &impls, t, &world, &mut effects);
     }
 
@@ -408,7 +476,10 @@ fn a_running_timeline_survives_a_round_trip_mid_play() {
     assert_eq!(back, inst);
 
     for i in 3..8 {
-        let t = TickInput { dt: 0.25, time: i as f64 * 0.25 };
+        let t = TickInput {
+            dt: 0.25,
+            time: i as f64 * 0.25,
+        };
         tick(&plan, &mut back, &impls, t, &world, &mut effects);
     }
     let logs: Vec<String> = effects

@@ -87,8 +87,8 @@ impl System for OrbitCameraSystem {
                 oc.pitch_min_deg,
                 oc.pitch_max_deg,
             );
-            oc.distance = (oc.distance - scroll * ZOOM_PER_LINE)
-                .clamp(oc.min_distance, oc.max_distance);
+            oc.distance =
+                (oc.distance - scroll * ZOOM_PER_LINE).clamp(oc.min_distance, oc.max_distance);
 
             let pivot = boom_pivot(target.position, oc.yaw, oc.pivot_height, oc.shoulder);
             let fwd = forward(oc.yaw, oc.pitch);
@@ -146,7 +146,12 @@ fn resolve_target(world: &hecs::World, target: Option<Uuid>) -> Option<Target> {
     };
     if let Some(guid) = target {
         let found = world
-            .query::<(&EntityGuid, &Transform, Option<&RigidBody>, Option<&PlayerInput>)>()
+            .query::<(
+                &EntityGuid,
+                &Transform,
+                Option<&RigidBody>,
+                Option<&PlayerInput>,
+            )>()
             .iter()
             .find(|(_, (g, ..))| g.0 == guid)
             .map(|(_, (_, t, rb, pi))| make(t, rb, pi));
@@ -155,7 +160,12 @@ fn resolve_target(world: &hecs::World, target: Option<Uuid>) -> Option<Target> {
         }
     }
     world
-        .query::<(&CharacterMovement, &Transform, Option<&RigidBody>, Option<&PlayerInput>)>()
+        .query::<(
+            &CharacterMovement,
+            &Transform,
+            Option<&RigidBody>,
+            Option<&PlayerInput>,
+        )>()
         .iter()
         .next()
         .map(|(_, (_, t, rb, pi))| make(t, rb, pi))
@@ -228,7 +238,10 @@ mod tests {
     fn forward_and_right_follow_the_zup_convention() {
         assert!(close(forward(0.0, 0.0), glm::vec3(1.0, 0.0, 0.0)));
         assert!(close(forward(FRAC_PI_2, 0.0), glm::vec3(0.0, 1.0, 0.0)));
-        assert!(close(forward(0.0, FRAC_PI_2), glm::vec3(0.0, 0.0, 1.0)), "pitch up is +Z");
+        assert!(
+            close(forward(0.0, FRAC_PI_2), glm::vec3(0.0, 0.0, 1.0)),
+            "pitch up is +Z"
+        );
         assert!(close(right(0.0), glm::vec3(0.0, 1.0, 0.0)));
         assert!(close(right(FRAC_PI_2), glm::vec3(-1.0, 0.0, 0.0)));
     }
@@ -249,7 +262,11 @@ mod tests {
             (boom_length(3.5, Some(0.5)) - 0.3).abs() < 1e-6,
             "a wall inside the zoom floor still keeps the camera in front of it"
         );
-        assert_eq!(boom_length(3.5, Some(0.1)), BOOM_COLLISION_MIN, "never behind the pivot");
+        assert_eq!(
+            boom_length(3.5, Some(0.1)),
+            BOOM_COLLISION_MIN,
+            "never behind the pivot"
+        );
         assert_eq!(boom_length(3.5, Some(3.5)), 3.3);
     }
 
@@ -258,7 +275,10 @@ mod tests {
         for (yaw, pitch) in [(0.0, 0.0), (0.7, 0.3), (-2.0, -0.9), (3.0, 1.1)] {
             let q = look_rotation(yaw, pitch);
             let fwd = glm::quat_rotate_vec3(&q, &glm::vec3(1.0, 0.0, 0.0));
-            assert!(close(fwd, forward(yaw, pitch)), "yaw {yaw} pitch {pitch}: {fwd:?}");
+            assert!(
+                close(fwd, forward(yaw, pitch)),
+                "yaw {yaw} pitch {pitch}: {fwd:?}"
+            );
             let rgt = glm::quat_rotate_vec3(&q, &glm::vec3(0.0, 1.0, 0.0));
             assert!(close(rgt, right(yaw)), "right stays horizontal: {rgt:?}");
             let up = glm::quat_rotate_vec3(&q, &glm::vec3(0.0, 0.0, 1.0));

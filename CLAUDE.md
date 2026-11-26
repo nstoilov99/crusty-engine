@@ -7,7 +7,7 @@
 | **Coordinate System** | Z-up (X=Forward/Red, Y=Right/Green, Z=Up/Blue) |
 | **Renderer** | Vulkano 0.35, Deferred Pipeline |
 | **ECS** | Custom (wrapping hecs 0.10) |
-| **GUI** | In-house `crusty-gui` (path dep; becomes `crates/crusty-gui` with PR #12) — egui fully removed |
+| **GUI** | In-house `crusty-gui` (workspace crate `crates/crusty-gui`) — egui fully removed |
 | **Physics** | Rapier 3D 0.25 |
 | **Serialization** | RON (Rusty Object Notation) |
 
@@ -85,8 +85,7 @@ cargo run -p game_client -- --scene scenes/locomotion_demo.scene   # standalone,
 cargo run -p game_client -- --import-anim <src.fbx> <out.anim> --import-scale 0.01   # animation-only import (either build)
 ```
 
-`editor` pulls `crusty-gui` as a path dep (`../crusty-gui` today; `crates/crusty-gui`
-once PR #12 lands). `crusty` is a deprecated alias for `editor`. `hud` (default)
+`editor` pulls the workspace crate `crates/crusty-gui`. `crusty` is a deprecated alias for `editor`. `hud` (default)
 is crusty-gui without editor machinery; `graph-scripting` (default) gates the
 interpreter; `dev_nodes` registers the demo node set.
 
@@ -156,7 +155,7 @@ These crates are forked/patched in `crates/`:
 - If asked to do too much work at once, stop and state that clearly.
 - If computer use is helpful for completing or verifying work (screenshots,
   visual comparison, driving a running app), shell out to gpt-5.6-Sol via Codex
-  (capture with `../crusty-gui/.claude/skills/port-panel/screenshot.ps1`,
+  (capture with `scripts/screenshot.ps1`,
   compare with `codex exec -i`). Codex is configured via `.codex/config.toml`
   (model gpt-5.6-sol, workspace-write sandbox).
 
@@ -203,7 +202,7 @@ How to apply:
   upholds this on the render thread.
 - Keep panel code readable; extract helpers when nesting hurts.
 - Changes that need new crusty-gui `backend`/`shell` API are made in
-  `../crusty-gui` first; verify both repos build before commit.
+  `crates/crusty-gui` in the same commit.
 
 ## PR Guidelines
 - Do not include HTML comments (e.g. <!-- generated-by-cyrus -->)

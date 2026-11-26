@@ -98,7 +98,10 @@ mod tests {
         let mut r = GraphRunner::new("graphs/demo.graph");
         assert!(r.is_runnable());
         r.enabled = false;
-        assert!(!r.is_runnable(), "disabled keeps the reference but does not run");
+        assert!(
+            !r.is_runnable(),
+            "disabled keeps the reference but does not run"
+        );
 
         // A component added in the inspector and not yet pointed anywhere is
         // a normal intermediate state, not an error.

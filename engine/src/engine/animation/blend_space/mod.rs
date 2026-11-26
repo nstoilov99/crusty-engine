@@ -54,7 +54,13 @@ impl Default for BlendAxis {
 
 impl BlendAxis {
     pub fn new(name: &str, min: f32, max: f32) -> Self {
-        Self { name: name.into(), param: String::new(), min, max, grid_divisions: 10 }
+        Self {
+            name: name.into(),
+            param: String::new(),
+            min,
+            max,
+            grid_divisions: 10,
+        }
     }
 
     /// The parameter this axis reads: `param`, or the axis name when unset.
@@ -83,13 +89,24 @@ pub struct BlendSample {
 
 impl Default for BlendSample {
     fn default() -> Self {
-        Self { x: 0.0, y: 0.0, clip: String::new(), clip_name: None, rate_scale: 1.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            clip: String::new(),
+            clip_name: None,
+            rate_scale: 1.0,
+        }
     }
 }
 
 impl BlendSample {
     pub fn new(x: f32, y: f32, clip: &str) -> Self {
-        Self { x, y, clip: clip.into(), ..Default::default() }
+        Self {
+            x,
+            y,
+            clip: clip.into(),
+            ..Default::default()
+        }
     }
 }
 
@@ -174,7 +191,10 @@ pub struct BlendWeights {
 
 impl BlendWeights {
     fn one(i: usize) -> Self {
-        Self { entries: [(i, 1.0), (0, 0.0), (0, 0.0)], len: 1 }
+        Self {
+            entries: [(i, 1.0), (0, 0.0), (0, 0.0)],
+            len: 1,
+        }
     }
 
     fn push(&mut self, i: usize, w: f32) {
@@ -213,9 +233,16 @@ impl BlendWeights {
 enum Shape {
     /// 1D, or a 2D set that is a single point / a line: samples ordered by
     /// their scalar position `t` along `dir` from `origin`.
-    Line { origin: [f32; 2], dir: [f32; 2], order: Vec<(f32, usize)> },
+    Line {
+        origin: [f32; 2],
+        dir: [f32; 2],
+        order: Vec<(f32, usize)>,
+    },
     /// A proper 2D set: CCW triangles and the CCW hull loop.
-    Mesh { triangles: Vec<[usize; 3]>, hull: Vec<usize> },
+    Mesh {
+        triangles: Vec<[usize; 3]>,
+        hull: Vec<usize>,
+    },
 }
 
 /// A compiled blend space: pure evaluation, no assets, no allocation per query.
@@ -239,18 +266,27 @@ impl BlendSpace {
             return Err(format!("axis_count must be 1 or 2, got {}", doc.axis_count));
         }
         let two_d = doc.is_2d();
-        let points: Vec<[f32; 2]> =
-            doc.samples.iter().map(|s| [s.x, if two_d { s.y } else { 0.0 }]).collect();
+        let points: Vec<[f32; 2]> = doc
+            .samples
+            .iter()
+            .map(|s| [s.x, if two_d { s.y } else { 0.0 }])
+            .collect();
         // Canonical order: by x then y. Every downstream decision runs over
         // this order, which is what makes the result independent of how the
         // author listed the samples.
         let mut sorted: Vec<usize> = (0..points.len()).collect();
         sorted.sort_by(|&a, &b| {
-            points[a][0].total_cmp(&points[b][0]).then(points[a][1].total_cmp(&points[b][1]))
+            points[a][0]
+                .total_cmp(&points[b][0])
+                .then(points[a][1].total_cmp(&points[b][1]))
         });
         if two_d {
             if let Some(w) = sorted.windows(2).find(|w| points[w[0]] == points[w[1]]) {
-                return Err(format!("samples {} and {} share a position", w[0].min(w[1]), w[0].max(w[1])));
+                return Err(format!(
+                    "samples {} and {} share a position",
+                    w[0].min(w[1]),
+                    w[0].max(w[1])
+                ));
             }
         }
         let shape = if two_d {
@@ -280,7 +316,11 @@ impl BlendSpace {
         let (first, last) = (points[sorted[0]], points[sorted[sorted.len() - 1]]);
         let d = [last[0] - first[0], last[1] - first[1]];
         let len = (d[0] * d[0] + d[1] * d[1]).sqrt();
-        let dir = if len > 0.0 { [d[0] / len, d[1] / len] } else { [0.0, 0.0] };
+        let dir = if len > 0.0 {
+            [d[0] / len, d[1] / len]
+        } else {
+            [0.0, 0.0]
+        };
         let collinear = points.iter().all(|p| {
             let r = [p[0] - first[0], p[1] - first[1]];
             (dir[0] * r[1] - dir[1] * r[0]).abs() <= 1e-5 * len.max(1.0)
@@ -294,10 +334,16 @@ impl BlendSpace {
                 })
                 .collect();
             order.sort_by(|a, b| a.0.total_cmp(&b.0));
-            return Shape::Line { origin: first, dir, order };
+            return Shape::Line {
+                origin: first,
+                dir,
+                order,
+            };
         }
-        let pts: Vec<[f64; 2]> =
-            sorted.iter().map(|&i| [points[i][0] as f64, points[i][1] as f64]).collect();
+        let pts: Vec<[f64; 2]> = sorted
+            .iter()
+            .map(|&i| [points[i][0] as f64, points[i][1] as f64])
+            .collect();
         let mut triangles: Vec<[usize; 3]> = delaunay::triangulate(&pts)
             .into_iter()
             .map(|t| {
@@ -345,7 +391,11 @@ impl BlendSpace {
             Shape::Mesh { hull, .. } => hull.clone(),
             Shape::Line { order, .. } => {
                 let (a, b) = (order[0].1, order[order.len() - 1].1);
-                if a == b { vec![a] } else { vec![a, b] }
+                if a == b {
+                    vec![a]
+                } else {
+                    vec![a, b]
+                }
             }
         }
     }
@@ -389,7 +439,9 @@ impl BlendSpace {
             delaunay::orient(c, a, q) / area,
             delaunay::orient(a, b, q) / area,
         ];
-        w.iter().all(|&x| x >= -1e-6).then(|| w.map(|x| x.max(0.0) as f32))
+        w.iter()
+            .all(|&x| x >= -1e-6)
+            .then(|| w.map(|x| x.max(0.0) as f32))
     }
 
     /// Weights at the nearest point on the hull loop to `p`.
@@ -446,14 +498,20 @@ mod tests {
 
     fn doc_1d(xs: &[f32]) -> BlendSpaceDoc {
         let mut doc = BlendSpaceDoc::default();
-        doc.samples = xs.iter().map(|&x| BlendSample::new(x, 0.0, "a.anim")).collect();
+        doc.samples = xs
+            .iter()
+            .map(|&x| BlendSample::new(x, 0.0, "a.anim"))
+            .collect();
         doc
     }
 
     fn doc_2d(pts: &[(f32, f32)]) -> BlendSpaceDoc {
         let mut doc = BlendSpaceDoc::default();
         doc.axis_count = 2;
-        doc.samples = pts.iter().map(|&(x, y)| BlendSample::new(x, y, "a.anim")).collect();
+        doc.samples = pts
+            .iter()
+            .map(|&(x, y)| BlendSample::new(x, y, "a.anim"))
+            .collect();
         doc
     }
 
@@ -465,7 +523,11 @@ mod tests {
 
     fn assert_sum_one(w: &BlendWeights) {
         let s: f32 = w.as_slice().iter().map(|e| e.1).sum();
-        assert!((s - 1.0).abs() < 1e-5, "weights {:?} sum to {s}", w.as_slice());
+        assert!(
+            (s - 1.0).abs() < 1e-5,
+            "weights {:?} sum to {s}",
+            w.as_slice()
+        );
     }
 
     fn assert_close(a: &[(usize, f32)], b: &[(usize, f32)]) {
@@ -530,7 +592,10 @@ mod tests {
         assert_eq!(space.weights([3.0, 0.0]).as_slice(), &[(1, 1.0)]);
         assert_eq!(space.weights([6.0, 0.0]).as_slice(), &[(2, 1.0)]);
         assert_eq!(space.weights([60.0, 0.0]).as_slice(), &[(2, 1.0)]);
-        assert_close(&sorted(&space.weights([1.0, 0.0])), &[(0, 2.0 / 3.0), (1, 1.0 / 3.0)]);
+        assert_close(
+            &sorted(&space.weights([1.0, 0.0])),
+            &[(0, 2.0 / 3.0), (1, 1.0 / 3.0)],
+        );
         assert_close(&sorted(&space.weights([4.5, 0.0])), &[(1, 0.5), (2, 0.5)]);
         // y is ignored for one axis.
         assert_close(&sorted(&space.weights([4.5, 99.0])), &[(1, 0.5), (2, 0.5)]);
@@ -541,8 +606,14 @@ mod tests {
         let a = BlendSpace::compile(&doc_1d(&[0.0, 3.0, 6.0])).expect("compile");
         let b = BlendSpace::compile(&doc_1d(&[6.0, 0.0, 3.0])).expect("compile");
         // Doc index 1 in `b` is x=0, index 2 is x=3.
-        assert_close(&sorted(&b.weights([1.0, 0.0])), &[(1, 2.0 / 3.0), (2, 1.0 / 3.0)]);
-        assert_close(&sorted(&a.weights([1.0, 0.0])), &[(0, 2.0 / 3.0), (1, 1.0 / 3.0)]);
+        assert_close(
+            &sorted(&b.weights([1.0, 0.0])),
+            &[(1, 2.0 / 3.0), (2, 1.0 / 3.0)],
+        );
+        assert_close(
+            &sorted(&a.weights([1.0, 0.0])),
+            &[(0, 2.0 / 3.0), (1, 1.0 / 3.0)],
+        );
         assert_eq!(b.hull(), vec![1, 0]);
     }
 
@@ -586,16 +657,27 @@ mod tests {
 
     #[test]
     fn outside_the_hull_equals_the_nearest_hull_point() {
-        let space =
-            BlendSpace::compile(&doc_2d(&[(0.0, 0.0), (4.0, 0.0), (0.0, 4.0), (4.0, 4.0), (2.0, 2.0)]))
-                .expect("compile");
+        let space = BlendSpace::compile(&doc_2d(&[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (0.0, 4.0),
+            (4.0, 4.0),
+            (2.0, 2.0),
+        ]))
+        .expect("compile");
         assert_eq!(space.hull().len(), 4);
         // Below the bottom edge: nearest hull point is (1, 0).
-        assert_close(&sorted(&space.weights([1.0, -3.0])), &sorted(&space.weights([1.0, 0.0])));
+        assert_close(
+            &sorted(&space.weights([1.0, -3.0])),
+            &sorted(&space.weights([1.0, 0.0])),
+        );
         // Past a corner: the corner sample plays pure.
         assert_eq!(space.weights([9.0, 9.0]).as_slice(), &[(3, 1.0)]);
         // Right of the right edge, mid-height: nearest is (4, 3).
-        assert_close(&sorted(&space.weights([7.0, 3.0])), &sorted(&space.weights([4.0, 3.0])));
+        assert_close(
+            &sorted(&space.weights([7.0, 3.0])),
+            &sorted(&space.weights([4.0, 3.0])),
+        );
         assert_sum_one(&space.weights([7.0, 3.0]));
     }
 
@@ -623,12 +705,18 @@ mod tests {
 
     #[test]
     fn refusals() {
-        assert_eq!(BlendSpace::compile(&BlendSpaceDoc::default()).unwrap_err(), "no samples");
+        assert_eq!(
+            BlendSpace::compile(&BlendSpaceDoc::default()).unwrap_err(),
+            "no samples"
+        );
         let mut bad = doc_1d(&[0.0]);
         bad.axis_count = 3;
         assert!(BlendSpace::compile(&bad).is_err());
         let dup = doc_2d(&[(0.0, 0.0), (1.0, 1.0), (0.0, 0.0)]);
-        assert_eq!(BlendSpace::compile(&dup).unwrap_err(), "samples 0 and 2 share a position");
+        assert_eq!(
+            BlendSpace::compile(&dup).unwrap_err(),
+            "samples 0 and 2 share a position"
+        );
         // Equal x in 1D is fine (pick_1d parity: the later one wins).
         assert!(BlendSpace::compile(&doc_1d(&[0.0, 0.0, 1.0])).is_ok());
     }
@@ -646,10 +734,21 @@ mod tests {
             (-1.0, 1.5),
         ];
         let base = BlendSpace::compile(&doc_2d(&pts)).expect("compile");
-        let probes = [[0.5, 0.5], [2.0, 2.0], [1.2, 2.6], [-0.5, 1.0], [5.0, 1.0], [1.5, -2.0], [0.0, 3.0]];
+        let probes = [
+            [0.5, 0.5],
+            [2.0, 2.0],
+            [1.2, 2.6],
+            [-0.5, 1.0],
+            [5.0, 1.0],
+            [1.5, -2.0],
+            [0.0, 3.0],
+        ];
         // A few permutations; each maps its doc indices back to the base ones.
-        let perms: [Vec<usize>; 3] =
-            [vec![7, 6, 5, 4, 3, 2, 1, 0], vec![4, 0, 7, 3, 1, 6, 2, 5], vec![2, 5, 1, 7, 0, 4, 6, 3]];
+        let perms: [Vec<usize>; 3] = [
+            vec![7, 6, 5, 4, 3, 2, 1, 0],
+            vec![4, 0, 7, 3, 1, 6, 2, 5],
+            vec![2, 5, 1, 7, 0, 4, 6, 3],
+        ];
         for perm in &perms {
             let shuffled: Vec<(f32, f32)> = perm.iter().map(|&i| pts[i]).collect();
             let other = BlendSpace::compile(&doc_2d(&shuffled)).expect("compile");
@@ -675,8 +774,12 @@ mod tests {
             base_tris.sort();
             assert_eq!(tris, base_tris);
             for p in probes {
-                let mapped: Vec<(usize, f32)> =
-                    other.weights(p).as_slice().iter().map(|&(i, w)| (perm[i], w)).collect();
+                let mapped: Vec<(usize, f32)> = other
+                    .weights(p)
+                    .as_slice()
+                    .iter()
+                    .map(|&(i, w)| (perm[i], w))
+                    .collect();
                 let mut mapped = mapped;
                 mapped.sort_by_key(|e| e.0);
                 assert_close(&mapped, &sorted(&base.weights(p)));

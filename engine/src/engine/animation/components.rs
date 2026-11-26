@@ -174,18 +174,13 @@ impl SkeletonInstance {
 }
 
 /// Playback state of an animation player.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum PlaybackState {
     /// Not playing — holds at current time.
+    #[default]
     Stopped,
     /// Actively advancing time.
     Playing,
-}
-
-impl Default for PlaybackState {
-    fn default() -> Self {
-        Self::Stopped
-    }
 }
 
 /// Active crossfade state: blends from a snapshot of previous transforms
@@ -403,7 +398,10 @@ mod tests {
         let mut skeleton = posed_skeleton();
         skeleton.compute_palette();
         let head = skeleton.socket("head").expect("head bone exists");
-        assert_eq!(head.to_cols_array(), skeleton.model_space[2].to_cols_array());
+        assert_eq!(
+            head.to_cols_array(),
+            skeleton.model_space[2].to_cols_array()
+        );
         assert!(skeleton.socket("no_such_bone").is_none());
     }
 

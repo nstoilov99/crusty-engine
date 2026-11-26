@@ -130,7 +130,13 @@ fn toolbar(ui: &mut Ui, rect: Rect, s: f32, data: &MeshEditorData) {
 
     let w = ui
         .painter()
-        .text(Pos2::new(x, text_y), "Mesh Editor", font, style.palette.text, None)
+        .text(
+            Pos2::new(x, text_y),
+            "Mesh Editor",
+            font,
+            style.palette.text,
+            None,
+        )
         .x;
     x += w + 10.0 * s;
 
@@ -145,7 +151,13 @@ fn toolbar(ui: &mut Ui, rect: Rect, s: f32, data: &MeshEditorData) {
     let filename = filename_of(&data.mesh_path);
     let w = ui
         .painter()
-        .text(Pos2::new(x, text_y), &filename, font, style.palette.text_secondary, None)
+        .text(
+            Pos2::new(x, text_y),
+            &filename,
+            font,
+            style.palette.text_secondary,
+            None,
+        )
         .x;
     x += w + 6.0 * s;
 
@@ -361,7 +373,11 @@ fn save_bar_ui(
     } else {
         "save-check"
     };
-    let tint = if enabled { style.palette.text } else { style.palette.text_disabled };
+    let tint = if enabled {
+        style.palette.text
+    } else {
+        style.palette.text_disabled
+    };
     let icon_rect = Rect::from_min_size(
         Pos2::new(btn.min.x + pad, (btn.center().y - icon_px * 0.5).round()),
         Vec2::splat(icon_px),
@@ -547,11 +563,13 @@ fn draw_material_thumb(
                 tint: Color::WHITE,
                 texture: tex,
             });
-            ui.painter().rect_stroke(rect, 2.0, 1.0, style.palette.stroke);
+            ui.painter()
+                .rect_stroke(rect, 2.0, 1.0, style.palette.stroke);
         }
         None => {
             ui.painter().rect_filled(rect, 2.0, style.palette.window);
-            ui.painter().rect_stroke(rect, 2.0, 1.0, style.palette.stroke);
+            ui.painter()
+                .rect_stroke(rect, 2.0, 1.0, style.palette.stroke);
             if material_path.is_empty() {
                 let font = style.fonts.small;
                 let w = ui.painter().measure_text("None", font, None).x;
@@ -805,7 +823,9 @@ fn picker_row(
             tint: Color::WHITE,
             texture: tex,
         }),
-        None => ui.painter().rect_filled(thumb_rect, 2.0, style.palette.window),
+        None => ui
+            .painter()
+            .rect_filled(thumb_rect, 2.0, style.palette.window),
     }
 
     let text_color = if selected {
@@ -886,7 +906,8 @@ fn icon_button_impl(
         ui.painter()
             .rect_stroke(rect, 4.0, 1.0, style.palette.accent_active);
     } else if hovered {
-        ui.painter().rect_stroke(rect, 4.0, 1.0, style.palette.stroke_strong);
+        ui.painter()
+            .rect_stroke(rect, 4.0, 1.0, style.palette.stroke_strong);
     }
 
     let tint = if !enabled {

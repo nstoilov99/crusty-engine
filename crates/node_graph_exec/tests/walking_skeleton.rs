@@ -91,7 +91,10 @@ fn run_with(
     let mut inst = GraphInstance::new(&plan, EntityRef::SelfEntity, seed);
     let mut effects: Vec<Effect> = Vec::new();
     for i in 0..ticks {
-        let t = TickInput { dt: 0.1, time: i as f64 * 0.1 };
+        let t = TickInput {
+            dt: 0.1,
+            time: i as f64 * 0.1,
+        };
         tick(&plan, &mut inst, &impls, t, world, &mut effects);
     }
     (effects, inst)
@@ -150,7 +153,11 @@ fn reroutes_are_spliced_away() {
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
         node(1, REROUTE_TYPE_ID),
-        with(2, ADD_INT, &[("a", PropValue::Int(2)), ("b", PropValue::Int(3))]),
+        with(
+            2,
+            ADD_INT,
+            &[("a", PropValue::Int(2)), ("b", PropValue::Int(3))],
+        ),
         node(3, REROUTE_TYPE_ID),
         print(4, "unused"),
         node(5, INT_TO_STRING),
@@ -183,12 +190,28 @@ fn subgraphs_inline_through_their_interface() {
     // The subgraph: exec + an Int in, the Int + 10 out.
     let mut sub = GraphDoc::default();
     sub.inputs = vec![
-        IfacePin { slug: "run".into(), label: "Run".into(), ty: PinType::Exec },
-        IfacePin { slug: "n".into(), label: "N".into(), ty: PinType::Int },
+        IfacePin {
+            slug: "run".into(),
+            label: "Run".into(),
+            ty: PinType::Exec,
+        },
+        IfacePin {
+            slug: "n".into(),
+            label: "N".into(),
+            ty: PinType::Int,
+        },
     ];
     sub.outputs = vec![
-        IfacePin { slug: "done".into(), label: "Done".into(), ty: PinType::Exec },
-        IfacePin { slug: "out".into(), label: "Out".into(), ty: PinType::Int },
+        IfacePin {
+            slug: "done".into(),
+            label: "Done".into(),
+            ty: PinType::Exec,
+        },
+        IfacePin {
+            slug: "out".into(),
+            label: "Out".into(),
+            ty: PinType::Int,
+        },
     ];
     sub.nodes = vec![
         node(0, GRAPH_INPUT_TYPE_ID),
@@ -258,12 +281,28 @@ fn the_acceptance_fixture_runs_branch_loop_variables_and_a_subgraph() {
     // A subgraph that doubles: exec + Int in, exec + Int out.
     let mut sub = GraphDoc::default();
     sub.inputs = vec![
-        IfacePin { slug: "run".into(), label: "Run".into(), ty: PinType::Exec },
-        IfacePin { slug: "n".into(), label: "N".into(), ty: PinType::Int },
+        IfacePin {
+            slug: "run".into(),
+            label: "Run".into(),
+            ty: PinType::Exec,
+        },
+        IfacePin {
+            slug: "n".into(),
+            label: "N".into(),
+            ty: PinType::Int,
+        },
     ];
     sub.outputs = vec![
-        IfacePin { slug: "done".into(), label: "Done".into(), ty: PinType::Exec },
-        IfacePin { slug: "out".into(), label: "Out".into(), ty: PinType::Int },
+        IfacePin {
+            slug: "done".into(),
+            label: "Done".into(),
+            ty: PinType::Exec,
+        },
+        IfacePin {
+            slug: "out".into(),
+            label: "Out".into(),
+            ty: PinType::Int,
+        },
     ];
     sub.nodes = vec![
         node(0, GRAPH_INPUT_TYPE_ID),
@@ -294,22 +333,45 @@ fn the_acceptance_fixture_runs_branch_loop_variables_and_a_subgraph() {
     sub_node.subgraph = Some("lib/double.subgraph".into());
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))]),
+        with(
+            1,
+            FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(3))],
+        ),
         sub_node,
         node(3, ADD_INT),
-        with(4, VAR_SET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
-        with(5, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
+        with(
+            4,
+            VAR_SET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
+        with(
+            5,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
         node(6, BRANCH),
         with(
             7,
             node_graph_exec::nodes::COMPARE_INT,
-            &[("b", PropValue::Int(6)), ("op", PropValue::Enum("greater".into()))],
+            &[
+                ("b", PropValue::Int(6)),
+                ("op", PropValue::Enum("greater".into())),
+            ],
         ),
-        with(8, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
+        with(
+            8,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
         print(9, "over"),
         node(10, INT_TO_STRING),
         node(11, PRINT),
-        with(12, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
+        with(
+            12,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
     ];
     doc.edges = vec![
         // exec: BeginPlay -> ForLoop -> body(subgraph -> set -> branch)
@@ -425,12 +487,17 @@ fn for_loop_runs_its_body_then_completes() {
     assert_eq!(logs(&run(&doc, 1)), vec!["101", "102", "103", "done"]);
 
     // An empty range runs the body zero times and still completes.
-    doc.nodes[1].properties.insert("last".into(), PropValue::Int(0));
+    doc.nodes[1]
+        .properties
+        .insert("last".into(), PropValue::Int(0));
     assert_eq!(logs(&run(&doc, 1)), vec!["done"]);
 
     // A loop with nothing wired to its body terminates rather than spinning.
-    doc.nodes[1].properties.insert("last".into(), PropValue::Int(3));
-    doc.edges.retain(|e| !(e.from_node == 1 && e.from_pin == "body"));
+    doc.nodes[1]
+        .properties
+        .insert("last".into(), PropValue::Int(3));
+    doc.edges
+        .retain(|e| !(e.from_node == 1 && e.from_pin == "body"));
     assert_eq!(logs(&run(&doc, 1)), vec!["done"]);
 }
 
@@ -441,8 +508,16 @@ fn nested_loops_use_the_frame_stack() {
     let mut doc = GraphDoc::default();
     doc.nodes = vec![
         node(0, EVENT_BEGIN_PLAY_TYPE_ID),
-        with(1, FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))]),
-        with(2, FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))]),
+        with(
+            1,
+            FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))],
+        ),
+        with(
+            2,
+            FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))],
+        ),
         print(3, ""),
         print(4, "end"),
         node(5, INT_TO_STRING),
@@ -475,9 +550,7 @@ fn variables_read_and_write_across_ticks() {
         default: Some(PropValue::Int(0)),
         group: None,
     }];
-    let var_prop = |n: u64, ty: &str| {
-        with(n, ty, &[(VAR_PROP, PropValue::Str("count".into()))])
-    };
+    let var_prop = |n: u64, ty: &str| with(n, ty, &[(VAR_PROP, PropValue::Str("count".into()))]);
     doc.nodes = vec![
         node(0, EVENT_TICK_TYPE_ID),
         var_prop(1, VAR_GET_TYPE_ID),
@@ -513,7 +586,10 @@ fn world_read_and_effect_out() {
     struct At([f32; 3]);
     impl WorldRead for At {
         fn transform(&self, _e: EntityRef) -> Option<node_graph_exec::TransformSnapshot> {
-            Some(node_graph_exec::TransformSnapshot { position: self.0, ..Default::default() })
+            Some(node_graph_exec::TransformSnapshot {
+                position: self.0,
+                ..Default::default()
+            })
         }
         fn exists(&self, _e: EntityRef) -> bool {
             true
@@ -554,7 +630,11 @@ fn event_phases_drain_in_order() {
         print(1, "begin"),
         node(2, EVENT_TICK_TYPE_ID),
         print(3, "tick"),
-        with(4, EVENT_CUSTOM_TYPE_ID, &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))]),
+        with(
+            4,
+            EVENT_CUSTOM_TYPE_ID,
+            &[(EVENT_NAME_PROP, PropValue::Str("ping".into()))],
+        ),
         print(5, "custom"),
     ];
     doc.edges = vec![
@@ -572,7 +652,11 @@ fn event_phases_drain_in_order() {
 
     let t = TickInput { dt: 0.1, time: 0.0 };
     tick(&plan, &mut inst, &impls, t, &NoWorld, &mut effects);
-    assert_eq!(logs(&effects), vec!["begin", "tick"], "BeginPlay precedes Tick");
+    assert_eq!(
+        logs(&effects),
+        vec!["begin", "tick"],
+        "BeginPlay precedes Tick"
+    );
 
     // A custom event queued now is delivered on the *next* tick — before
     // Tick, after everything earlier in the order.
@@ -663,7 +747,14 @@ fn budget_kills_a_runaway_and_names_the_node() {
 
     // A halted instance ticks no further.
     effects.clear();
-    tick(&plan, &mut inst, &impls, TickInput::default(), &NoWorld, &mut effects);
+    tick(
+        &plan,
+        &mut inst,
+        &impls,
+        TickInput::default(),
+        &NoWorld,
+        &mut effects,
+    );
     assert_eq!(effects, vec![]);
 }
 
@@ -722,7 +813,10 @@ fn budget_kills_a_runaway_loop() {
         with(
             1,
             FOR_LOOP,
-            &[("first", PropValue::Int(0)), ("last", PropValue::Int(i32::MAX))],
+            &[
+                ("first", PropValue::Int(0)),
+                ("last", PropValue::Int(i32::MAX)),
+            ],
         ),
         print(2, "x"),
     ];
@@ -744,7 +838,10 @@ fn budget_kills_a_runaway_loop() {
         &mut effects,
         1_000,
     );
-    assert!(matches!(report.halted, Some(ExecError::BudgetExceeded { .. })));
+    assert!(matches!(
+        report.halted,
+        Some(ExecError::BudgetExceeded { .. })
+    ));
 }
 
 /// **The determinism test** (D8): the same plan, the same seed and the same
@@ -763,10 +860,22 @@ fn determinism_holds_across_runs() {
     }];
     doc.nodes = vec![
         node(0, EVENT_TICK_TYPE_ID),
-        with(1, FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(4))]),
-        with(2, VAR_GET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
+        with(
+            1,
+            FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(4))],
+        ),
+        with(
+            2,
+            VAR_GET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
         with(3, ADD_INT, &[]),
-        with(4, VAR_SET_TYPE_ID, &[(VAR_PROP, PropValue::Str("total".into()))]),
+        with(
+            4,
+            VAR_SET_TYPE_ID,
+            &[(VAR_PROP, PropValue::Str("total".into()))],
+        ),
         print(5, ""),
         with(6, BRANCH, &[("condition", PropValue::Bool(true))]),
         node(7, SET_POSITION),
@@ -786,7 +895,10 @@ fn determinism_holds_across_runs() {
     ];
 
     let scripted: Vec<TickInput> = (0..5)
-        .map(|i| TickInput { dt: 0.016, time: i as f64 * 0.016 })
+        .map(|i| TickInput {
+            dt: 0.016,
+            time: i as f64 * 0.016,
+        })
         .collect();
 
     let once = |seed: u64| -> Vec<Effect> {
@@ -836,7 +948,11 @@ fn instance_state_is_plain_serializable_data() {
     }];
     doc.nodes = vec![
         node(0, EVENT_TICK_TYPE_ID),
-        with(1, FOR_LOOP, &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))]),
+        with(
+            1,
+            FOR_LOOP,
+            &[("first", PropValue::Int(1)), ("last", PropValue::Int(2))],
+        ),
         print(2, "x"),
     ];
     doc.edges = vec![
@@ -885,6 +1001,9 @@ fn log_effects_carry_a_level() {
     doc.edges = vec![edge(0, EXEC_OUT_PIN, 1, EXEC_IN_PIN)];
     assert_eq!(
         run(&doc, 1),
-        vec![Effect::Log { level: LogLevel::Info, text: "hi".into() }]
+        vec![Effect::Log {
+            level: LogLevel::Info,
+            text: "hi".into()
+        }]
     );
 }

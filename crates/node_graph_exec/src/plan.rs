@@ -24,9 +24,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use node_graph_types::{
     validate_doc_with, validate_refs, CurveResolver, DocDescriptors, ErrorSeverity, EventPhase,
-    GraphDoc, GraphRealm,
-    GraphError, GraphResolver, NodeRegistry, PropValue, VarDecl, GRAPH_INPUT_TYPE_ID,
-    GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_OUT, REROUTE_TYPE_ID, SUBGRAPH_TYPE_ID,
+    GraphDoc, GraphError, GraphRealm, GraphResolver, NodeRegistry, PropValue, VarDecl,
+    GRAPH_INPUT_TYPE_ID, GRAPH_OUTPUT_TYPE_ID, REROUTE_IN, REROUTE_OUT, REROUTE_TYPE_ID,
+    SUBGRAPH_TYPE_ID,
 };
 use serde::{Deserialize, Serialize};
 
@@ -138,7 +138,10 @@ pub struct VarSlot {
 pub enum CompileError {
     /// The document (or one it references) does not validate. Compilation is
     /// not the place to discover that a wire is mistyped.
-    Invalid { path: String, errors: Vec<GraphError> },
+    Invalid {
+        path: String,
+        errors: Vec<GraphError>,
+    },
     /// A subgraph reference that the resolver cannot produce. Distinct from
     /// `Invalid` because the fix is a missing *file*, not a wrong wire.
     MissingSubgraph { path: String },
@@ -200,7 +203,14 @@ fn compile_inner(
     curves: Option<&dyn CurveResolver>,
 ) -> Result<Plan, CompileError> {
     // --- 1. validate, through the whole reference tree ---------------------
-    validate_tree(doc, doc_path, registry, resolver, curves, &mut BTreeSet::new())?;
+    validate_tree(
+        doc,
+        doc_path,
+        registry,
+        resolver,
+        curves,
+        &mut BTreeSet::new(),
+    )?;
 
     // --- 2. flatten --------------------------------------------------------
     let mut f = Flattener {
@@ -217,7 +227,13 @@ fn compile_inner(
     let scopes = std::mem::take(&mut f.scopes);
     let mut nodes = std::mem::take(&mut f.nodes);
     let index = f.index.clone();
-    let ctx = SpliceCtx { scopes: &scopes, index: &index, registry, resolver, curves };
+    let ctx = SpliceCtx {
+        scopes: &scopes,
+        index: &index,
+        registry,
+        resolver,
+        curves,
+    };
     for flat in nodes.iter_mut() {
         let scope = ctx.scope_of(&flat.key);
         flat.plan.inputs = ctx.resolve_inputs(&flat.key, scope);
@@ -233,7 +249,9 @@ fn compile_inner(
         if !n.key.0.is_empty() {
             continue;
         }
-        let Some(phase) = EventPhase::of_type(&n.plan.type_id) else { continue };
+        let Some(phase) = EventPhase::of_type(&n.plan.type_id) else {
+            continue;
+        };
         entries.push(Entry {
             phase,
             node: i,
@@ -267,7 +285,10 @@ fn compile_inner(
     let entries: Vec<Entry> = entries
         .into_iter()
         .filter(|e| remap[e.node] != usize::MAX)
-        .map(|e| Entry { node: remap[e.node], ..e })
+        .map(|e| Entry {
+            node: remap[e.node],
+            ..e
+        })
         .collect();
 
     let variables = doc
@@ -283,7 +304,12 @@ fn compile_inner(
         })
         .collect();
 
-    Ok(Plan { nodes: out, entries, variables, realm: doc.realm })
+    Ok(Plan {
+        nodes: out,
+        entries,
+        variables,
+        realm: doc.realm,
+    })
 }
 
 /// Validate the document and everything it references. A subgraph whose own
@@ -299,7 +325,10 @@ fn validate_tree(
     if !seen.insert(path.to_string()) {
         return Ok(()); // already checked (and cycles are a validation error)
     }
-    let d = with_curves(DocDescriptors::with_resolver(doc, registry, resolver), curves);
+    let d = with_curves(
+        DocDescriptors::with_resolver(doc, registry, resolver),
+        curves,
+    );
     let mut errors = validate_doc_with(&d);
     errors.extend(validate_refs(doc, path, registry, resolver));
     let hard: Vec<GraphError> = errors
@@ -307,12 +336,17 @@ fn validate_tree(
         .filter(|e| e.severity() == ErrorSeverity::Error)
         .collect();
     if !hard.is_empty() {
-        return Err(CompileError::Invalid { path: path.to_string(), errors: hard });
+        return Err(CompileError::Invalid {
+            path: path.to_string(),
+            errors: hard,
+        });
     }
     for r in doc.subgraph_refs() {
         let sub = resolver
             .resolve(r)
-            .ok_or_else(|| CompileError::MissingSubgraph { path: r.to_string() })?;
+            .ok_or_else(|| CompileError::MissingSubgraph {
+                path: r.to_string(),
+            })?;
         validate_tree(sub, r, registry, resolver, curves, seen)?;
     }
     Ok(())
@@ -388,7 +422,9 @@ impl Flattener<'_> {
                 let sub = self
                     .resolver
                     .resolve(sub_path)
-                    .ok_or_else(|| CompileError::MissingSubgraph { path: sub_path.to_string() })?
+                    .ok_or_else(|| CompileError::MissingSubgraph {
+                        path: sub_path.to_string(),
+                    })?
                     .clone();
                 let mut inner = scope_path.to_vec();
                 inner.push(n.id);
@@ -567,7 +603,7 @@ impl SpliceCtx<'_> {
                 // A subgraph node's output is produced by whatever feeds the
                 // matching `graph_output` pin inside it: step in.
                 SUBGRAPH_TYPE_ID => {
-                    let (Some(inner), ) = (self.inner_scope(scope, src.id), ) else {
+                    let (Some(inner),) = (self.inner_scope(scope, src.id),) else {
                         return InputSource::Constant(Value::Unit);
                     };
                     let Some(go) = self.iface_node(inner, GRAPH_OUTPUT_TYPE_ID) else {
@@ -579,7 +615,10 @@ impl SpliceCtx<'_> {
                 }
                 _ => {
                     return match self.index.get(&(self.scopes[scope].path.clone(), src.id)) {
-                        Some(ix) => InputSource::Pin { node: *ix, pin: e.from_pin.clone() },
+                        Some(ix) => InputSource::Pin {
+                            node: *ix,
+                            pin: e.from_pin.clone(),
+                        },
                         None => InputSource::Constant(Value::Unit),
                     }
                 }
@@ -661,7 +700,10 @@ impl SpliceCtx<'_> {
                     return self
                         .index
                         .get(&(self.scopes[scope].path.clone(), n.id))
-                        .map(|ix| ExecEdge { node: *ix, pin: pin.clone() })
+                        .map(|ix| ExecEdge {
+                            node: *ix,
+                            pin: pin.clone(),
+                        })
                 }
             }
         }

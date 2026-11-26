@@ -39,23 +39,59 @@ pub type KeyRef = (usize, usize);
 /// revert on its own.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CurveEdit {
-    AddKey { track: usize, index: usize, key: Key },
-    RemoveKey { track: usize, index: usize, key: Key },
+    AddKey {
+        track: usize,
+        index: usize,
+        key: Key,
+    },
+    RemoveKey {
+        track: usize,
+        index: usize,
+        key: Key,
+    },
     /// One drag gesture, coalesced: press-time key on the left, release-time
     /// key on the right. A drag that moves nothing is never recorded.
-    MoveKey { track: usize, index: usize, from: Key, to: Key },
-    SetInterp { track: usize, index: usize, from: Interp, to: Interp },
+    MoveKey {
+        track: usize,
+        index: usize,
+        from: Key,
+        to: Key,
+    },
+    SetInterp {
+        track: usize,
+        index: usize,
+        from: Interp,
+        to: Interp,
+    },
     /// A key's tangent mode (v2). One entry per gesture, whatever the arm
     /// drag passed through on the way.
-    SetTangent { track: usize, index: usize, from: Tangent, to: Tangent },
-    AddTrack { index: usize, track: Track },
-    RemoveTrack { index: usize, track: Track },
-    RenameTrack { index: usize, from: String, to: String },
+    SetTangent {
+        track: usize,
+        index: usize,
+        from: Tangent,
+        to: Tangent,
+    },
+    AddTrack {
+        index: usize,
+        track: Track,
+    },
+    RemoveTrack {
+        index: usize,
+        track: Track,
+    },
+    RenameTrack {
+        index: usize,
+        from: String,
+        to: String,
+    },
     /// Several edits that were **one gesture**: a group drag, a group delete,
     /// a mode applied to a whole selection. Applied in order and reverted in
     /// reverse, so a batch of removals (built high index first) reinserts low
     /// index first and lands every key back where it was.
-    Batch { label: String, edits: Vec<CurveEdit> },
+    Batch {
+        label: String,
+        edits: Vec<CurveEdit>,
+    },
 }
 
 impl CurveEdit {
@@ -79,14 +115,28 @@ impl CurveEdit {
                     }
                 }
             }
-            CurveEdit::MoveKey { track, index, to, .. } => set_key(doc, *track, *index, *to),
-            CurveEdit::SetInterp { track, index, to, .. } => {
-                if let Some(k) = doc.tracks.get_mut(*track).and_then(|t| t.keys.get_mut(*index)) {
+            CurveEdit::MoveKey {
+                track, index, to, ..
+            } => set_key(doc, *track, *index, *to),
+            CurveEdit::SetInterp {
+                track, index, to, ..
+            } => {
+                if let Some(k) = doc
+                    .tracks
+                    .get_mut(*track)
+                    .and_then(|t| t.keys.get_mut(*index))
+                {
                     k.interp = *to;
                 }
             }
-            CurveEdit::SetTangent { track, index, to, .. } => {
-                if let Some(k) = doc.tracks.get_mut(*track).and_then(|t| t.keys.get_mut(*index)) {
+            CurveEdit::SetTangent {
+                track, index, to, ..
+            } => {
+                if let Some(k) = doc
+                    .tracks
+                    .get_mut(*track)
+                    .and_then(|t| t.keys.get_mut(*index))
+                {
                     k.tangent = *to;
                 }
             }
@@ -115,31 +165,61 @@ impl CurveEdit {
 
     fn revert(&self, doc: &mut CurveDoc) {
         match self {
-            CurveEdit::AddKey { track, index, key } => {
-                CurveEdit::RemoveKey { track: *track, index: *index, key: *key }.apply(doc)
+            CurveEdit::AddKey { track, index, key } => CurveEdit::RemoveKey {
+                track: *track,
+                index: *index,
+                key: *key,
             }
-            CurveEdit::RemoveKey { track, index, key } => {
-                CurveEdit::AddKey { track: *track, index: *index, key: *key }.apply(doc)
+            .apply(doc),
+            CurveEdit::RemoveKey { track, index, key } => CurveEdit::AddKey {
+                track: *track,
+                index: *index,
+                key: *key,
             }
-            CurveEdit::MoveKey { track, index, from, .. } => set_key(doc, *track, *index, *from),
-            CurveEdit::SetInterp { track, index, from, to } => {
-                CurveEdit::SetInterp { track: *track, index: *index, from: *to, to: *from }
-                    .apply(doc)
+            .apply(doc),
+            CurveEdit::MoveKey {
+                track, index, from, ..
+            } => set_key(doc, *track, *index, *from),
+            CurveEdit::SetInterp {
+                track,
+                index,
+                from,
+                to,
+            } => CurveEdit::SetInterp {
+                track: *track,
+                index: *index,
+                from: *to,
+                to: *from,
             }
-            CurveEdit::SetTangent { track, index, from, to } => {
-                CurveEdit::SetTangent { track: *track, index: *index, from: *to, to: *from }
-                    .apply(doc)
+            .apply(doc),
+            CurveEdit::SetTangent {
+                track,
+                index,
+                from,
+                to,
+            } => CurveEdit::SetTangent {
+                track: *track,
+                index: *index,
+                from: *to,
+                to: *from,
             }
-            CurveEdit::AddTrack { index, track } => {
-                CurveEdit::RemoveTrack { index: *index, track: track.clone() }.apply(doc)
+            .apply(doc),
+            CurveEdit::AddTrack { index, track } => CurveEdit::RemoveTrack {
+                index: *index,
+                track: track.clone(),
             }
-            CurveEdit::RemoveTrack { index, track } => {
-                CurveEdit::AddTrack { index: *index, track: track.clone() }.apply(doc)
+            .apply(doc),
+            CurveEdit::RemoveTrack { index, track } => CurveEdit::AddTrack {
+                index: *index,
+                track: track.clone(),
             }
-            CurveEdit::RenameTrack { index, from, to } => {
-                CurveEdit::RenameTrack { index: *index, from: to.clone(), to: from.clone() }
-                    .apply(doc)
+            .apply(doc),
+            CurveEdit::RenameTrack { index, from, to } => CurveEdit::RenameTrack {
+                index: *index,
+                from: to.clone(),
+                to: from.clone(),
             }
+            .apply(doc),
             CurveEdit::Batch { edits, .. } => {
                 for e in edits.iter().rev() {
                     e.revert(doc);
@@ -165,7 +245,11 @@ impl CurveEdit {
 }
 
 fn set_key(doc: &mut CurveDoc, track: usize, index: usize, key: Key) {
-    if let Some(k) = doc.tracks.get_mut(track).and_then(|t| t.keys.get_mut(index)) {
+    if let Some(k) = doc
+        .tracks
+        .get_mut(track)
+        .and_then(|t| t.keys.get_mut(index))
+    {
         *k = key;
     }
 }
@@ -317,7 +401,9 @@ pub fn tangent_for_mode(track: &Track, index: usize, mode: TangentMode) -> Tange
         TangentMode::Auto => Tangent::Auto,
         TangentMode::Flat => Tangent::Flat,
         TangentMode::Linear => Tangent::Linear,
-        TangentMode::User => Tangent::User { tangent: track.out_tangent(index) },
+        TangentMode::User => Tangent::User {
+            tangent: track.out_tangent(index),
+        },
         TangentMode::Break => Tangent::Break {
             in_tan: track.in_tangent(index),
             out_tan: track.out_tangent(index),
@@ -397,7 +483,10 @@ pub enum FooterField {
 /// tangents do anything here": the key's own `interp` governs the segment
 /// leaving it, the previous key's the one arriving.
 pub fn touches_cubic(track: &Track, index: usize) -> bool {
-    let out = track.keys.get(index).is_some_and(|k| k.interp == Interp::Cubic);
+    let out = track
+        .keys
+        .get(index)
+        .is_some_and(|k| k.interp == Interp::Cubic);
     let inc = index
         .checked_sub(1)
         .and_then(|p| track.keys.get(p))
@@ -426,7 +515,10 @@ impl SnapSettings {
     /// than forcing snapping on, so the modifier means the same thing in both
     /// resting states (contract rule 4 — spatial/bulk modifier).
     pub fn effective(self, ctrl: bool) -> SnapSettings {
-        SnapSettings { time: self.time != ctrl, value: self.value != ctrl }
+        SnapSettings {
+            time: self.time != ctrl,
+            value: self.value != ctrl,
+        }
     }
 }
 
@@ -607,7 +699,10 @@ impl CurveEditorState {
         if edits.is_empty() {
             return;
         }
-        self.commit(CurveEdit::Batch { label: label.into(), edits });
+        self.commit(CurveEdit::Batch {
+            label: label.into(),
+            edits,
+        });
     }
 
     pub fn undo(&mut self) {
@@ -631,10 +726,7 @@ impl CurveEditorState {
     /// A gesture in flight. Save and undo settle these first, so a save cursor
     /// never describes content the file does not have.
     pub fn gesture_in_flight(&self) -> bool {
-        self.drag.is_some()
-            || self.arm.is_some()
-            || self.marquee.is_some()
-            || self.rename.is_some()
+        self.drag.is_some() || self.arm.is_some() || self.marquee.is_some() || self.rename.is_some()
     }
 
     /// Abandon anything half-finished, reverting the live drag's keys and the
@@ -732,7 +824,11 @@ impl CurveEditorState {
             .filter(|(_, k)| k.t >= t0 && k.t <= t1 && k.value >= v0 && k.value <= v1)
             .map(|(i, _)| i)
             .collect();
-        let mut next = if add { self.selection.clone() } else { Vec::new() };
+        let mut next = if add {
+            self.selection.clone()
+        } else {
+            Vec::new()
+        };
         next.extend(hits);
         self.set_selection(next);
     }
@@ -809,7 +905,12 @@ impl CurveEditorState {
         // A new key inherits its neighbour's interpolation and starts on the
         // default tangent: nobody has shaped it yet, and Auto is the mode that
         // says so (v2).
-        let key = Key { t, value, interp, tangent: Tangent::Auto };
+        let key = Key {
+            t,
+            value,
+            interp,
+            tangent: Tangent::Auto,
+        };
         let edit = CurveEdit::AddKey { track, index, key };
         edit.apply(&mut self.doc);
         self.commit(edit);
@@ -835,7 +936,12 @@ impl CurveEditorState {
         indices.sort_unstable_by(|a, b| b.cmp(a));
         let mut edits = Vec::new();
         for index in indices {
-            let Some(key) = self.doc.tracks.get(track).and_then(|t| t.keys.get(index)).copied()
+            let Some(key) = self
+                .doc
+                .tracks
+                .get(track)
+                .and_then(|t| t.keys.get(index))
+                .copied()
             else {
                 continue;
             };
@@ -843,7 +949,11 @@ impl CurveEditorState {
             edit.apply(&mut self.doc);
             edits.push(edit);
         }
-        let label = if edits.len() == 1 { "Delete Key" } else { "Delete Keys" };
+        let label = if edits.len() == 1 {
+            "Delete Key"
+        } else {
+            "Delete Keys"
+        };
         self.commit_batch(label, edits);
         self.selection.clear();
     }
@@ -856,14 +966,24 @@ impl CurveEditorState {
         }
         let mut edits = Vec::new();
         for index in self.selection.clone() {
-            let Some(from) = self.doc.tracks.get(track).and_then(|t| t.keys.get(index)).map(|k| k.interp)
+            let Some(from) = self
+                .doc
+                .tracks
+                .get(track)
+                .and_then(|t| t.keys.get(index))
+                .map(|k| k.interp)
             else {
                 continue;
             };
             if from == to {
                 continue;
             }
-            let edit = CurveEdit::SetInterp { track, index, from, to };
+            let edit = CurveEdit::SetInterp {
+                track,
+                index,
+                from,
+                to,
+            };
             edit.apply(&mut self.doc);
             edits.push(edit);
         }
@@ -900,13 +1020,22 @@ impl CurveEditorState {
         }
         let mut edits = Vec::new();
         for index in self.selection.clone() {
-            let Some(tr) = self.doc.tracks.get(track) else { continue };
-            let Some(from) = tr.keys.get(index).map(|k| k.tangent) else { continue };
+            let Some(tr) = self.doc.tracks.get(track) else {
+                continue;
+            };
+            let Some(from) = tr.keys.get(index).map(|k| k.tangent) else {
+                continue;
+            };
             let to = tangent_for_mode(tr, index, mode);
             if from == to {
                 continue;
             }
-            let edit = CurveEdit::SetTangent { track, index, from, to };
+            let edit = CurveEdit::SetTangent {
+                track,
+                index,
+                from,
+                to,
+            };
             edit.apply(&mut self.doc);
             edits.push(edit);
         }
@@ -939,8 +1068,12 @@ impl CurveEditorState {
         let selected: HashSet<usize> = self.selection.iter().copied().collect();
         let mut edits = Vec::new();
         for index in self.selection.clone() {
-            let Some(tr) = self.doc.tracks.get(track) else { continue };
-            let Some(from) = tr.keys.get(index).copied() else { continue };
+            let Some(tr) = self.doc.tracks.get(track) else {
+                continue;
+            };
+            let Some(from) = tr.keys.get(index).copied() else {
+                continue;
+            };
             let (lo, hi) = free_span(tr, index, &selected);
             let mut to = from;
             if let Some(t) = t {
@@ -952,7 +1085,12 @@ impl CurveEditorState {
             if to == from {
                 continue;
             }
-            let edit = CurveEdit::MoveKey { track, index, from, to };
+            let edit = CurveEdit::MoveKey {
+                track,
+                index,
+                from,
+                to,
+            };
             edit.apply(&mut self.doc);
             edits.push(edit);
         }
@@ -982,13 +1120,20 @@ impl CurveEditorState {
         if !self.is_selected(index) {
             self.select_only(index);
         }
-        let Some(tr) = self.doc.tracks.get(track) else { return };
+        let Some(tr) = self.doc.tracks.get(track) else {
+            return;
+        };
         let from: Vec<(usize, Key)> = self
             .selection
             .iter()
             .filter_map(|i| tr.keys.get(*i).map(|k| (*i, *k)))
             .collect();
-        self.drag = Some(KeyDrag { track, anchor: index, from, grab });
+        self.drag = Some(KeyDrag {
+            track,
+            anchor: index,
+            from,
+            grab,
+        });
     }
 
     /// Live drag update — writes straight into the doc (no undo entry yet).
@@ -1000,7 +1145,9 @@ impl CurveEditorState {
     /// per key would shear apart at the first obstacle.
     pub fn drag_to(&mut self, t: f32, value: f32, snap: SnapSettings) {
         let Some(d) = self.drag.clone() else { return };
-        let Some(tr) = self.doc.tracks.get(d.track) else { return };
+        let Some(tr) = self.doc.tracks.get(d.track) else {
+            return;
+        };
         let Some((_, anchor_from)) = d.from.iter().find(|(i, _)| *i == d.anchor).copied() else {
             return;
         };
@@ -1033,7 +1180,11 @@ impl CurveEditorState {
             dt_min = dt_min.max(lo - from.t);
             dt_max = dt_max.min(hi - from.t);
         }
-        dt = if dt_min <= dt_max { dt.clamp(dt_min, dt_max) } else { 0.0 };
+        dt = if dt_min <= dt_max {
+            dt.clamp(dt_min, dt_max)
+        } else {
+            0.0
+        };
 
         for (i, from) in &d.from {
             // A move changes where a key is, never what it is: interpolation
@@ -1042,7 +1193,11 @@ impl CurveEditorState {
                 &mut self.doc,
                 d.track,
                 *i,
-                Key { t: from.t + dt, value: from.value + dv, ..*from },
+                Key {
+                    t: from.t + dt,
+                    value: from.value + dv,
+                    ..*from
+                },
             );
         }
     }
@@ -1054,16 +1209,30 @@ impl CurveEditorState {
         let Some(d) = self.drag.take() else { return };
         let mut edits = Vec::new();
         for (index, from) in d.from {
-            let Some(to) = self.doc.tracks.get(d.track).and_then(|t| t.keys.get(index)).copied()
+            let Some(to) = self
+                .doc
+                .tracks
+                .get(d.track)
+                .and_then(|t| t.keys.get(index))
+                .copied()
             else {
                 continue;
             };
             if to == from {
                 continue;
             }
-            edits.push(CurveEdit::MoveKey { track: d.track, index, from, to });
+            edits.push(CurveEdit::MoveKey {
+                track: d.track,
+                index,
+                from,
+                to,
+            });
         }
-        let label = if edits.len() == 1 { "Move Key" } else { "Move Keys" };
+        let label = if edits.len() == 1 {
+            "Move Key"
+        } else {
+            "Move Keys"
+        };
         self.commit_batch(label, edits);
     }
 
@@ -1080,13 +1249,22 @@ impl CurveEditorState {
         if !self.editable(track) {
             return;
         }
-        let Some(tr) = self.doc.tracks.get(track) else { return };
-        let Some(from) = tr.keys.get(index).map(|k| k.tangent) else { return };
+        let Some(tr) = self.doc.tracks.get(track) else {
+            return;
+        };
+        let Some(from) = tr.keys.get(index).map(|k| k.tangent) else {
+            return;
+        };
         if !TangentMode::of(&from).has_arms() {
             let seeded = tangent_for_mode(tr, index, TangentMode::User);
             self.write_tangent(track, index, seeded);
         }
-        self.arm = Some(ArmDrag { track, index, side, from });
+        self.arm = Some(ArmDrag {
+            track,
+            index,
+            side,
+            from,
+        });
     }
 
     /// Live arm update: `slope` is value-per-second, the unit the schema
@@ -1105,8 +1283,14 @@ impl CurveEditorState {
         };
         let next = match cur {
             Tangent::Break { in_tan, out_tan } => match a.side {
-                ArmSide::In => Tangent::Break { in_tan: slope, out_tan },
-                ArmSide::Out => Tangent::Break { in_tan, out_tan: slope },
+                ArmSide::In => Tangent::Break {
+                    in_tan: slope,
+                    out_tan,
+                },
+                ArmSide::Out => Tangent::Break {
+                    in_tan,
+                    out_tan: slope,
+                },
             },
             _ => Tangent::User { tangent: slope },
         };
@@ -1130,13 +1314,23 @@ impl CurveEditorState {
         if to == a.from {
             return;
         }
-        let edit = CurveEdit::SetTangent { track: a.track, index: a.index, from: a.from, to };
+        let edit = CurveEdit::SetTangent {
+            track: a.track,
+            index: a.index,
+            from: a.from,
+            to,
+        };
         // Already written live; record the finished shape only.
         self.commit(edit);
     }
 
     fn write_tangent(&mut self, track: usize, index: usize, tangent: Tangent) {
-        if let Some(k) = self.doc.tracks.get_mut(track).and_then(|t| t.keys.get_mut(index)) {
+        if let Some(k) = self
+            .doc
+            .tracks
+            .get_mut(track)
+            .and_then(|t| t.keys.get_mut(index))
+        {
             k.tangent = tangent;
         }
     }
@@ -1180,10 +1374,7 @@ impl CurveEditorState {
             // Any selected key touching a cubic segment makes the control
             // useful; requiring all of them would disable it on exactly the
             // mixed selection someone is trying to unify.
-            tangent_enabled: self
-                .selection
-                .iter()
-                .any(|i| touches_cubic(track, *i)),
+            tangent_enabled: self.selection.iter().any(|i| touches_cubic(track, *i)),
         }
     }
 
@@ -1219,7 +1410,10 @@ impl CurveEditorState {
         }
         let slug = self.doc.free_slug(label);
         let index = self.doc.tracks.len();
-        let edit = CurveEdit::AddTrack { index, track: Track::new(&slug, label) };
+        let edit = CurveEdit::AddTrack {
+            index,
+            track: Track::new(&slug, label),
+        };
         edit.apply(&mut self.doc);
         self.commit(edit);
         self.selected_track = index;
@@ -1248,7 +1442,11 @@ impl CurveEditorState {
         if to.is_empty() || to == from {
             return;
         }
-        let edit = CurveEdit::RenameTrack { index, from, to: to.to_string() };
+        let edit = CurveEdit::RenameTrack {
+            index,
+            from,
+            to: to.to_string(),
+        };
         edit.apply(&mut self.doc);
         self.commit(edit);
     }
@@ -1297,9 +1495,24 @@ mod tests {
         let mut d = CurveDoc::default();
         let mut t = Track::new("height", "Height");
         t.keys = vec![
-            Key { t: 0.0, value: 0.0, interp: Interp::Linear, tangent: Tangent::Auto },
-            Key { t: 1.0, value: 10.0, interp: Interp::Linear, tangent: Tangent::Auto },
-            Key { t: 2.0, value: 0.0, interp: Interp::Linear, tangent: Tangent::Auto },
+            Key {
+                t: 0.0,
+                value: 0.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 1.0,
+                value: 10.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 2.0,
+                value: 0.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
         ];
         d.tracks = vec![t];
         d
@@ -1314,10 +1527,30 @@ mod tests {
         let mut d = CurveDoc::default();
         let mut t = Track::new("height", "Height");
         t.keys = vec![
-            Key { t: 0.0, value: 0.0, interp: Interp::Cubic, tangent: Tangent::Auto },
-            Key { t: 1.0, value: 2.0, interp: Interp::Cubic, tangent: Tangent::Auto },
-            Key { t: 3.0, value: 1.0, interp: Interp::Cubic, tangent: Tangent::Auto },
-            Key { t: 4.0, value: 0.0, interp: Interp::Cubic, tangent: Tangent::Auto },
+            Key {
+                t: 0.0,
+                value: 0.0,
+                interp: Interp::Cubic,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 1.0,
+                value: 2.0,
+                interp: Interp::Cubic,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 3.0,
+                value: 1.0,
+                interp: Interp::Cubic,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 4.0,
+                value: 0.0,
+                interp: Interp::Cubic,
+                tangent: Tangent::Auto,
+            },
         ];
         d.tracks = vec![t];
         CurveEditorState::from_doc(d, "curves/cubic.curve")
@@ -1331,7 +1564,11 @@ mod tests {
         assert_eq!(i, 1);
         let ts: Vec<f32> = s.doc.tracks[0].keys.iter().map(|k| k.t).collect();
         assert_eq!(ts, vec![0.0, 0.5, 1.0, 2.0]);
-        assert_eq!(s.doc.tracks[0].keys[1].interp, Interp::Cubic, "splitting cubic stays cubic");
+        assert_eq!(
+            s.doc.tracks[0].keys[1].interp,
+            Interp::Cubic,
+            "splitting cubic stays cubic"
+        );
         assert!(s.dirty);
     }
 
@@ -1349,7 +1586,12 @@ mod tests {
         assert_eq!(s.stack.undo_len(), 1, "one gesture, one entry");
         assert_eq!(
             s.doc.tracks[0].keys[1],
-            Key { t: 1.5, value: 3.0, interp: Interp::Linear, tangent: Tangent::Auto }
+            Key {
+                t: 1.5,
+                value: 3.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto
+            }
         );
 
         s.undo();
@@ -1389,7 +1631,10 @@ mod tests {
         assert_eq!(s.doc.tracks[1].slug, "duck_height");
         s.rename_track(1, "Hop");
         assert_eq!(s.doc.tracks[1].label, "Hop");
-        assert_eq!(s.doc.tracks[1].slug, "duck_height", "renaming a label never moves the pin");
+        assert_eq!(
+            s.doc.tracks[1].slug, "duck_height",
+            "renaming a label never moves the pin"
+        );
         s.remove_track(1);
         assert_eq!(s.doc.tracks.len(), 1);
 
@@ -1578,7 +1823,10 @@ mod tests {
         s.begin_drag(0, 1, (1.0, 10.0));
         s.drag_to(99.0, 10.0, SnapSettings::default());
         let ts: Vec<f32> = s.doc.tracks[0].keys.iter().map(|k| k.t).collect();
-        assert!((ts[1] - (2.0 - MIN_KEY_GAP)).abs() < 1e-4, "anchor stops at the wall: {ts:?}");
+        assert!(
+            (ts[1] - (2.0 - MIN_KEY_GAP)).abs() < 1e-4,
+            "anchor stops at the wall: {ts:?}"
+        );
         assert!(
             (ts[1] - ts[0] - 1.0).abs() < 1e-4,
             "the body keeps its shape (selected keys are not walls): {ts:?}"
@@ -1598,7 +1846,11 @@ mod tests {
         assert_eq!(s.stack.undo_len(), 1, "one gesture, one entry, two keys");
         s.undo();
         let ts: Vec<f32> = s.doc.tracks[0].keys.iter().map(|k| k.t).collect();
-        assert_eq!(ts, vec![0.0, 1.0, 2.0], "undo restores every key in the batch");
+        assert_eq!(
+            ts,
+            vec![0.0, 1.0, 2.0],
+            "undo restores every key in the batch"
+        );
     }
 
     #[test]
@@ -1619,22 +1871,51 @@ mod tests {
 
     #[test]
     fn ctrl_inverts_the_resting_snap_toggles() {
-        let off = SnapSettings { time: false, value: false };
+        let off = SnapSettings {
+            time: false,
+            value: false,
+        };
         assert_eq!(off.effective(false), off);
-        assert_eq!(off.effective(true), SnapSettings { time: true, value: true });
-        let on = SnapSettings { time: true, value: true };
+        assert_eq!(
+            off.effective(true),
+            SnapSettings {
+                time: true,
+                value: true
+            }
+        );
+        let on = SnapSettings {
+            time: true,
+            value: true,
+        };
         assert_eq!(on.effective(false), on);
-        assert_eq!(on.effective(true), SnapSettings { time: false, value: false });
+        assert_eq!(
+            on.effective(true),
+            SnapSettings {
+                time: false,
+                value: false
+            }
+        );
     }
 
     #[test]
     fn a_snapped_drag_lands_the_anchor_on_the_grid() {
         let mut s = state();
         s.begin_drag(0, 1, (1.0, 10.0));
-        s.drag_to(1.34, 10.13, SnapSettings { time: true, value: true });
+        s.drag_to(
+            1.34,
+            10.13,
+            SnapSettings {
+                time: true,
+                value: true,
+            },
+        );
         let k = s.doc.tracks[0].keys[1];
         assert!((k.t - 1.3).abs() < 1e-4, "t snapped to 0.1: {}", k.t);
-        assert!((k.value - 10.15).abs() < 1e-4, "value snapped to 0.05: {}", k.value);
+        assert!(
+            (k.value - 10.15).abs() < 1e-4,
+            "value snapped to 0.05: {}",
+            k.value
+        );
 
         // Unsnapped, the same pointer keeps its fractional position.
         s.drag_to(1.34, 10.13, SnapSettings::default());
@@ -1651,26 +1932,44 @@ mod tests {
     #[test]
     fn an_arm_drag_promotes_auto_to_user_without_moving_the_curve() {
         let mut s = cubic_state();
-        let before: Vec<f32> = (0..=40).map(|i| s.doc.tracks[0].sample(i as f32 * 0.1)).collect();
+        let before: Vec<f32> = (0..=40)
+            .map(|i| s.doc.tracks[0].sample(i as f32 * 0.1))
+            .collect();
         let auto_slope = s.doc.tracks[0].out_tangent(1);
 
         s.begin_arm_drag(0, 1, ArmSide::Out);
         assert_eq!(
             s.doc.tracks[0].keys[1].tangent,
-            Tangent::User { tangent: auto_slope },
+            Tangent::User {
+                tangent: auto_slope
+            },
             "seeded with the slope it already had"
         );
-        let after: Vec<f32> = (0..=40).map(|i| s.doc.tracks[0].sample(i as f32 * 0.1)).collect();
+        let after: Vec<f32> = (0..=40)
+            .map(|i| s.doc.tracks[0].sample(i as f32 * 0.1))
+            .collect();
         assert_eq!(before, after, "grabbing an arm must not move the curve");
 
         s.arm_to(auto_slope * 2.0);
         s.end_arm_drag();
         assert_eq!(s.stack.undo_len(), 1, "one arm gesture, one entry");
-        assert_eq!(s.stack.undo_description().as_deref(), Some("Set Tangent User"));
-        assert_eq!(s.doc.tracks[0].keys[1].tangent, Tangent::User { tangent: auto_slope * 2.0 });
+        assert_eq!(
+            s.stack.undo_description().as_deref(),
+            Some("Set Tangent User")
+        );
+        assert_eq!(
+            s.doc.tracks[0].keys[1].tangent,
+            Tangent::User {
+                tangent: auto_slope * 2.0
+            }
+        );
 
         s.undo();
-        assert_eq!(s.doc.tracks[0].keys[1].tangent, Tangent::Auto, "undo restores Auto");
+        assert_eq!(
+            s.doc.tracks[0].keys[1].tangent,
+            Tangent::Auto,
+            "undo restores Auto"
+        );
     }
 
     /// The whole point of Break: the two arms are independent, and a User key
@@ -1681,15 +1980,24 @@ mod tests {
         s.doc.tracks[0].keys[1].tangent = Tangent::User { tangent: 1.0 };
         s.begin_arm_drag(0, 1, ArmSide::In);
         s.arm_to(-3.0);
-        assert_eq!(s.doc.tracks[0].keys[1].tangent, Tangent::User { tangent: -3.0 });
+        assert_eq!(
+            s.doc.tracks[0].keys[1].tangent,
+            Tangent::User { tangent: -3.0 }
+        );
         s.end_arm_drag();
 
-        s.doc.tracks[0].keys[1].tangent = Tangent::Break { in_tan: 1.0, out_tan: 2.0 };
+        s.doc.tracks[0].keys[1].tangent = Tangent::Break {
+            in_tan: 1.0,
+            out_tan: 2.0,
+        };
         s.begin_arm_drag(0, 1, ArmSide::Out);
         s.arm_to(-9.0);
         assert_eq!(
             s.doc.tracks[0].keys[1].tangent,
-            Tangent::Break { in_tan: 1.0, out_tan: -9.0 },
+            Tangent::Break {
+                in_tan: 1.0,
+                out_tan: -9.0
+            },
             "the side you did not grab is untouched"
         );
         s.end_arm_drag();
@@ -1715,13 +2023,26 @@ mod tests {
     fn applying_a_tangent_mode_to_a_selection_is_one_seeded_entry() {
         let mut s = cubic_state();
         s.set_selection(vec![1, 2]);
-        let before: Vec<f32> = (0..=40).map(|i| s.doc.tracks[0].sample(i as f32 * 0.1)).collect();
+        let before: Vec<f32> = (0..=40)
+            .map(|i| s.doc.tracks[0].sample(i as f32 * 0.1))
+            .collect();
         s.set_selection_tangent(TangentMode::Break);
         assert_eq!(s.stack.undo_len(), 1);
-        let after: Vec<f32> = (0..=40).map(|i| s.doc.tracks[0].sample(i as f32 * 0.1)).collect();
-        assert_eq!(before, after, "Break seeded from the current slopes is a no-op");
-        assert!(matches!(s.doc.tracks[0].keys[1].tangent, Tangent::Break { .. }));
-        assert!(matches!(s.doc.tracks[0].keys[2].tangent, Tangent::Break { .. }));
+        let after: Vec<f32> = (0..=40)
+            .map(|i| s.doc.tracks[0].sample(i as f32 * 0.1))
+            .collect();
+        assert_eq!(
+            before, after,
+            "Break seeded from the current slopes is a no-op"
+        );
+        assert!(matches!(
+            s.doc.tracks[0].keys[1].tangent,
+            Tangent::Break { .. }
+        ));
+        assert!(matches!(
+            s.doc.tracks[0].keys[2].tangent,
+            Tangent::Break { .. }
+        ));
 
         s.undo();
         assert_eq!(s.doc.tracks[0].keys[1].tangent, Tangent::Auto);
@@ -1746,7 +2067,13 @@ mod tests {
     fn glyphs_encode_the_mode() {
         assert_eq!(key_glyph(&Tangent::Auto), KeyGlyph::Circle);
         assert_eq!(key_glyph(&Tangent::User { tangent: 1.0 }), KeyGlyph::Circle);
-        assert_eq!(key_glyph(&Tangent::Break { in_tan: 0.0, out_tan: 0.0 }), KeyGlyph::Circle);
+        assert_eq!(
+            key_glyph(&Tangent::Break {
+                in_tan: 0.0,
+                out_tan: 0.0
+            }),
+            KeyGlyph::Circle
+        );
         assert_eq!(key_glyph(&Tangent::Flat), KeyGlyph::Square);
         assert_eq!(key_glyph(&Tangent::Linear), KeyGlyph::Diamond);
         assert!(TangentMode::User.has_arms() && TangentMode::Break.has_arms());
@@ -1758,7 +2085,11 @@ mod tests {
     #[test]
     fn the_footer_reports_agreement_and_mixedness() {
         let mut s = cubic_state();
-        assert_eq!(s.footer(), FooterState::empty(), "no selection, nothing to show");
+        assert_eq!(
+            s.footer(),
+            FooterState::empty(),
+            "no selection, nothing to show"
+        );
 
         s.select_only(1);
         let f = s.footer();
@@ -1786,7 +2117,11 @@ mod tests {
         lin.select_only(1);
         let f = lin.footer();
         assert!(!f.tangent_enabled);
-        assert_eq!(f.tangent, Some(TangentMode::Auto), "the mode is still readable");
+        assert_eq!(
+            f.tangent,
+            Some(TangentMode::Auto),
+            "the mode is still readable"
+        );
     }
 
     #[test]
@@ -1840,21 +2175,45 @@ mod tests {
         let mut s = state();
         s.add_track("Lean").expect("added");
         s.doc.tracks[1].keys = vec![
-            Key { t: 0.0, value: 1.0, interp: Interp::Linear, tangent: Tangent::Auto },
-            Key { t: 2.0, value: 3.0, interp: Interp::Linear, tangent: Tangent::Auto },
+            Key {
+                t: 0.0,
+                value: 1.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
+            Key {
+                t: 2.0,
+                value: 3.0,
+                interp: Interp::Linear,
+                tangent: Tangent::Auto,
+            },
         ];
         s.set_playhead(0.5, SnapSettings::default());
         let readouts = s.playhead_readouts();
         assert_eq!(readouts.len(), 2);
         for (i, v) in readouts {
-            assert_eq!(v, s.doc.tracks[i].sample(0.5), "track {i} readout is the sampler");
+            assert_eq!(
+                v,
+                s.doc.tracks[i].sample(0.5),
+                "track {i} readout is the sampler"
+            );
         }
 
         s.toggle_hidden(0);
-        assert_eq!(s.playhead_readouts().len(), 1, "a hidden track is not read out");
+        assert_eq!(
+            s.playhead_readouts().len(),
+            1,
+            "a hidden track is not read out"
+        );
 
         // Snapping applies to the playhead too, and it never goes negative.
-        s.set_playhead(0.34, SnapSettings { time: true, value: false });
+        s.set_playhead(
+            0.34,
+            SnapSettings {
+                time: true,
+                value: false,
+            },
+        );
         assert!((s.playhead - 0.3).abs() < 1e-4);
         s.set_playhead(-5.0, SnapSettings::default());
         assert_eq!(s.playhead, 0.0);

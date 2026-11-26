@@ -14,9 +14,7 @@
 //! separate on purpose (the tier-1 model): a shipped editor toggles the
 //! manifest and restarts, never a rebuild.
 
-use super::{
-    EnginePlugin, PluginContext, PluginError, PluginKind, PluginManifest, PluginOrigin,
-};
+use super::{EnginePlugin, PluginContext, PluginError, PluginKind, PluginManifest, PluginOrigin};
 use crate::engine::node_graph::dev_nodes::dev_node_descriptors;
 
 /// Fixture node types for exercising the graph editor.
@@ -227,7 +225,10 @@ mod tests {
                 resources: &mut resources,
                 node_registry: &mut registry,
             },
-            Some(&[crate::engine::plugins::PluginEntry::new(DEV_NODES_ID, false)]),
+            Some(&[crate::engine::plugins::PluginEntry::new(
+                DEV_NODES_ID,
+                false,
+            )]),
         );
 
         assert_eq!(set.disabled(), [DEV_NODES_ID.to_string()]);
@@ -291,7 +292,10 @@ mod tests {
                 resources: &mut resources,
                 node_registry: &mut registry,
             },
-            Some(&[crate::engine::plugins::PluginEntry::new(DEV_NODES_ID, false)]),
+            Some(&[crate::engine::plugins::PluginEntry::new(
+                DEV_NODES_ID,
+                false,
+            )]),
         );
 
         assert!(set.panel_menu_entries().is_empty());

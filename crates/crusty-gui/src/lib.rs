@@ -1,0 +1,46 @@
+//! crusty-gui — a hybrid immediate/retained GUI library for the Crusty engine.
+//!
+//! Phase 0 — only foundational scaffolding is in place. Public surface will
+//! grow over subsequent phases.
+
+pub mod animation;
+pub mod clipboard;
+pub mod context;
+pub mod dock;
+pub mod id;
+pub mod input;
+pub mod layer;
+pub mod math;
+pub mod paint;
+pub mod response;
+pub mod style;
+pub mod text;
+pub mod widgets;
+
+#[cfg(feature = "winit-window")]
+pub mod window;
+
+#[cfg(feature = "vulkano-renderer")]
+pub mod backend;
+
+#[cfg(all(feature = "winit-window", feature = "vulkano-renderer"))]
+pub mod shell;
+
+pub mod prelude {
+    pub use crate::context::{Align, Context, CursorIcon, Direction, FrameOutput, Ui, UiOptions};
+    pub use crate::dock::{DockArea, DockNode, SplitDirection};
+    pub use crate::id::Id;
+    pub use crate::input::{Event, Key, Modifiers, MouseButton, RawInput, Shortcut};
+    pub use crate::layer::Order;
+    pub use crate::math::{Color, Pos2, Rect, Rounding, Vec2};
+    pub use crate::paint::{PaintCmd, Painter, RectShape, TextureFilter, TextureId};
+    pub use crate::response::Response;
+    pub use crate::style::Style;
+    pub use crate::text::FontFamily;
+    pub use crate::widgets::{
+        Area, Button, Checkbox, CollapsingHeader, Column, ComboBox, Grid, GridUi, Image,
+        ImageButton, Label, ProgressBar, Radio, ScrollArea, SelectableValue, Slider, SortDir,
+        Table, TableBody, TableOutput, TableRow, TextEdit, TextEditOutput, ToastKind, TreeDropPos,
+        TreeNode, TreeNodeOutput, Window,
+    };
+}

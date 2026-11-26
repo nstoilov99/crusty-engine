@@ -234,7 +234,10 @@ pub fn resolve_material_sets(
         let load_tex = |filename: &str,
                         fallback: [u8; 4],
                         format: Format|
-         -> Result<Arc<vulkano::image::view::ImageView>, Box<dyn std::error::Error>> {
+         -> Result<
+            Arc<vulkano::image::view::ImageView>,
+            Box<dyn std::error::Error>,
+        > {
             if filename.is_empty() {
                 return create_default_texture_with_format(
                     gpu.allocator.clone(),
@@ -307,10 +310,9 @@ pub fn resolve_material_sets(
         };
 
         if let Some(inst) = &inst_def {
-            let base_id =
-                store
-                    .manager
-                    .register_base(albedo, normal, mr, ao, sampler.clone());
+            let base_id = store
+                .manager
+                .register_base(albedo, normal, mr, ao, sampler.clone());
             store.base_ids.insert(base_rel.clone(), base_id);
             cache_material_instance(mat_path, base_id, inst, gpu, store);
             continue;

@@ -17,13 +17,13 @@ use crusty_gui::backend::TargetRenderer;
 use crusty_gui::context::{Context, CursorIcon};
 // Re-exported so downstream HUD code can draw without a direct crusty-gui dep.
 pub use crusty_gui::context::Ui;
-pub use crusty_gui::math::{Color, Pos2, Rect, Vec2};
-#[cfg(feature = "editor")]
-use crusty_gui::math::Rounding;
 use crusty_gui::input::{Event, RawInput};
 pub use crusty_gui::input::{Key, Modifiers, Shortcut};
-pub use crusty_gui::paint::{Painter, TextureId};
+#[cfg(feature = "editor")]
+use crusty_gui::math::Rounding;
+pub use crusty_gui::math::{Color, Pos2, Rect, Vec2};
 use crusty_gui::paint::{PaintCmd, TextureFilter};
+pub use crusty_gui::paint::{Painter, TextureId};
 use crusty_gui::shell::input as shell_input;
 #[cfg(feature = "editor")]
 use crusty_gui::style::Style;
@@ -94,8 +94,7 @@ pub fn style_from_theme(theme: &EditorTheme) -> Style {
 
     style.spacing.item = s(sp.item_spacing_y);
     style.spacing.padding = s(sp.window_margin);
-    style.spacing.button_padding =
-        Vec2::new(s(sp.button_padding_x), s(sp.button_padding_y));
+    style.spacing.button_padding = Vec2::new(s(sp.button_padding_x), s(sp.button_padding_y));
     style.spacing.box_label_gap = s(m.spacing[2]);
 
     // Metric tokens: `border` and `edge_accent` are hairlines that must stay

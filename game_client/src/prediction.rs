@@ -114,7 +114,16 @@ impl Prediction {
     /// Authoritative own-row state (replication IS the ack). An epoch change
     /// restarts the sequence space; otherwise trim acked records and check
     /// the prediction made at `seq` against the server's result.
-    pub fn on_ack(&mut self, epoch: u32, seq: u32, pos: [f32; 3], vel: [f32; 3], yaw: f32, grounded: bool, alive: bool) {
+    pub fn on_ack(
+        &mut self,
+        epoch: u32,
+        seq: u32,
+        pos: [f32; 3],
+        vel: [f32; 3],
+        yaw: f32,
+        grounded: bool,
+        alive: bool,
+    ) {
         let server = MotionState {
             pos: Vec3::from(pos),
             vel: Vec3::from(vel),
@@ -191,14 +200,24 @@ impl Prediction {
     /// Idle freeze: while grounded with no input and no stop sample owed,
     /// no steps run and the seq space stands still — both sides are at a
     /// stable rest state, so there is nothing to predict.
-    pub fn update(&mut self, dt: f32, move_dir: [f32; 2], yaw: f32, sprint: bool, jump_pressed: bool, out: &mut Vec<ClientInput>) {
+    pub fn update(
+        &mut self,
+        dt: f32,
+        move_dir: [f32; 2],
+        yaw: f32,
+        sprint: bool,
+        jump_pressed: bool,
+        out: &mut Vec<ClientInput>,
+    ) {
         if !self.alive {
             return;
         }
         if jump_pressed {
             self.pending_jump = true;
         }
-        let (Some(mut state), Some(store), Some(epoch)) = (self.state, self.store.as_ref(), self.epoch) else {
+        let (Some(mut state), Some(store), Some(epoch)) =
+            (self.state, self.store.as_ref(), self.epoch)
+        else {
             return;
         };
 
@@ -275,7 +294,10 @@ fn load_store() -> Option<ChunkStore> {
         .and_then(|s| ron::from_str::<CollisionManifest>(&s).ok())?;
     let mut store = ChunkStore::new();
     for chunk in &manifest.chunks {
-        let rel = format!("collision/greybox/{}_{}.ccol", chunk.coord[0], chunk.coord[1]);
+        let rel = format!(
+            "collision/greybox/{}_{}.ccol",
+            chunk.coord[0], chunk.coord[1]
+        );
         match asset_source::read_bytes(&rel) {
             Ok(bytes) => {
                 if let Err(e) = store.insert_chunk(&bytes) {
@@ -285,6 +307,9 @@ fn load_store() -> Option<ChunkStore> {
             Err(e) => println!("net: prediction chunk {rel} unreadable: {e}"),
         }
     }
-    println!("net: prediction collision store ready ({} chunks)", store.len());
+    println!(
+        "net: prediction collision store ready ({} chunks)",
+        store.len()
+    );
     Some(store)
 }

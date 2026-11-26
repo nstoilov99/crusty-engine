@@ -3,17 +3,12 @@
 use serde::{Deserialize, Serialize};
 
 /// Which mixer bus an emitter routes to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum AudioBus {
     Music,
+    #[default]
     SFX,
     Ambient,
-}
-
-impl Default for AudioBus {
-    fn default() -> Self {
-        Self::SFX
-    }
 }
 
 impl AudioBus {

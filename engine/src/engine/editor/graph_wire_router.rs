@@ -187,10 +187,7 @@ pub fn route(a: Pos2, b: Pos2, prefs: &WirePrefs, meta: &RouteMeta) -> Vec<Pos2>
             r1.min.y.min(r2.min.y) - LANE_MARGIN,
             r1.max.y.max(r2.max.y) + LANE_MARGIN,
         ),
-        _ => (
-            a.y.min(b.y) - LANE_FALLBACK,
-            a.y.max(b.y) + LANE_FALLBACK,
-        ),
+        _ => (a.y.min(b.y) - LANE_FALLBACK, a.y.max(b.y) + LANE_FALLBACK),
     };
     let xa = (b.x - ho).min(a.x + ho);
     let xb = (a.x + ho).max(b.x - ho);
@@ -376,8 +373,10 @@ pub fn path_crosses_polyline(path: &[Pos2], poly: &[Pos2]) -> bool {
     if path.len() < 2 || poly.len() < 2 {
         return false;
     }
-    path.windows(2)
-        .any(|p| poly.windows(2).any(|q| segments_intersect(p[0], p[1], q[0], q[1])))
+    path.windows(2).any(|p| {
+        poly.windows(2)
+            .any(|q| segments_intersect(p[0], p[1], q[0], q[1]))
+    })
 }
 
 /// Shortest distance from `p` to the segment `a`-`b`.
@@ -437,7 +436,10 @@ mod tests {
     const NODE_H: f32 = 100.0;
 
     fn prefs(style: WireStyle) -> WirePrefs {
-        WirePrefs { style, ..WirePrefs::default() }
+        WirePrefs {
+            style,
+            ..WirePrefs::default()
+        }
     }
 
     /// The standard sweep pair: `a` is the source node's *output* pin, sitting
@@ -578,7 +580,10 @@ mod tests {
                     checked += 1;
                 }
             }
-            assert!(checked > 100_000, "{style:?}: sweep did not run ({checked})");
+            assert!(
+                checked > 100_000,
+                "{style:?}: sweep did not run ({checked})"
+            );
             assert!(exceptions > 0, "{style:?}: the exception bands never fired");
         }
     }
@@ -600,10 +605,8 @@ mod tests {
                 .iter()
                 .map(|sx| {
                     let a = Pos2::new(*sx, -60.0);
-                    let src = Rect::from_min_max(
-                        Pos2::new(sx - NODE_W, -110.0),
-                        Pos2::new(*sx, -10.0),
-                    );
+                    let src =
+                        Rect::from_min_max(Pos2::new(sx - NODE_W, -110.0), Pos2::new(*sx, -10.0));
                     let dst = Rect::from_min_max(
                         Pos2::new(600.0, -50.0),
                         Pos2::new(600.0 + NODE_W, 50.0),
@@ -646,7 +649,10 @@ mod tests {
                 (longest[1].y - longest[0].y).abs() < 1e-3,
                 "{style:?}: the long run is not horizontal"
             );
-            assert!((longest[0].y - a.y).abs() < 1e-3, "{style:?}: run left the source row");
+            assert!(
+                (longest[0].y - a.y).abs() < 1e-3,
+                "{style:?}: run left the source row"
+            );
             // Everything that is not that run happens within
             // horizontal_offset + |dy| of the target.
             let near = p.horizontal_offset + (b.y - a.y).abs() + 1.0;
@@ -777,7 +783,11 @@ mod tests {
             let (a, b, src, dst) = pair(25.0, 19.0);
             let rects = [src, dst];
             let pts = route(a, b, &p, &meta(&src, &dst, &rects, 0));
-            assert_ne!(pts, vec![a, b], "{style:?}: 37° took the near-horizontal path");
+            assert_ne!(
+                pts,
+                vec![a, b],
+                "{style:?}: 37° took the near-horizontal path"
+            );
         }
     }
 
@@ -857,7 +867,10 @@ mod tests {
             );
             let rl = (lo[i + 1] - lo[i]).length() / total_lo;
             let rh = (hi[i + 1] - hi[i]).length() / total_hi;
-            assert!((rl - rh).abs() < 1e-4, "segment {i} changed length ratio with zoom");
+            assert!(
+                (rl - rh).abs() < 1e-4,
+                "segment {i} changed length ratio with zoom"
+            );
         }
     }
 
@@ -874,7 +887,8 @@ mod tests {
         for i in 0..6 {
             let a = Pos2::new(0.0, 300.0 + i as f32 * 8.0);
             let b = Pos2::new(600.0, row * 0.5 + i as f32 * row);
-            let src = Rect::from_min_max(Pos2::new(-NODE_W, a.y - 50.0), Pos2::new(0.0, a.y + 50.0));
+            let src =
+                Rect::from_min_max(Pos2::new(-NODE_W, a.y - 50.0), Pos2::new(0.0, a.y + 50.0));
             let rects = [src, dst];
             let pts = route(a, b, &p, &meta(&src, &dst, &rects, i));
             assert_eq!(pts.len(), 4);
@@ -883,7 +897,10 @@ mod tests {
         }
         // Target-anchored: every wire turns in at the same x.
         for x in &turn_ins {
-            assert!((x - turn_ins[0]).abs() < 1e-3, "ribbon is not parallel: {turn_ins:?}");
+            assert!(
+                (x - turn_ins[0]).abs() < 1e-3,
+                "ribbon is not parallel: {turn_ins:?}"
+            );
         }
         // Diagonal onsets step by the pin pitch, evenly.
         let steps: Vec<f32> = diag_starts.windows(2).map(|w| w[1] - w[0]).collect();
@@ -1051,7 +1068,10 @@ mod tests {
             let pts = route(a, b, &p, &meta(&src, &dst, &rects, 0));
             // Raw route carries the coincident point…
             assert_eq!(pts.len(), 4);
-            assert!((pts[0] - pts[1]).length() < 1e-6, "expected a coincident point");
+            assert!(
+                (pts[0] - pts[1]).length() < 1e-6,
+                "expected a coincident point"
+            );
             // …and rounding removes it, cleanly.
             let rounded = round_corners(&pts, p.corner_radius, UNSCALED);
             assert!(
@@ -1077,7 +1097,11 @@ mod tests {
         ];
         assert_eq!(
             dedup(&pts),
-            vec![Pos2::new(0.0, 0.0), Pos2::new(10.0, 0.0), Pos2::new(10.0, 10.0)]
+            vec![
+                Pos2::new(0.0, 0.0),
+                Pos2::new(10.0, 0.0),
+                Pos2::new(10.0, 10.0)
+            ]
         );
         // A two-point route is passed through untouched (nothing to round).
         let two = [Pos2::new(0.0, 0.0), Pos2::new(5.0, 5.0)];
@@ -1123,7 +1147,10 @@ mod tests {
             let p = prefs(style);
             let s = sample(a, b, &p, &meta(&src, &dst, &rects, 0));
             assert!(s.len() >= 9, "{style:?}: only {} samples", s.len());
-            assert!((s[0] - a).length() < 1e-3, "{style:?}: sample missed the source pin");
+            assert!(
+                (s[0] - a).length() < 1e-3,
+                "{style:?}: sample missed the source pin"
+            );
             assert!(
                 (*s.last().unwrap() - b).length() < 1e-3,
                 "{style:?}: sample missed the target pin"
@@ -1136,14 +1163,39 @@ mod tests {
         let a = Pos2::new(0.0, 0.0);
         let b = Pos2::new(10.0, 0.0);
         // Crossing.
-        assert!(segments_intersect(a, b, Pos2::new(5.0, -5.0), Pos2::new(5.0, 5.0)));
+        assert!(segments_intersect(
+            a,
+            b,
+            Pos2::new(5.0, -5.0),
+            Pos2::new(5.0, 5.0)
+        ));
         // Touching an endpoint counts.
-        assert!(segments_intersect(a, b, Pos2::new(10.0, -5.0), Pos2::new(10.0, 5.0)));
+        assert!(segments_intersect(
+            a,
+            b,
+            Pos2::new(10.0, -5.0),
+            Pos2::new(10.0, 5.0)
+        ));
         // Beyond the end does not.
-        assert!(!segments_intersect(a, b, Pos2::new(11.0, -5.0), Pos2::new(11.0, 5.0)));
+        assert!(!segments_intersect(
+            a,
+            b,
+            Pos2::new(11.0, -5.0),
+            Pos2::new(11.0, 5.0)
+        ));
         // Parallel and collinear are not crossings.
-        assert!(!segments_intersect(a, b, Pos2::new(0.0, 3.0), Pos2::new(10.0, 3.0)));
-        assert!(!segments_intersect(a, b, Pos2::new(2.0, 0.0), Pos2::new(8.0, 0.0)));
+        assert!(!segments_intersect(
+            a,
+            b,
+            Pos2::new(0.0, 3.0),
+            Pos2::new(10.0, 3.0)
+        ));
+        assert!(!segments_intersect(
+            a,
+            b,
+            Pos2::new(2.0, 0.0),
+            Pos2::new(8.0, 0.0)
+        ));
     }
 
     /// The cut preview must test every segment, not a bounding box: a slash
@@ -1188,7 +1240,10 @@ mod tests {
         let b = Pos2::new(-300.0, 0.0);
         let bounds = wire_bounds(a, b, &p, &RouteMeta::loose(&[])).unwrap();
         // A backward spline bows well outside the endpoints' box.
-        assert!(bounds.max.x > a.x, "control hull not included in the bounds");
+        assert!(
+            bounds.max.x > a.x,
+            "control hull not included in the bounds"
+        );
         assert!(bounds.min.x < b.x);
     }
 
@@ -1220,7 +1275,10 @@ mod tests {
             })
             .collect();
         for x in &xs {
-            assert!((x - xs[0]).abs() < 1e-3, "source-anchored turn moved: {xs:?}");
+            assert!(
+                (x - xs[0]).abs() < 1e-3,
+                "source-anchored turn moved: {xs:?}"
+            );
         }
     }
 
@@ -1235,7 +1293,10 @@ mod tests {
         let (a, b, src, dst) = pair(400.0, 90.0);
         let rects = [src, dst];
         let pts = route(a, b, &p, &meta(&src, &dst, &rects, 0));
-        assert!((pts[1].x - b.x).abs() < 1e-3, "turn is not on the target border");
+        assert!(
+            (pts[1].x - b.x).abs() < 1e-3,
+            "turn is not on the target border"
+        );
     }
 
     /// The lane picks the side crossing fewer nodes, and ties go to the side
@@ -1254,12 +1315,18 @@ mod tests {
         let with_blocker = [src, dst, blocker];
         let pts = route(a, b, &p, &meta(&src, &dst, &with_blocker, 0));
         let bot_lane = src.max.y.max(dst.max.y) + LANE_MARGIN;
-        assert!((pts[2].y - bot_lane).abs() < 1e-3, "lane did not avoid the blocker");
+        assert!(
+            (pts[2].y - bot_lane).abs() < 1e-3,
+            "lane did not avoid the blocker"
+        );
 
         // Untouched, the tie goes to the target's side: b.y <= a.y -> top.
         let clean = [src, dst];
         let pts = route(a, b, &p, &meta(&src, &dst, &clean, 0));
-        assert!((pts[2].y - top_lane).abs() < 1e-3, "tie should break to the top");
+        assert!(
+            (pts[2].y - top_lane).abs() < 1e-3,
+            "tie should break to the top"
+        );
     }
 
     #[test]

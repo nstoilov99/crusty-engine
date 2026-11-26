@@ -99,7 +99,9 @@ impl Bot {
     }
 
     fn own_id(&self) -> u64 {
-        self.latest().own_entity_id.expect("own row not in snapshot")
+        self.latest()
+            .own_entity_id
+            .expect("own row not in snapshot")
     }
 
     fn own_pos(&self) -> [f32; 3] {
@@ -113,16 +115,25 @@ impl Bot {
     }
 
     fn sees(&self, entity_id: u64) -> bool {
-        self.latest().entities.iter().any(|e| e.entity_id == entity_id)
+        self.latest()
+            .entities
+            .iter()
+            .any(|e| e.entity_id == entity_id)
     }
 
     /// Far-tier visibility (M8 D3).
     fn sees_coarse(&self, entity_id: u64) -> bool {
-        self.latest().coarse.iter().any(|c| c.entity_id == entity_id)
+        self.latest()
+            .coarse
+            .iter()
+            .any(|c| c.entity_id == entity_id)
     }
 
     fn entity(&self, entity_id: u64) -> Option<&EntityState> {
-        self.latest().entities.iter().find(|e| e.entity_id == entity_id)
+        self.latest()
+            .entities
+            .iter()
+            .find(|e| e.entity_id == entity_id)
     }
 
     /// Teleports via the dev reducer and waits until the own row lands.
@@ -318,8 +329,8 @@ fn wasm_parity_traces_match_native() {
     use game_shared::motion::trace::{load_embedded, EMBEDDED_TRACES, TRACE_TOLERANCE};
 
     // Native store from the same cooked chunks the module embeds.
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../content/collision/greybox");
+    let dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../content/collision/greybox");
     let mut paths: Vec<_> = std::fs::read_dir(dir)
         .expect("content/collision/greybox present")
         .filter_map(|e| e.ok().map(|e| e.path()))
@@ -387,9 +398,8 @@ fn killed_npc_respawns_with_fresh_generation() {
     });
     // The corpse doesn't wander, so it respawns in place — still in scope.
     b.wait("fresh-generation respawn with full hp", |b| {
-        b.entity(npc).is_some_and(|e| {
-            e.generation == gen0 + 1 && e.alive && e.hp == e.hp_max
-        })
+        b.entity(npc)
+            .is_some_and(|e| e.generation == gen0 + 1 && e.alive && e.hp == e.hp_max)
     });
     b.leave();
 }
@@ -445,11 +455,18 @@ fn combat_pair(a_id: &str, b_id: &str, a_pos: [f32; 3], b_pos: [f32; 3]) -> (Bot
 #[test]
 #[ignore = "needs local spacetime standalone + published module"]
 fn gcd_blocks_back_to_back_strikes() {
-    let (mut a, b, target) = combat_pair("acc-gcd-a", "acc-gcd-b", [16.2, 15.0, 9.0], [15.0, 15.0, 9.0]);
+    let (mut a, b, target) = combat_pair(
+        "acc-gcd-a",
+        "acc-gcd-b",
+        [16.2, 15.0, 9.0],
+        [15.0, 15.0, 9.0],
+    );
     let hp0 = a.hp_of(target);
     a.client.cast_ability(STRIKE, target);
     a.client.cast_ability(STRIKE, target);
-    a.wait("exactly one strike lands", |a| (a.hp_of(target) - (hp0 - 15.0)).abs() < 0.01);
+    a.wait("exactly one strike lands", |a| {
+        (a.hp_of(target) - (hp0 - 15.0)).abs() < 0.01
+    });
     a.settle_secs(1.5);
     assert!(
         (a.hp_of(target) - (hp0 - 15.0)).abs() < 0.01,
@@ -474,7 +491,10 @@ fn cooldown_blocks_early_nova_recast() {
     a.client.cast_ability(NOVA, 0);
     a.settle_secs(1.0);
     assert_eq!(a.gcd(), gcd0, "recast inside the cooldown started a GCD");
-    assert!(a.combat().mana >= mana1, "recast inside the cooldown burned mana");
+    assert!(
+        a.combat().mana >= mana1,
+        "recast inside the cooldown burned mana"
+    );
     a.leave();
 }
 
@@ -482,14 +502,22 @@ fn cooldown_blocks_early_nova_recast() {
 #[ignore = "needs local spacetime standalone + published module"]
 fn out_of_range_cast_lands_nothing() {
     // Same zone (NE), 40 m apart: beyond strike (3 m) and firebolt (25 m).
-    let (mut a, b, target) = combat_pair("acc-range-a", "acc-range-b", [55.0, 15.0, 9.0], [15.0, 15.0, 9.0]);
+    let (mut a, b, target) = combat_pair(
+        "acc-range-a",
+        "acc-range-b",
+        [55.0, 15.0, 9.0],
+        [15.0, 15.0, 9.0],
+    );
     let hp0 = a.hp_of(target);
     let gcd0 = a.gcd();
     a.client.cast_ability(STRIKE, target);
     a.client.cast_ability(FIREBOLT, target);
     a.settle_secs(2.5);
     assert_eq!(a.gcd(), gcd0, "out-of-range cast started a GCD");
-    assert!((a.hp_of(target) - hp0).abs() < 0.01, "out-of-range cast dealt damage");
+    assert!(
+        (a.hp_of(target) - hp0).abs() < 0.01,
+        "out-of-range cast dealt damage"
+    );
     a.leave();
     b.leave();
 }
@@ -497,7 +525,12 @@ fn out_of_range_cast_lands_nothing() {
 #[test]
 #[ignore = "needs local spacetime standalone + published module"]
 fn offline_target_rejected() {
-    let (mut a, b, target) = combat_pair("acc-off-a", "acc-off-b", [16.2, 15.0, 9.0], [15.0, 15.0, 9.0]);
+    let (mut a, b, target) = combat_pair(
+        "acc-off-a",
+        "acc-off-b",
+        [16.2, 15.0, 9.0],
+        [15.0, 15.0, 9.0],
+    );
     b.leave(); // row persists, session gone
     a.wait("target row still in scope", |a| a.sees(target));
     let hp0 = a.hp_of(target);
@@ -505,16 +538,26 @@ fn offline_target_rejected() {
     a.client.cast_ability(STRIKE, target);
     a.settle_secs(1.0);
     assert_eq!(a.gcd(), gcd0, "strike on an offline row started a GCD");
-    assert!((a.hp_of(target) - hp0).abs() < 0.01, "offline row took damage");
+    assert!(
+        (a.hp_of(target) - hp0).abs() < 0.01,
+        "offline row took damage"
+    );
     a.leave();
 }
 
 #[test]
 #[ignore = "needs local spacetime standalone + published module"]
 fn dead_target_and_dead_caster_rejected() {
-    let (mut a, b, target) = combat_pair("acc-dead-a", "acc-dead-b", [16.2, 15.0, 9.0], [15.0, 15.0, 9.0]);
+    let (mut a, b, target) = combat_pair(
+        "acc-dead-a",
+        "acc-dead-b",
+        [16.2, 15.0, 9.0],
+        [15.0, 15.0, 9.0],
+    );
     a.client.dev_damage(target, 1000.0);
-    a.wait("target dead", |a| a.entity(target).is_some_and(|e| !e.alive));
+    a.wait("target dead", |a| {
+        a.entity(target).is_some_and(|e| !e.alive)
+    });
     let gcd0 = a.gcd();
     a.client.cast_ability(STRIKE, target);
     a.settle_secs(1.0); // inside the 5 s corpse window
@@ -541,7 +584,12 @@ fn dead_target_and_dead_caster_rejected() {
 fn mana_floor_stops_casts() {
     // 6 m apart: outside the projectile's 2-tick caster-grace sweep (which
     // skips collision), inside nova's 8 m and firebolt's 25 m.
-    let (mut a, b, target) = combat_pair("acc-mana-a", "acc-mana-b", [21.0, 15.0, 9.0], [15.0, 15.0, 9.0]);
+    let (mut a, b, target) = combat_pair(
+        "acc-mana-a",
+        "acc-mana-b",
+        [21.0, 15.0, 9.0],
+        [15.0, 15.0, 9.0],
+    );
     a.wait_mana_full();
     let mana0 = a.combat().mana; // 100
 
@@ -554,11 +602,16 @@ fn mana_floor_stops_casts() {
     for round in 0..2 {
         let before = a.combat().mana;
         a.client.cast_ability(FIREBOLT, target);
-        a.wait("firebolt cast started", |a| a.combat().active_cast.is_some());
+        a.wait("firebolt cast started", |a| {
+            a.combat().active_cast.is_some()
+        });
         a.wait("firebolt completion commits mana", |a| {
             a.combat().active_cast.is_none() && a.combat().mana < before - 20.0
         });
-        assert!(round == 1 || a.combat().mana >= 30.0, "drain arithmetic drifted");
+        assert!(
+            round == 1 || a.combat().mana >= 30.0,
+            "drain arithmetic drifted"
+        );
     }
     let mana_low = a.combat().mana;
     assert!(mana_low < 30.0, "expected sub-cost mana, got {mana_low}");
@@ -570,7 +623,10 @@ fn mana_floor_stops_casts() {
     a.settle_secs(1.0);
     assert_eq!(a.gcd(), gcd0, "unaffordable cast started a GCD");
     assert!(a.combat().mana >= mana_low, "unaffordable cast burned mana");
-    assert!(a.combat().active_cast.is_none(), "unaffordable cast is casting");
+    assert!(
+        a.combat().active_cast.is_none(),
+        "unaffordable cast is casting"
+    );
 
     // Sanity on the damage side: nova 15 + two projectile hits 2×25 = 65.
     a.wait("both projectiles landed", |a| {
@@ -590,8 +646,11 @@ fn movement_input_interrupts_cast() {
     a.client.cast_ability(HEAL, 0);
     a.wait("heal cast started", |a| a.combat().active_cast.is_some());
     let (epoch, seq) = a.ack.expect("own-row ack seen");
-    a.client.dev_submit_input_raw(epoch, seq + 1, [1.0, 0.0], 0.0);
-    a.wait("movement cancels the cast", |a| a.combat().active_cast.is_none());
+    a.client
+        .dev_submit_input_raw(epoch, seq + 1, [1.0, 0.0], 0.0);
+    a.wait("movement cancels the cast", |a| {
+        a.combat().active_cast.is_none()
+    });
     a.settle_secs(2.5); // past would-be completion
     assert!(
         a.combat().mana >= mana0 - 0.01,
@@ -610,7 +669,8 @@ fn forged_inputs_do_not_move() {
     let p0 = a.own_pos();
 
     // Foreign epoch: dropped before simulation.
-    a.client.dev_submit_input_raw(epoch + 7, seq + 1, [1.0, 0.0], 0.0);
+    a.client
+        .dev_submit_input_raw(epoch + 7, seq + 1, [1.0, 0.0], 0.0);
     a.settle_secs(1.0);
     let p1 = a.own_pos();
     assert!(
@@ -688,8 +748,7 @@ fn idle_players_produce_no_deliveries() {
         k.client.dev_damage(id, 1000.0);
     }
     k.wait("all NPCs dead", |k| {
-        npcs.iter()
-            .all(|&id| k.entity(id).is_none_or(|e| !e.alive))
+        npcs.iter().all(|&id| k.entity(id).is_none_or(|e| !e.alive))
     });
 
     // Drain in-flight deliveries, then measure a quiet window.

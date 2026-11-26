@@ -20,9 +20,9 @@ use super::mesh_editor::MeshPreviewState;
 use crate::engine::animation::blend_space::{BlendSpace, BlendSpaceDoc};
 use crate::engine::animation::components::SkeletonInstance;
 use crate::engine::animation::graph::{
-    evaluate_pose, AnimAssetLoader, AnimGraphPlan, AnimMachine, AnimParamType, AnimParams,
-    ClipSet, MachineSource, ParamDecl, ParamValue, PlanClip, PlanMachineRef, PlanSpace, PlanState,
-    PlanTree, PoseScratch, PoseSource,
+    evaluate_pose, AnimAssetLoader, AnimGraphPlan, AnimMachine, AnimParamType, AnimParams, ClipSet,
+    MachineSource, ParamDecl, ParamValue, PlanClip, PlanMachineRef, PlanSpace, PlanState, PlanTree,
+    PoseScratch, PoseSource,
 };
 
 /// Default share of the right-hand column the preview pane takes.
@@ -260,7 +260,11 @@ impl BlendSpacePreview {
     }
 
     /// Why the pane cannot draw, in the order a user would fix things.
-    fn diagnose(&self, doc: &BlendSpaceDoc, compiled: &Result<BlendSpace, String>) -> Option<String> {
+    fn diagnose(
+        &self,
+        doc: &BlendSpaceDoc,
+        compiled: &Result<BlendSpace, String>,
+    ) -> Option<String> {
         let Some(mesh) = &self.mesh else {
             return Some(if doc.preview_mesh.is_empty() {
                 "No skinned mesh matches these clips \u{2014} set Preview Mesh".into()
@@ -269,7 +273,10 @@ impl BlendSpacePreview {
             });
         };
         let Some(skel) = &self.skeleton else {
-            return Some(format!("{} has no skeleton \u{2014} set Preview Mesh", stem(mesh)));
+            return Some(format!(
+                "{} has no skeleton \u{2014} set Preview Mesh",
+                stem(mesh)
+            ));
         };
         if let Err(e) = compiled {
             return Some(e.clone());
@@ -280,7 +287,11 @@ impl BlendSpacePreview {
                 return Some(format!("sample {i}: clip '{}' could not be loaded", s.clip));
             };
             if set.select(s.clip_name.as_deref()).is_none() {
-                return Some(format!("sample {i}: clip '{}' not in {}", s.clip_name.clone().unwrap_or_default(), s.clip));
+                return Some(format!(
+                    "sample {i}: clip '{}' not in {}",
+                    s.clip_name.clone().unwrap_or_default(),
+                    s.clip
+                ));
             }
             if !bones_cover(&mesh_bones, &set.bone_names) {
                 return Some(format!(
@@ -298,18 +309,22 @@ impl BlendSpacePreview {
     /// frozen frame, so the clip clock and any input smoothing hold while an
     /// unsmoothed point still snaps. Then the pose and palette refresh.
     pub fn advance(&mut self, dt: f32, input: [f32; 2]) {
-        let Some(skel) = self.skeleton.as_mut() else { return };
+        let Some(skel) = self.skeleton.as_mut() else {
+            return;
+        };
         if self.status.is_some() {
             return;
         }
         for (k, decl) in self.plan.parameters.iter().enumerate() {
             self.params.set_float(&decl.slug, input[k.min(1)]);
         }
-        self.machine
-            .tick(&self.plan, &mut self.params, if self.playing { dt } else { 0.0 });
+        self.machine.tick(
+            &self.plan,
+            &mut self.params,
+            if self.playing { dt } else { 0.0 },
+        );
         let clips = &self.clips;
-        let clip_for =
-            |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
+        let clip_for = |c: &PlanClip| clips.get(&c.clip)?.as_ref()?.select(c.clip_name.as_deref());
         evaluate_pose(
             &self.machine,
             &self.plan,
@@ -327,8 +342,11 @@ impl BlendSpacePreview {
 /// compiler produces for a state naming this `.blendspace`, minus the
 /// document.
 fn one_state_plan(doc: &BlendSpaceDoc, space: &BlendSpace) -> AnimGraphPlan {
-    let params: Vec<String> =
-        doc.active_axes().iter().map(|a| a.param_name().to_string()).collect();
+    let params: Vec<String> = doc
+        .active_axes()
+        .iter()
+        .map(|a| a.param_name().to_string())
+        .collect();
     let samples = space
         .samples()
         .iter()
@@ -397,7 +415,10 @@ mod tests {
             duration_seconds: 1.0,
             channels: vec![AnimationChannel {
                 bone_index: 0,
-                position_keys: vec![(0.0, Vec3::new(from, 0.0, 0.0)), (1.0, Vec3::new(to, 0.0, 0.0))],
+                position_keys: vec![
+                    (0.0, Vec3::new(from, 0.0, 0.0)),
+                    (1.0, Vec3::new(to, 0.0, 0.0)),
+                ],
                 rotation_keys: vec![],
                 scale_keys: vec![],
             }],
@@ -415,19 +436,29 @@ mod tests {
             None
         }
         fn load_clips(&self, rel: &str) -> Option<ClipSet> {
-            self.clips.iter().find(|(p, _, _)| *p == rel).map(|(_, b, c)| ClipSet {
-                bone_names: b.iter().map(|s| s.to_string()).collect(),
-                clips: vec![c.clone()],
-            })
+            self.clips
+                .iter()
+                .find(|(p, _, _)| *p == rel)
+                .map(|(_, b, c)| ClipSet {
+                    bone_names: b.iter().map(|s| s.to_string()).collect(),
+                    clips: vec![c.clone()],
+                })
         }
         fn load_skeleton(&self, rel: &str) -> Option<Vec<BoneData>> {
-            self.meshes.iter().find(|(p, _)| *p == rel).map(|(_, b)| bones(b))
+            self.meshes
+                .iter()
+                .find(|(p, _)| *p == rel)
+                .map(|(_, b)| bones(b))
         }
     }
 
     fn assets() -> Mem {
         Mem {
-            meshes: vec![("a.mesh", vec!["other"]), ("b.mesh", vec!["root", "child"]), ("c.mesh", vec![])],
+            meshes: vec![
+                ("a.mesh", vec!["other"]),
+                ("b.mesh", vec!["root", "child"]),
+                ("c.mesh", vec![]),
+            ],
             clips: vec![
                 ("walk.anim", vec!["root", "child"], clip("Walk", 2.0, 2.0)),
                 ("run.anim", vec!["root", "child"], clip("Run", 10.0, 10.0)),
@@ -437,13 +468,19 @@ mod tests {
     }
 
     fn mesh_list() -> Vec<String> {
-        ["a.mesh", "b.mesh", "c.mesh"].iter().map(|s| s.to_string()).collect()
+        ["a.mesh", "b.mesh", "c.mesh"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 
     fn walk_run() -> BlendSpaceDoc {
         let mut doc = BlendSpaceDoc::default();
         doc.axes[0] = BlendAxis::new("Speed", 0.0, 6.0);
-        doc.samples = vec![BlendSample::new(0.0, 0.0, "walk.anim"), BlendSample::new(6.0, 0.0, "run.anim")];
+        doc.samples = vec![
+            BlendSample::new(0.0, 0.0, "walk.anim"),
+            BlendSample::new(6.0, 0.0, "run.anim"),
+        ];
         doc
     }
 
@@ -454,7 +491,9 @@ mod tests {
     }
 
     fn bone0_x(p: &BlendSpacePreview) -> f32 {
-        p.skeleton.as_ref().expect("skeleton").local_transforms[0].translation.x
+        p.skeleton.as_ref().expect("skeleton").local_transforms[0]
+            .translation
+            .x
     }
 
     #[test]
@@ -463,16 +502,29 @@ mod tests {
         assert!(near(clamp_split(0.55, 1000.0, 160.0), 0.55));
         assert!(near(clamp_split(0.01, 1000.0, 160.0), 0.16));
         assert!(near(clamp_split(0.99, 1000.0, 160.0), 0.84));
-        assert!(near(clamp_split(0.9, 300.0, 160.0), 0.5), "too short for both: halfway");
+        assert!(
+            near(clamp_split(0.9, 300.0, 160.0), 0.5),
+            "too short for both: halfway"
+        );
     }
 
     #[test]
     fn auto_pick_takes_the_first_mesh_covering_the_clip_bones() {
         let p = built(&walk_run());
-        assert_eq!(p.mesh.as_deref(), Some("b.mesh"), "a.mesh lacks 'child', c.mesh has no bones");
+        assert_eq!(
+            p.mesh.as_deref(),
+            Some("b.mesh"),
+            "a.mesh lacks 'child', c.mesh has no bones"
+        );
         assert_eq!(p.status, None);
-        assert!(bones_cover(&["root".into(), "child".into()], &["child".into()]));
-        assert!(!bones_cover(&["root".into()], &[]), "a clip naming no bones matches nothing");
+        assert!(bones_cover(
+            &["root".into(), "child".into()],
+            &["child".into()]
+        ));
+        assert!(
+            !bones_cover(&["root".into()], &[]),
+            "a clip naming no bones matches nothing"
+        );
     }
 
     #[test]
@@ -481,34 +533,66 @@ mod tests {
         doc.preview_mesh = "a.mesh".into();
         let p = built(&doc);
         assert_eq!(p.mesh.as_deref(), Some("a.mesh"));
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("don't match")), "{:?}", p.status);
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("don't match")),
+            "{:?}",
+            p.status
+        );
         doc.preview_mesh = "c.mesh".into();
         let p = built(&doc);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("no skeleton")), "{:?}", p.status);
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("no skeleton")),
+            "{:?}",
+            p.status
+        );
         doc.preview_mesh.clear();
         doc.samples[0].clip = "missing.anim".into();
         let p = built(&doc);
-        assert!(p.status.as_deref().is_some_and(|s| s.contains("could not be loaded")), "{:?}", p.status);
+        assert!(
+            p.status
+                .as_deref()
+                .is_some_and(|s| s.contains("could not be loaded")),
+            "{:?}",
+            p.status
+        );
     }
 
     #[test]
     fn the_pose_follows_the_preview_input() {
         let doc = walk_run();
         let mut p = built(&doc);
-        for (point, expected) in [(None, 2.0), (Some([6.0, 0.0]), 10.0), (Some([3.0, 0.0]), 6.0), (Some([1.5, 0.0]), 4.0)] {
+        for (point, expected) in [
+            (None, 2.0),
+            (Some([6.0, 0.0]), 10.0),
+            (Some([3.0, 0.0]), 6.0),
+            (Some([1.5, 0.0]), 4.0),
+        ] {
             p.advance(0.1, preview_input(&doc, point));
             let x = bone0_x(&p);
-            assert!((x - expected).abs() < 1e-4, "{point:?}: pose {x} expected {expected}");
+            assert!(
+                (x - expected).abs() < 1e-4,
+                "{point:?}: pose {x} expected {expected}"
+            );
         }
     }
 
     #[test]
     fn rate_scale_and_pause_drive_the_clock() {
         let mut doc = walk_run();
-        doc.samples = vec![BlendSample { rate_scale: 2.0, ..BlendSample::new(0.0, 0.0, "slide.anim") }];
+        doc.samples = vec![BlendSample {
+            rate_scale: 2.0,
+            ..BlendSample::new(0.0, 0.0, "slide.anim")
+        }];
         let mut p = built(&doc);
         p.advance(0.25, [0.0, 0.0]);
-        assert!((bone0_x(&p) - 0.5).abs() < 1e-4, "rate 2: 0.25 s of clock is half the cycle");
+        assert!(
+            (bone0_x(&p) - 0.5).abs() < 1e-4,
+            "rate 2: 0.25 s of clock is half the cycle"
+        );
         assert!((p.time() - 0.25).abs() < 1e-6);
         p.playing = false;
         p.advance(0.25, [0.0, 0.0]);
@@ -528,7 +612,8 @@ mod tests {
         doc.preview_mesh = "chars/hero.mesh".into();
         let text = serialize_blend_space(&doc).expect("serializes");
         assert_eq!(parse_blend_space(&text).expect("parses"), doc);
-        let old = parse_blend_space("(version: 1, samples: [(x: 0.0, clip: \"a.anim\")])").expect("parses");
+        let old = parse_blend_space("(version: 1, samples: [(x: 0.0, clip: \"a.anim\")])")
+            .expect("parses");
         assert_eq!(old.preview_mesh, "");
     }
 }

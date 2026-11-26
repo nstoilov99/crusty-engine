@@ -99,13 +99,22 @@ fn bar(p: &mut Painter, rect: Rect, frac: f32, fill: Color, label: &str) {
 fn unit_frame(p: &mut Painter, min: Pos2, name: &str, name_col: Color) -> Rect {
     let panel = Rect::from_min_size(min, Vec2::new(FRAME_W, FRAME_H));
     p.rect_filled(panel, 4.0, PANEL_BG);
-    p.text(Pos2::new(min.x + 8.0, min.y + 5.0), name, FONT_PX, name_col, None);
+    p.text(
+        Pos2::new(min.x + 8.0, min.y + 5.0),
+        name,
+        FONT_PX,
+        name_col,
+        None,
+    );
     panel
 }
 
 fn frame_bar_rect(panel: Rect, row: usize) -> Rect {
     Rect::from_min_size(
-        Pos2::new(panel.min.x + 8.0, panel.min.y + 24.0 + row as f32 * (BAR_H + 6.0)),
+        Pos2::new(
+            panel.min.x + 8.0,
+            panel.min.y + 24.0 + row as f32 * (BAR_H + 6.0),
+        ),
         Vec2::new(FRAME_W - 16.0, BAR_H),
     )
 }
@@ -143,7 +152,13 @@ fn target_frame(p: &mut Painter, t: &HudTarget, now_us: u64) {
     } else {
         "Dead".to_string()
     };
-    bar(p, frame_bar_rect(panel, 0), t.hp / t.hp_max.max(1.0), HP_COL, &label);
+    bar(
+        p,
+        frame_bar_rect(panel, 0),
+        t.hp / t.hp_max.max(1.0),
+        HP_COL,
+        &label,
+    );
     if let Some(cast) = &t.cast {
         let dur = cast.finish_us.saturating_sub(cast.start_us);
         if dur > 0 {
@@ -183,7 +198,10 @@ fn action_bar(p: &mut Painter, screen: Rect, own: &OwnCombat, now_us: u64) {
         );
         let name_size = p.measure_text(def.name, SMALL_PX, None);
         p.text(
-            Pos2::new(rect.center().x - name_size.x * 0.5, rect.max.y - name_size.y - 3.0),
+            Pos2::new(
+                rect.center().x - name_size.x * 0.5,
+                rect.max.y - name_size.y - 3.0,
+            ),
             def.name,
             SMALL_PX,
             Color::WHITE,
@@ -221,7 +239,10 @@ fn cooldown_pie(p: &mut Painter, rect: Rect, frac: f32) {
     let mut vertices = vec![(center, col)];
     for i in 0..=steps {
         let a = -FRAC_PI_2 - frac * TAU * (1.0 - i as f32 / steps as f32);
-        vertices.push((Pos2::new(center.x + a.cos() * r, center.y + a.sin() * r), col));
+        vertices.push((
+            Pos2::new(center.x + a.cos() * r, center.y + a.sin() * r),
+            col,
+        ));
     }
     let indices = (1..=steps).flat_map(|i| [0, i, i + 1]).collect();
     p.mesh(vertices, indices);
@@ -265,7 +286,13 @@ fn respawn_overlay(p: &mut Painter, screen: Rect, own: &OwnCombat, now_us: u64) 
     let center = Pos2::new(screen.center().x, screen.min.y + screen.height() * 0.38);
     let panel = Rect::from_center_size(center, size + pad * 2.0);
     p.rect_filled(panel, 4.0, PANEL_BG);
-    p.text(panel.min + pad, &txt, 18.0, Color::rgba(1.0, 0.45, 0.45, 1.0), None);
+    p.text(
+        panel.min + pad,
+        &txt,
+        18.0,
+        Color::rgba(1.0, 0.45, 0.45, 1.0),
+        None,
+    );
 }
 
 fn ability_name(ability_id: u16) -> &'static str {

@@ -345,8 +345,10 @@ fn parse_field(field: &syn::Field) -> syn::Result<(Side, TokenStream2)> {
                         // literals come through the raw parser instead.
                         let content;
                         syn::parenthesized!(content in meta.input);
-                        let list = content
-                            .parse_terminated(<syn::LitStr as syn::parse::Parse>::parse, syn::Token![,])?;
+                        let list = content.parse_terminated(
+                            <syn::LitStr as syn::parse::Parse>::parse,
+                            syn::Token![,],
+                        )?;
                         variants.extend(list.into_iter().map(|l| l.value()));
                         Ok(())
                     })?;
@@ -500,9 +502,7 @@ fn realm_tokens(realm: &str, span: proc_macro2::Span) -> syn::Result<TokenStream
         "server_safe" => Ok(quote! { NodeRealm::ServerSafe }),
         other => Err(syn::Error::new(
             span,
-            format!(
-                "unknown realm `{other}` (expected editor, client, shared or server_safe)"
-            ),
+            format!("unknown realm `{other}` (expected editor, client, shared or server_safe)"),
         )),
     }
 }

@@ -92,17 +92,18 @@ impl PlanktonRenderPass {
 
         // Billboard quads, additive blend (src * ONE + dst * ONE), no depth
         // buffer in the HDR-only pass.
-        let (pipeline, layout) = PassPipelineBuilder::new(device.clone(), render_pass.clone(), vs, fs)
-            .topology(PrimitiveTopology::TriangleStrip)
-            .blend(AttachmentBlend {
-                src_color_blend_factor: BlendFactor::One,
-                dst_color_blend_factor: BlendFactor::One,
-                color_blend_op: BlendOp::Add,
-                src_alpha_blend_factor: BlendFactor::One,
-                dst_alpha_blend_factor: BlendFactor::One,
-                alpha_blend_op: BlendOp::Add,
-            })
-            .build()?;
+        let (pipeline, layout) =
+            PassPipelineBuilder::new(device.clone(), render_pass.clone(), vs, fs)
+                .topology(PrimitiveTopology::TriangleStrip)
+                .blend(AttachmentBlend {
+                    src_color_blend_factor: BlendFactor::One,
+                    dst_color_blend_factor: BlendFactor::One,
+                    color_blend_op: BlendOp::Add,
+                    src_alpha_blend_factor: BlendFactor::One,
+                    dst_alpha_blend_factor: BlendFactor::One,
+                    alpha_blend_op: BlendOp::Add,
+                })
+                .build()?;
 
         // Create 1x1 white fallback texture (with actual white pixel data uploaded)
         let fallback_texture =

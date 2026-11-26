@@ -78,25 +78,64 @@ pub struct Hue {
 /// status.error / status.danger). Preset-invariant.
 pub fn ramp() -> [Hue; 12] {
     [
-        Hue { bright: rgb(0xFE, 0x87, 0x8D), deep: rgb(0xC6, 0x4D, 0x58) }, // 0  ember   18
-        Hue { bright: rgb(0xFF, 0xA1, 0x65), deep: rgb(0xCA, 0x64, 0x0A) }, // 1  amber   52
-        Hue { bright: rgb(0xF1, 0xB4, 0x40), deep: rgb(0xB1, 0x7E, 0x05) }, // 2  gold    80
-        Hue { bright: rgb(0xCA, 0xC7, 0x49), deep: rgb(0x91, 0x8E, 0x02) }, // 3  lime    108
-        Hue { bright: rgb(0x8B, 0xD1, 0x72), deep: rgb(0x50, 0x99, 0x33) }, // 4  green   138
-        Hue { bright: rgb(0x2B, 0xCE, 0x9F), deep: rgb(0x00, 0x92, 0x6F) }, // 5  teal    168
-        Hue { bright: rgb(0x02, 0xBD, 0xC2), deep: rgb(0x09, 0x84, 0x87) }, // 6  cyan    198
-        Hue { bright: rgb(0x00, 0xAB, 0xDD), deep: rgb(0x01, 0x76, 0x9A) }, // 7  azure   228
-        Hue { bright: rgb(0x63, 0x94, 0xEE), deep: rgb(0x31, 0x61, 0xBE) }, // 8  blue    262
-        Hue { bright: rgb(0x8F, 0x86, 0xEA), deep: rgb(0x62, 0x53, 0xB9) }, // 9  violet  286
-        Hue { bright: rgb(0xC3, 0x7C, 0xD3), deep: rgb(0x91, 0x47, 0xA2) }, // 10 magenta 320
-        Hue { bright: rgb(0xE5, 0x7C, 0xB4), deep: rgb(0xB0, 0x45, 0x82) }, // 11 rose    348
+        Hue {
+            bright: rgb(0xFE, 0x87, 0x8D),
+            deep: rgb(0xC6, 0x4D, 0x58),
+        }, // 0  ember   18
+        Hue {
+            bright: rgb(0xFF, 0xA1, 0x65),
+            deep: rgb(0xCA, 0x64, 0x0A),
+        }, // 1  amber   52
+        Hue {
+            bright: rgb(0xF1, 0xB4, 0x40),
+            deep: rgb(0xB1, 0x7E, 0x05),
+        }, // 2  gold    80
+        Hue {
+            bright: rgb(0xCA, 0xC7, 0x49),
+            deep: rgb(0x91, 0x8E, 0x02),
+        }, // 3  lime    108
+        Hue {
+            bright: rgb(0x8B, 0xD1, 0x72),
+            deep: rgb(0x50, 0x99, 0x33),
+        }, // 4  green   138
+        Hue {
+            bright: rgb(0x2B, 0xCE, 0x9F),
+            deep: rgb(0x00, 0x92, 0x6F),
+        }, // 5  teal    168
+        Hue {
+            bright: rgb(0x02, 0xBD, 0xC2),
+            deep: rgb(0x09, 0x84, 0x87),
+        }, // 6  cyan    198
+        Hue {
+            bright: rgb(0x00, 0xAB, 0xDD),
+            deep: rgb(0x01, 0x76, 0x9A),
+        }, // 7  azure   228
+        Hue {
+            bright: rgb(0x63, 0x94, 0xEE),
+            deep: rgb(0x31, 0x61, 0xBE),
+        }, // 8  blue    262
+        Hue {
+            bright: rgb(0x8F, 0x86, 0xEA),
+            deep: rgb(0x62, 0x53, 0xB9),
+        }, // 9  violet  286
+        Hue {
+            bright: rgb(0xC3, 0x7C, 0xD3),
+            deep: rgb(0x91, 0x47, 0xA2),
+        }, // 10 magenta 320
+        Hue {
+            bright: rgb(0xE5, 0x7C, 0xB4),
+            deep: rgb(0xB0, 0x45, 0x82),
+        }, // 11 rose    348
     ]
 }
 
 /// OUTSIDE the ramp on purpose: unambiguously "unknown / unregistered".
 /// The hash fallback never produces it.
 pub fn neutral() -> Hue {
-    Hue { bright: rgb(0x8D, 0x93, 0x99), deep: rgb(0x5E, 0x64, 0x6A) }
+    Hue {
+        bright: rgb(0x8D, 0x93, 0x99),
+        deep: rgb(0x5E, 0x64, 0x6A),
+    }
 }
 
 /// The three maps. Indices into [`ramp()`] — never colors.
@@ -120,9 +159,9 @@ pub struct Palettes {
 
 pub const PALETTES: Palettes = Palettes {
     assets: &[
-        ("ui", 0),        // ember   — was #F08C7E; now 34 deg clear of vfx
-        ("vfx", 1),       // amber
-        ("lights", 2),    // gold    — ~10 deg from status.warning: accepted,
+        ("ui", 0),     // ember   — was #F08C7E; now 34 deg clear of vfx
+        ("vfx", 1),    // amber
+        ("lights", 2), // gold    — ~10 deg from status.warning: accepted,
         //           separated by lightness + role
         ("physics", 3),   // lime
         ("audio", 4),     // green
@@ -303,7 +342,11 @@ const GRID_MAJOR_ONLY_MIX: f32 = 0.07;
 /// does it, and the resolved opaque color is what gets painted.
 fn srgb_mix_white(over: Color, t: f32) -> Color {
     let [r, g, b, _] = over.to_srgb_u8();
-    let lift = |c: u8| (c as f32 + (255.0 - c as f32) * t).round().clamp(0.0, 255.0) as u8;
+    let lift = |c: u8| {
+        (c as f32 + (255.0 - c as f32) * t)
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
     rgb(lift(r), lift(g), lift(b))
 }
 
@@ -317,7 +360,14 @@ pub fn grid_minor(over: Color) -> Color {
 /// Major grid line: same white, 9% — or 7% when it is the only grid left
 /// (below [`GRID_MINOR_MIN_ZOOM`]).
 pub fn grid_major(over: Color, alone: bool) -> Color {
-    srgb_mix_white(over, if alone { GRID_MAJOR_ONLY_MIX } else { GRID_MAJOR_MIX })
+    srgb_mix_white(
+        over,
+        if alone {
+            GRID_MAJOR_ONLY_MIX
+        } else {
+            GRID_MAJOR_MIX
+        },
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -460,14 +510,14 @@ pub struct Metrics {
     pub border: f32,        // 1.0 — the only border width
     /// 2px is reserved: active-tab top edge + asset-tile/node type edge.
     pub edge_accent: f32, // 2.0
-    pub row_height: f32,     // 22.0
+    pub row_height: f32,    // 22.0
     pub control_height: f32, // 24.0
-    pub spacing: [f32; 7],   // 2 4 6 8 12 16 24
-    pub indent: f32,         // 18.0
+    pub spacing: [f32; 7],  // 2 4 6 8 12 16 24
+    pub indent: f32,        // 18.0
     /// Alpha for transient surfaces (menus, dropdowns, tooltips) ONLY.
     /// 1.0 disables translucency globally. Simple alpha — no blur.
     pub popover_alpha: f32, // 0.96
-    pub scrim_alpha: f32,    // 0.45 — behind modals
+    pub scrim_alpha: f32,   // 0.45 — behind modals
 }
 
 impl Metrics {
@@ -761,7 +811,12 @@ impl Palette {
             for (bg_name, bg) in &bg_surfaces {
                 let ratio = contrast_ratio(*fg, *bg);
                 if ratio < 4.5 {
-                    issues.push(ContrastIssue { fg_name, bg_name, ratio, required: 4.5 });
+                    issues.push(ContrastIssue {
+                        fg_name,
+                        bg_name,
+                        ratio,
+                        required: 4.5,
+                    });
                 }
             }
         }
@@ -772,7 +827,12 @@ impl Palette {
             for (bg_name, bg) in &bg_surfaces {
                 let ratio = contrast_ratio(*fg, *bg);
                 if ratio < 3.0 {
-                    issues.push(ContrastIssue { fg_name, bg_name, ratio, required: 3.0 });
+                    issues.push(ContrastIssue {
+                        fg_name,
+                        bg_name,
+                        ratio,
+                        required: 3.0,
+                    });
                 }
             }
         }
@@ -798,7 +858,11 @@ mod tests {
             assert!(
                 issues.is_empty(),
                 "WCAG AA failures in {name}:\n{}",
-                issues.iter().map(|i| format!("  {i}")).collect::<Vec<_>>().join("\n")
+                issues
+                    .iter()
+                    .map(|i| format!("  {i}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
             );
         }
     }
@@ -861,10 +925,22 @@ mod tests {
         ];
         // Row order matches DESIGN.md; columns match `surfaces` above.
         let rows: [(&str, Color, [f32; 7]); 4] = [
-            ("primary", p.text.primary, [16.0, 15.5, 14.7, 13.7, 13.0, 10.8, 8.9]),
+            (
+                "primary",
+                p.text.primary,
+                [16.0, 15.5, 14.7, 13.7, 13.0, 10.8, 8.9],
+            ),
             ("mono", p.text.mono, [11.8, 11.5, 10.9, 10.1, 9.6, 8.0, 6.6]),
-            ("secondary", p.text.secondary, [8.8, 8.5, 8.1, 7.5, 7.2, 5.9, 4.9]),
-            ("disabled", p.text.disabled, [4.4, 4.3, 4.1, 3.8, 3.6, 3.0, 2.5]),
+            (
+                "secondary",
+                p.text.secondary,
+                [8.8, 8.5, 8.1, 7.5, 7.2, 5.9, 4.9],
+            ),
+            (
+                "disabled",
+                p.text.disabled,
+                [4.4, 4.3, 4.1, 3.8, 3.6, 3.0, 2.5],
+            ),
         ];
 
         let mut bad = Vec::new();
@@ -881,9 +957,15 @@ mod tests {
         }
         let sel = contrast_ratio(p.selection.text, p.selection.fill);
         if (sel - 9.6).abs() > 0.05 {
-            bad.push(format!("  selection.text on selection.fill: doc 9.6, tokens {sel:.3}"));
+            bad.push(format!(
+                "  selection.text on selection.fill: doc 9.6, tokens {sel:.3}"
+            ));
         }
-        assert!(bad.is_empty(), "DESIGN.md contrast table disagrees:\n{}", bad.join("\n"));
+        assert!(
+            bad.is_empty(),
+            "DESIGN.md contrast table disagrees:\n{}",
+            bad.join("\n")
+        );
     }
 
     /// Ramp bright tones double as text (category tags, NOTE-bar labels);
@@ -939,14 +1021,20 @@ mod tests {
         reg.register_domain_pin_keyed("curve", 7); // registered, keyed
 
         assert_eq!(domain_ramp_index(Some(&reg), "curve"), Some(7));
-        assert_eq!(domain_ramp_index(Some(&reg), "shader"), Some(hash_index("shader")));
+        assert_eq!(
+            domain_ramp_index(Some(&reg), "shader"),
+            Some(hash_index("shader"))
+        );
         assert_eq!(domain_ramp_index(Some(&reg), "nope"), None);
         // No registry in reach answers the same as "not registered".
         assert_eq!(domain_ramp_index(None, "shader"), None);
 
         let unreg = PinType::Domain("nope".into());
         assert_eq!(pin_color(Some(&reg), &unreg), neutral().bright);
-        assert_eq!(pin_color(Some(&reg), &PinType::Domain("curve".into())), ramp()[7].bright);
+        assert_eq!(
+            pin_color(Some(&reg), &PinType::Domain("curve".into())),
+            ramp()[7].bright
+        );
     }
 
     /// The Task 45-A pin types resolve to their own deliberate ramp slots —
@@ -960,7 +1048,10 @@ mod tests {
         assert_eq!(pin_color(None, &PinType::Int), ramp()[3].bright);
         assert_eq!(pin_color(None, &PinType::Float), ramp()[4].bright);
         assert_eq!(pin_color(None, &PinType::String), ramp()[5].bright);
-        assert_eq!(pin_color(None, &PinType::Array(Box::new(PinType::Float))), ramp()[6].bright);
+        assert_eq!(
+            pin_color(None, &PinType::Array(Box::new(PinType::Float))),
+            ramp()[6].bright
+        );
         // An array's hue is its own, not its element type's — at pin-dot size
         // a shade of green next to green is not a distinction.
         assert_ne!(
@@ -989,14 +1080,22 @@ mod tests {
             PinType::Entity,
         ];
         for (i, a) in all.iter().enumerate() {
-            assert_ne!(pin_color(None, a), neutral().bright, "{a:?} must not read as unknown");
+            assert_ne!(
+                pin_color(None, a),
+                neutral().bright,
+                "{a:?} must not read as unknown"
+            );
             for b in all.iter().skip(i + 1) {
                 assert_ne!(pin_color(None, a), pin_color(None, b), "{a:?} vs {b:?}");
             }
         }
 
         // Wires follow their pins at 80%, new types included.
-        for ty in [PinType::Int, PinType::String, PinType::Array(Box::new(PinType::Int))] {
+        for ty in [
+            PinType::Int,
+            PinType::String,
+            PinType::Array(Box::new(PinType::Int)),
+        ] {
             assert_eq!(wire_color(None, &ty), pin_color(None, &ty).with_alpha(0.80));
         }
     }

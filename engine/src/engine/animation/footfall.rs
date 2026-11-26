@@ -152,7 +152,10 @@ pub fn author_footfall_events(
     let armed = match set.armed_for(&bones) {
         Some((armed, dropped)) => {
             if !dropped.is_empty() {
-                eprintln!("footfall: dropped channels for missing bones {}", dropped.join(", "));
+                eprintln!(
+                    "footfall: dropped channels for missing bones {}",
+                    dropped.join(", ")
+                );
             }
             armed.clips
         }
@@ -187,7 +190,11 @@ pub fn author_footfall_events(
         let samples = ((clip.duration_seconds * SAMPLE_RATE).floor() as usize).max(1);
         let mut heights: Vec<Vec<f32>> = vec![Vec::with_capacity(samples); feet.len()];
         for i in 0..samples {
-            sample_channels(&armed.channels, i as f32 / SAMPLE_RATE, &mut skel.local_transforms);
+            sample_channels(
+                &armed.channels,
+                i as f32 / SAMPLE_RATE,
+                &mut skel.local_transforms,
+            );
             skel.compute_model_space();
             for (k, (_, bone)) in feet.iter().enumerate() {
                 heights[k].push(skel.model_space[*bone].w_axis[up]);
@@ -249,10 +256,18 @@ mod tests {
         let plants = contact_times(&h, SAMPLE_RATE, MIN_GAP);
         assert_eq!(plants, vec![0.25, 0.75]);
         let m = footfall_markers("foot_l", &plants, 1.0);
-        let got: Vec<(&str, f32)> = m.iter().map(|e| (e.name.as_str(), e.time_seconds)).collect();
+        let got: Vec<(&str, f32)> = m
+            .iter()
+            .map(|e| (e.name.as_str(), e.time_seconds))
+            .collect();
         assert_eq!(
             got,
-            vec![("foot_l_down", 0.25), ("foot_l_up", 0.45), ("foot_l_down", 0.75), ("foot_l_up", 0.95)]
+            vec![
+                ("foot_l_down", 0.25),
+                ("foot_l_up", 0.45),
+                ("foot_l_down", 0.75),
+                ("foot_l_up", 0.95)
+            ]
         );
     }
 
@@ -286,15 +301,15 @@ mod tests {
         let plants = alternate_feet(&[vec![(0.25, 0.0), (0.5, 0.1)], vec![(0.75, 0.0)]]);
         assert_eq!(plants, vec![vec![0.25], vec![0.75]]);
         let m = footfall_markers("foot_l", &plants[0], 1.0);
-        let got: Vec<(&str, f32)> = m.iter().map(|e| (e.name.as_str(), e.time_seconds)).collect();
+        let got: Vec<(&str, f32)> = m
+            .iter()
+            .map(|e| (e.name.as_str(), e.time_seconds))
+            .collect();
         assert_eq!(got, vec![("foot_l_down", 0.25), ("foot_l_up", 0.65)]);
 
         // Across the seam: R at 0.9 and R at 0.1 are neighbours; the lower
         // (0.1) survives. L L at 0.3 / 0.5 keeps the earlier on a tie.
-        let plants = alternate_feet(&[
-            vec![(0.3, 0.0), (0.5, 0.0)],
-            vec![(0.1, 0.0), (0.9, 0.05)],
-        ]);
+        let plants = alternate_feet(&[vec![(0.3, 0.0), (0.5, 0.0)], vec![(0.1, 0.0), (0.9, 0.05)]]);
         assert_eq!(plants, vec![vec![0.3], vec![0.1]]);
 
         // One foot only: nothing to alternate against.

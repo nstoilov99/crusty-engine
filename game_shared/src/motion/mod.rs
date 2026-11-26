@@ -14,7 +14,7 @@ pub mod broadphase;
 pub mod combat;
 pub mod trace;
 
-use crate::collision::{ChunkStore, FLAG_BLOCKING, FLAG_WALKABLE, TriangleFlags};
+use crate::collision::{ChunkStore, TriangleFlags, FLAG_BLOCKING, FLAG_WALKABLE};
 use crate::net::schema::{PLAYER_SPEED_MPS, SPRINT_MULTIPLIER};
 use glam::{Quat, Vec2, Vec3};
 use parry3d::shape::Capsule;

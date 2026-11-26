@@ -81,6 +81,7 @@ struct Picker<'a> {
 }
 
 /// Deferred component removals.
+#[allow(clippy::enum_variant_names)] // the shared `Remove` prefix is the point: every action is a removal
 enum ComponentAction {
     RemoveCamera,
     RemoveMeshRenderer,
@@ -2065,11 +2066,38 @@ fn edit_character_movement(ui: &mut Ui, world: &mut World, entity: Entity) -> bo
         group_label(ui, "Response");
         drag_row(ui, "Accel", &mut cm.accel, 0.1, 0.0..=500.0, " m/s\u{b2}");
         drag_row(ui, "Decel", &mut cm.decel, 0.1, 0.0..=500.0, " m/s\u{b2}");
-        drag_row(ui, "Turn Rate", &mut cm.turn_rate_deg, 1.0, 0.0..=3600.0, " \u{b0}/s");
+        drag_row(
+            ui,
+            "Turn Rate",
+            &mut cm.turn_rate_deg,
+            1.0,
+            0.0..=3600.0,
+            " \u{b0}/s",
+        );
         group_label(ui, "Traversal");
-        drag_row(ui, "Jump Height", &mut cm.jump_height, 0.01, 0.0..=20.0, " m");
-        drag_row(ui, "Step Height", &mut cm.step_height, 0.01, 0.0..=2.0, " m");
-        slider_row(ui, "Stand Friction", &mut cm.standing_friction, 0.0..=2.0, "");
+        drag_row(
+            ui,
+            "Jump Height",
+            &mut cm.jump_height,
+            0.01,
+            0.0..=20.0,
+            " m",
+        );
+        drag_row(
+            ui,
+            "Step Height",
+            &mut cm.step_height,
+            0.01,
+            0.0..=2.0,
+            " m",
+        );
+        slider_row(
+            ui,
+            "Stand Friction",
+            &mut cm.standing_friction,
+            0.0..=2.0,
+            "",
+        );
     })
 }
 
@@ -2108,9 +2136,7 @@ fn edit_orbit_camera(ui: &mut Ui, world: &mut World, entity: Entity) -> bool {
                 .query::<(&crate::engine::ecs::EntityGuid, Option<&Name>)>()
                 .iter()
                 .find(|(_, (g, _))| g.0 == guid)
-                .map(|(_, (_, name))| {
-                    name.map_or_else(|| "(unnamed)".to_string(), |n| n.0.clone())
-                })
+                .map(|(_, (_, name))| name.map_or_else(|| "(unnamed)".to_string(), |n| n.0.clone()))
                 .unwrap_or_else(|| "(missing entity)".to_string())
         });
     let Ok(mut oc) = world.get::<&mut OrbitCamera>(entity) else {
@@ -2154,12 +2180,40 @@ fn edit_orbit_camera(ui: &mut Ui, world: &mut World, entity: Entity) -> bool {
         drag_row(ui, "Min", &mut oc.min_distance, 0.01, 0.0..=100.0, " m");
         drag_row(ui, "Max", &mut oc.max_distance, 0.01, 0.0..=100.0, " m");
         group_label(ui, "Framing");
-        drag_row(ui, "Pivot Height", &mut oc.pivot_height, 0.01, -10.0..=10.0, " m");
+        drag_row(
+            ui,
+            "Pivot Height",
+            &mut oc.pivot_height,
+            0.01,
+            -10.0..=10.0,
+            " m",
+        );
         drag_row(ui, "Shoulder", &mut oc.shoulder, 0.01, -10.0..=10.0, " m");
         group_label(ui, "Look");
-        drag_row(ui, "Sensitivity", &mut oc.sensitivity, 0.0001, 0.0..=1.0, "");
-        drag_row(ui, "Pitch Min", &mut oc.pitch_min_deg, 0.5, -89.0..=89.0, " \u{b0}");
-        drag_row(ui, "Pitch Max", &mut oc.pitch_max_deg, 0.5, -89.0..=89.0, " \u{b0}");
+        drag_row(
+            ui,
+            "Sensitivity",
+            &mut oc.sensitivity,
+            0.0001,
+            0.0..=1.0,
+            "",
+        );
+        drag_row(
+            ui,
+            "Pitch Min",
+            &mut oc.pitch_min_deg,
+            0.5,
+            -89.0..=89.0,
+            " \u{b0}",
+        );
+        drag_row(
+            ui,
+            "Pitch Max",
+            &mut oc.pitch_max_deg,
+            0.5,
+            -89.0..=89.0,
+            " \u{b0}",
+        );
     })
 }
 

@@ -192,7 +192,7 @@ impl AnimBridge {
                 // Coarse (far-tier) proxies carry no combat row: alive.
                 let alive = replication
                     .combat_state(proxy.entity_id, proxy.generation)
-                    .map_or(true, |c| c.alive);
+                    .is_none_or(|c| c.alive);
                 rigs.push((
                     child,
                     Source::Remote {
@@ -279,7 +279,11 @@ impl System for CharacterAnimBridgeSystem {
             let Ok(mut rt) = world.get::<&mut AnimGraphRuntime>(rig) else {
                 continue;
             };
-            let writes = self.derivers.entry(rig).or_default().step(vel, grounded, true);
+            let writes = self
+                .derivers
+                .entry(rig)
+                .or_default()
+                .step(vel, grounded, true);
             apply(&writes, &mut rt.params);
         }
         self.derivers.retain(|e, _| world.contains(*e));
@@ -332,9 +336,16 @@ mod tests {
         let doc = loader
             .load_graph("graphs/character.animgraph")
             .expect("shipped graph loads");
-        let plan = compile_anim_graph(&doc).expect("shipped graph compiles").plan;
+        let plan = compile_anim_graph(&doc)
+            .expect("shipped graph compiles")
+            .plan;
 
-        let ty_of = |slug: &str| plan.parameters.iter().find(|p| p.slug == slug).map(|p| p.ty);
+        let ty_of = |slug: &str| {
+            plan.parameters
+                .iter()
+                .find(|p| p.slug == slug)
+                .map(|p| p.ty)
+        };
         assert_eq!(ty_of(SPEED_PARAM), Some(AnimParamType::Float));
         assert_eq!(ty_of(GROUNDED_PARAM), Some(AnimParamType::Bool));
         assert_eq!(ty_of(ALIVE_PARAM), Some(AnimParamType::Bool));
@@ -359,7 +370,9 @@ mod tests {
         let loader = DiskAnimAssets {
             content_root: std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../content"),
         };
-        let doc = loader.load_graph("graphs/character.animgraph").expect("loads");
+        let doc = loader
+            .load_graph("graphs/character.animgraph")
+            .expect("loads");
         let plan = compile_anim_graph(&doc).expect("compiles").plan;
         let mut machine = AnimMachine::new(&plan);
         let mut params = AnimParams::from_decls(&plan.parameters);
@@ -390,9 +403,17 @@ mod tests {
         drive(&mut machine, &mut params, [0.0, 0.0, 0.0], true, true);
         assert_eq!(name(&machine), "Idle", "stopped");
         drive(&mut machine, &mut params, [0.0, 0.0, 0.0], true, false);
-        assert_eq!(name(&machine), "Death", "died from anywhere (Any State + Trigger)");
+        assert_eq!(
+            name(&machine),
+            "Death",
+            "died from anywhere (Any State + Trigger)"
+        );
         drive(&mut machine, &mut params, [0.0, 0.0, 0.0], true, false);
-        assert_eq!(name(&machine), "Death", "stays dead — the Trigger fired once");
+        assert_eq!(
+            name(&machine),
+            "Death",
+            "stays dead — the Trigger fired once"
+        );
         drive(&mut machine, &mut params, [0.0, 0.0, 0.0], true, true);
         assert_eq!(name(&machine), "Idle", "respawn returns to Idle");
     }
@@ -435,9 +456,15 @@ mod tests {
         let mut d = LocalDeriver::default();
         assert!(!d.step([0.0; 3], true, true).fire_died);
         assert!(d.step([0.0; 3], true, false).fire_died, "alive edge fires");
-        assert!(!d.step([0.0; 3], true, false).fire_died, "staying dead does not");
+        assert!(
+            !d.step([0.0; 3], true, false).fire_died,
+            "staying dead does not"
+        );
         assert!(!d.step([0.0; 3], true, true).fire_died, "respawn does not");
-        assert!(d.step([0.0; 3], true, false).fire_died, "second death fires again");
+        assert!(
+            d.step([0.0; 3], true, false).fire_died,
+            "second death fires again"
+        );
     }
 
     #[test]
@@ -450,7 +477,11 @@ mod tests {
         for i in 1..=60 {
             w = d.step([4.0 * dt * i as f32, 0.0, 1.0], true, dt);
         }
-        assert!((w.speed - 4.0).abs() < 0.2, "smoothed speed ≈ 4, got {}", w.speed);
+        assert!(
+            (w.speed - 4.0).abs() < 0.2,
+            "smoothed speed ≈ 4, got {}",
+            w.speed
+        );
         assert!(w.grounded);
     }
 

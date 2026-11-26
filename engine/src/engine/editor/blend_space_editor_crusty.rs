@@ -27,8 +27,8 @@ use crusty_gui::style::Style;
 use crusty_gui::text::FontFamily;
 use crusty_gui::widgets::{Button, ComboBox, DragValue, ScrollArea, SelectableValue, TextEdit};
 
-use super::blend_space_editor::{BlendSpaceEditorState, CanvasMenu, Field, FieldEvent};
 use super::anim_preview_crusty::{skinned_preview_pane, PreviewPaneCtx};
+use super::blend_space_editor::{BlendSpaceEditorState, CanvasMenu, Field, FieldEvent};
 use super::blend_space_preview::{clamp_split, stem, MIN_PANE};
 use super::theme::tokens::{asset_color, grid_major, grid_minor};
 use super::theme::Palette;
@@ -106,7 +106,10 @@ pub fn blend_space_editor_panel(
     let panel_id = Id::new("engine_blend_space_editor").with(state.path.as_str());
     state.shown = true;
     state.tick_preview(mesh_assets);
-    let opts = UiOptions { padding: Vec2::ZERO, spacing: 0.0 };
+    let opts = UiOptions {
+        padding: Vec2::ZERO,
+        spacing: 0.0,
+    };
     ui.run_at(tab_rect, Direction::TopDown, panel_id, opts, |ui| {
         let s = (ui.style().metrics.row_height / 22.0).max(0.1);
         let side_w = (DETAILS_W * s).min(tab_rect.width() * 0.5);
@@ -119,7 +122,10 @@ pub fn blend_space_editor_panel(
         );
         // The right-hand column: the 3D preview on top, the plot below,
         // a draggable splitter between them (the Unreal layout).
-        let column = Rect::from_min_max(Pos2::new(side.max.x, tab_rect.min.y), Pos2::new(tab_rect.max.x, foot.min.y));
+        let column = Rect::from_min_max(
+            Pos2::new(side.max.x, tab_rect.min.y),
+            Pos2::new(tab_rect.max.x, foot.min.y),
+        );
         let (pane, bar, plot) = split_column(column, state.preview.split, s);
         preview_pane(ui, pane, s, panel_id, state, texture);
         splitter(ui, bar, column, s, state);
@@ -162,30 +168,48 @@ fn details(
         inner,
         Direction::TopDown,
         panel_id.with("details"),
-        UiOptions { padding: Vec2::ZERO, spacing: pad * 0.6 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: pad * 0.6,
+        },
         |ui| {
             let w = inner.width();
-            ScrollArea::new(inner.height()).inset(0.0).spacing(s).auto_shrink(false).show(ui, |ui| {
-                axes_section(ui, w, s, &st, state);
-                ui.add_space(pad);
-                samples_section(ui, w, s, &st, state, anim_assets);
-                ui.add_space(pad);
-                section_header(ui, w, &st, "SMOOTHING");
-                let before = state.doc.input_smoothing;
-                if let Some(ev) = num_row(ui, w, s, &st, state, "Input (s)", Field::Smoothing, before, 0.0..=5.0, 2) {
-                    match ev {
-                        FieldEvent::Live(v) => state.doc.input_smoothing = v,
-                        FieldEvent::Commit { from, to } => {
-                            state.doc.input_smoothing = to;
-                            state.record_smoothing(from);
+            ScrollArea::new(inner.height())
+                .inset(0.0)
+                .spacing(s)
+                .auto_shrink(false)
+                .show(ui, |ui| {
+                    axes_section(ui, w, s, &st, state);
+                    ui.add_space(pad);
+                    samples_section(ui, w, s, &st, state, anim_assets);
+                    ui.add_space(pad);
+                    section_header(ui, w, &st, "SMOOTHING");
+                    let before = state.doc.input_smoothing;
+                    if let Some(ev) = num_row(
+                        ui,
+                        w,
+                        s,
+                        &st,
+                        state,
+                        "Input (s)",
+                        Field::Smoothing,
+                        before,
+                        0.0..=5.0,
+                        2,
+                    ) {
+                        match ev {
+                            FieldEvent::Live(v) => state.doc.input_smoothing = v,
+                            FieldEvent::Commit { from, to } => {
+                                state.doc.input_smoothing = to;
+                                state.record_smoothing(from);
+                            }
+                            FieldEvent::None => {}
                         }
-                        FieldEvent::None => {}
                     }
-                }
-                ui.add_space(pad);
-                section_header(ui, w, &st, "PREVIEW");
-                preview_mesh_row(ui, w, s, &st, state, mesh_assets);
-            });
+                    ui.add_space(pad);
+                    section_header(ui, w, &st, "PREVIEW");
+                    preview_mesh_row(ui, w, s, &st, state, mesh_assets);
+                });
         },
     );
 }
@@ -218,7 +242,10 @@ fn preview_mesh_row(
         Rect::from_min_max(Pos2::new(row.min.x + LABEL_W * s, row.min.y), row.max),
         Direction::LeftToRight,
         id,
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             ComboBox::new(format!("bs_preview_mesh_{}", state.path))
                 .selected_text(shown)
@@ -226,12 +253,18 @@ fn preview_mesh_row(
                 .popup_width(combo_w.max(260.0 * s))
                 .show_ui(ui, |ui| {
                     let mut auto = current.is_empty();
-                    if SelectableValue::new(&mut auto, true, "(auto)").show(ui).clicked {
+                    if SelectableValue::new(&mut auto, true, "(auto)")
+                        .show(ui)
+                        .clicked
+                    {
                         pick = Some(String::new());
                     }
                     for path in mesh_assets {
                         let mut sel = *path == current;
-                        if SelectableValue::new(&mut sel, true, path.as_str()).show(ui).clicked {
+                        if SelectableValue::new(&mut sel, true, path.as_str())
+                            .show(ui)
+                            .clicked
+                        {
                             pick = Some(path.clone());
                         }
                     }
@@ -241,7 +274,7 @@ fn preview_mesh_row(
     if let Some(mesh) = pick {
         state.set_preview_mesh(mesh);
     }
-    if !current.is_empty() && !mesh_assets.iter().any(|p| *p == current) {
+    if !current.is_empty() && !mesh_assets.contains(&current) {
         let r = ui.allocate(Vec2::new(w, st.fonts.small * 1.6));
         ui.painter().text(
             r.min,
@@ -257,7 +290,10 @@ fn axes_section(ui: &mut Ui, w: f32, s: f32, st: &Style, state: &mut BlendSpaceE
     section_header(ui, w, st, "AXES");
     let row = ui.allocate(Vec2::new(w, st.metrics.control_height));
     let active = if state.doc.is_2d() { 1 } else { 0 };
-    let ctl = Rect::from_min_size(Pos2::new(row.min.x + LABEL_W * s, row.min.y), Vec2::new(row.width() - LABEL_W * s, row.height()));
+    let ctl = Rect::from_min_size(
+        Pos2::new(row.min.x + LABEL_W * s, row.min.y),
+        Vec2::new(row.width() - LABEL_W * s, row.height()),
+    );
     row_label_at(ui, row, s, st, "Axes");
     if let Some(i) = segmented_control(ui, "bs_axis_count", ctl, &["1D", "2D"], active, true) {
         state.set_axis_count(i as u32 + 1);
@@ -266,19 +302,77 @@ fn axes_section(ui: &mut Ui, w: f32, s: f32, st: &Style, state: &mut BlendSpaceE
         ui.add_space(st.spacing.padding * 0.5);
         section_header(ui, w, st, if axis == 0 { "X AXIS" } else { "Y AXIS" });
         let a = state.doc.axes[axis].clone();
-        if let Some(v) = text_row(ui, w, s, st, state, "Name", Field::AxisName(axis), &a.name, None) {
-            state.set_axis(axis, BlendAxis { name: v, ..a.clone() }, "Set Axis Name");
+        if let Some(v) = text_row(
+            ui,
+            w,
+            s,
+            st,
+            state,
+            "Name",
+            Field::AxisName(axis),
+            &a.name,
+            None,
+        ) {
+            state.set_axis(
+                axis,
+                BlendAxis {
+                    name: v,
+                    ..a.clone()
+                },
+                "Set Axis Name",
+            );
         }
-        if let Some(v) = text_row(ui, w, s, st, state, "Parameter", Field::AxisParam(axis), &a.param, Some(&a.name)) {
-            state.set_axis(axis, BlendAxis { param: v, ..a.clone() }, "Set Axis Parameter");
+        if let Some(v) = text_row(
+            ui,
+            w,
+            s,
+            st,
+            state,
+            "Parameter",
+            Field::AxisParam(axis),
+            &a.param,
+            Some(&a.name),
+        ) {
+            state.set_axis(
+                axis,
+                BlendAxis {
+                    param: v,
+                    ..a.clone()
+                },
+                "Set Axis Parameter",
+            );
         }
         let numeric: [(&str, Field, f32, std::ops::RangeInclusive<f32>, usize, &str); 3] = [
-            ("Min", Field::AxisMin(axis), a.min, -1.0e6..=1.0e6, 2, "Set Axis Min"),
-            ("Max", Field::AxisMax(axis), a.max, -1.0e6..=1.0e6, 2, "Set Axis Max"),
-            ("Grid", Field::AxisGrid(axis), a.grid_divisions as f32, 1.0..=64.0, 0, "Set Grid Divisions"),
+            (
+                "Min",
+                Field::AxisMin(axis),
+                a.min,
+                -1.0e6..=1.0e6,
+                2,
+                "Set Axis Min",
+            ),
+            (
+                "Max",
+                Field::AxisMax(axis),
+                a.max,
+                -1.0e6..=1.0e6,
+                2,
+                "Set Axis Max",
+            ),
+            (
+                "Grid",
+                Field::AxisGrid(axis),
+                a.grid_divisions as f32,
+                1.0..=64.0,
+                0,
+                "Set Grid Divisions",
+            ),
         ];
         for (label, field, value, range, decimals, verb) in numeric {
-            let Some(ev) = num_row(ui, w, s, st, state, label, field, value, range, decimals) else { continue };
+            let Some(ev) = num_row(ui, w, s, st, state, label, field, value, range, decimals)
+            else {
+                continue;
+            };
             let write = |a: &mut BlendAxis, v: f32| match field {
                 Field::AxisMin(_) => a.min = v,
                 Field::AxisMax(_) => a.max = v,
@@ -321,27 +415,47 @@ fn samples_section(
             let combo_w = w - btn_w - st.spacing.item;
             let mut pick: Option<String> = None;
             ComboBox::new(format!("bs_clip_{i}"))
-                .selected_text(if sample.clip.is_empty() { "(no clip)".to_string() } else { stem.clone() })
+                .selected_text(if sample.clip.is_empty() {
+                    "(no clip)".to_string()
+                } else {
+                    stem.clone()
+                })
                 .width(combo_w)
                 .popup_width(combo_w.max(260.0 * s))
                 .show_ui(ui, |ui| {
                     for path in anim_assets {
                         let mut sel = *path == sample.clip;
-                        if SelectableValue::new(&mut sel, true, path.as_str()).show(ui).clicked {
+                        if SelectableValue::new(&mut sel, true, path.as_str())
+                            .show(ui)
+                            .clicked
+                        {
                             pick = Some(path.clone());
                         }
                     }
                 });
             if let Some(clip) = pick {
                 if clip != sample.clip {
-                    state.set_sample(i, BlendSample { clip, clip_name: None, ..sample.clone() }, "Set Sample Clip");
+                    state.set_sample(
+                        i,
+                        BlendSample {
+                            clip,
+                            clip_name: None,
+                            ..sample.clone()
+                        },
+                        "Set Sample Clip",
+                    );
                 }
             }
-            if Button::new("\u{00D7}").exact_size(Vec2::splat(btn_w)).danger_outline().show(ui).clicked {
+            if Button::new("\u{00D7}")
+                .exact_size(Vec2::splat(btn_w))
+                .danger_outline()
+                .show(ui)
+                .clicked
+            {
                 delete = Some(i);
             }
         });
-        if !sample.clip.is_empty() && !anim_assets.iter().any(|p| *p == sample.clip) {
+        if !sample.clip.is_empty() && !anim_assets.contains(&sample.clip) {
             let r = ui.allocate(Vec2::new(w, st.fonts.small * 1.6));
             ui.painter().text(
                 Pos2::new(r.min.x, r.min.y),
@@ -351,7 +465,11 @@ fn samples_section(
                 Some(w),
             );
         }
-        let names: Vec<String> = if sample.clip.is_empty() { Vec::new() } else { state.clip_names(&sample.clip).to_vec() };
+        let names: Vec<String> = if sample.clip.is_empty() {
+            Vec::new()
+        } else {
+            state.clip_names(&sample.clip).to_vec()
+        };
         if names.len() > 1 {
             let row = ui.allocate(Vec2::new(w, st.metrics.control_height));
             row_label_at(ui, row, s, st, "Clip name");
@@ -361,7 +479,10 @@ fn samples_section(
                 Rect::from_min_max(Pos2::new(row.min.x + LABEL_W * s, row.min.y), row.max),
                 Direction::LeftToRight,
                 id,
-                UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                UiOptions {
+                    padding: Vec2::ZERO,
+                    spacing: 0.0,
+                },
                 |ui| {
                     let current = sample.clip_name.clone().unwrap_or_else(|| names[0].clone());
                     ComboBox::new(format!("bs_clip_name_{i}"))
@@ -370,7 +491,10 @@ fn samples_section(
                         .show_ui(ui, |ui| {
                             for n in &names {
                                 let mut sel = *n == current;
-                                if SelectableValue::new(&mut sel, true, n.as_str()).show(ui).clicked {
+                                if SelectableValue::new(&mut sel, true, n.as_str())
+                                    .show(ui)
+                                    .clicked
+                                {
                                     pick = Some(n.clone());
                                 }
                             }
@@ -379,16 +503,28 @@ fn samples_section(
             );
             if let Some(n) = pick {
                 let clip_name = (n != names[0]).then_some(n);
-                state.set_sample(i, BlendSample { clip_name, ..sample.clone() }, "Set Sample Clip Name");
+                state.set_sample(
+                    i,
+                    BlendSample {
+                        clip_name,
+                        ..sample.clone()
+                    },
+                    "Set Sample Clip Name",
+                );
             }
         }
-        let mut fields: Vec<(&str, Field, f32, usize, &str)> = vec![
-            ("X", Field::SampleX(i), sample.x, 2, "Move Sample"),
-        ];
+        let mut fields: Vec<(&str, Field, f32, usize, &str)> =
+            vec![("X", Field::SampleX(i), sample.x, 2, "Move Sample")];
         if two_d {
             fields.push(("Y", Field::SampleY(i), sample.y, 2, "Move Sample"));
         }
-        fields.push(("Rate", Field::SampleRate(i), sample.rate_scale, 2, "Set Rate Scale"));
+        fields.push((
+            "Rate",
+            Field::SampleRate(i),
+            sample.rate_scale,
+            2,
+            "Set Rate Scale",
+        ));
         let row = ui.allocate(Vec2::new(w, st.metrics.control_height));
         let n = fields.len() as f32;
         let cell_w = (row.width() - st.spacing.item * (n - 1.0)) / n;
@@ -411,9 +547,21 @@ fn samples_section(
                 Rect::from_min_max(Pos2::new(cell.min.x + lab_w, cell.min.y), cell.max),
                 Direction::LeftToRight,
                 id,
-                UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+                UiOptions {
+                    padding: Vec2::ZERO,
+                    spacing: 0.0,
+                },
                 |ui| {
-                    ev = num_field(ui, cell.width() - lab_w, s, state, field, value, -1.0e6..=1.0e6, decimals);
+                    ev = num_field(
+                        ui,
+                        cell.width() - lab_w,
+                        s,
+                        state,
+                        field,
+                        value,
+                        -1.0e6..=1.0e6,
+                        decimals,
+                    );
                 },
             );
             let write = |sm: &mut BlendSample, v: f32| match field {
@@ -434,17 +582,32 @@ fn samples_section(
         }
         if selected {
             let card = Rect::from_min_max(
-                Pos2::new(ui.cursor().x - st.spacing.padding * 0.5, card_top - st.spacing.padding * 0.3),
-                Pos2::new(ui.cursor().x + w + st.spacing.padding * 0.5, ui.cursor().y + st.spacing.padding * 0.3),
+                Pos2::new(
+                    ui.cursor().x - st.spacing.padding * 0.5,
+                    card_top - st.spacing.padding * 0.3,
+                ),
+                Pos2::new(
+                    ui.cursor().x + w + st.spacing.padding * 0.5,
+                    ui.cursor().y + st.spacing.padding * 0.3,
+                ),
             );
-            ui.painter().rect_stroke(card, st.rounding.small, st.metrics.border, st.palette.focus_ring);
+            ui.painter().rect_stroke(
+                card,
+                st.rounding.small,
+                st.metrics.border,
+                st.palette.focus_ring,
+            );
         }
         ui.add_space(st.spacing.padding * 0.6);
     }
     if let Some(i) = delete {
         state.remove_sample(i);
     }
-    if Button::new("+ Add Sample").min_size(Vec2::new(w, st.metrics.control_height)).show(ui).clicked {
+    if Button::new("+ Add Sample")
+        .min_size(Vec2::new(w, st.metrics.control_height))
+        .show(ui)
+        .clicked
+    {
         state.add_sample();
     }
 }
@@ -494,7 +657,10 @@ fn text_row(
         Rect::from_min_max(Pos2::new(row.min.x + LABEL_W * s, row.min.y), row.max),
         Direction::LeftToRight,
         id,
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             let mut te = TextEdit::new(&mut buf).width(row.width() - LABEL_W * s);
             if let Some(h) = hint {
@@ -529,8 +695,22 @@ fn num_row(
         Rect::from_min_max(Pos2::new(row.min.x + LABEL_W * s, row.min.y), row.max),
         Direction::LeftToRight,
         id,
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
-        |ui| ev = num_field(ui, row.width() - LABEL_W * s, s, state, field, value, range, decimals),
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
+        |ui| {
+            ev = num_field(
+                ui,
+                row.width() - LABEL_W * s,
+                s,
+                state,
+                field,
+                value,
+                range,
+                decimals,
+            )
+        },
     );
     (ev != FieldEvent::None).then_some(ev)
 }
@@ -574,7 +754,10 @@ pub fn split_column(column: Rect, split: f32, s: f32) -> (Rect, Rect, Rect) {
     let y = column.min.y + column.height() * frac;
     let half = SPLITTER_H * s * 0.5;
     let pane = Rect::from_min_max(column.min, Pos2::new(column.max.x, y - half));
-    let bar = Rect::from_min_max(Pos2::new(column.min.x, y - half), Pos2::new(column.max.x, y + half));
+    let bar = Rect::from_min_max(
+        Pos2::new(column.min.x, y - half),
+        Pos2::new(column.max.x, y + half),
+    );
     let plot = Rect::from_min_max(Pos2::new(column.min.x, y + half), column.max);
     (pane, bar, plot)
 }
@@ -591,22 +774,36 @@ fn splitter(ui: &mut Ui, bar: Rect, column: Rect, s: f32, state: &mut BlendSpace
     if resp.pressed {
         if let Some(p) = ui.ctx().input.pointer_pos {
             let frac = (p.y - column.min.y) / column.height().max(1.0);
-            state.preview.split = clamp_split(frac, column.height(), (MIN_PANE + SPLITTER_H * 0.5) * s);
+            state.preview.split =
+                clamp_split(frac, column.height(), (MIN_PANE + SPLITTER_H * 0.5) * s);
         }
     }
     state.preview.split_drag = resp.pressed;
     let mut p = ui.painter();
     p.rect_filled(bar, 0.0, st.palette.panel);
-    let line = if resp.hovered || resp.pressed { st.palette.focus_ring } else { st.palette.stroke };
+    let line = if resp.hovered || resp.pressed {
+        st.palette.focus_ring
+    } else {
+        st.palette.stroke
+    };
     let y = bar.center().y;
-    p.line_segment(Pos2::new(bar.min.x, y), Pos2::new(bar.max.x, y), st.metrics.border, line);
+    p.line_segment(
+        Pos2::new(bar.min.x, y),
+        Pos2::new(bar.max.x, y),
+        st.metrics.border,
+        line,
+    );
     // A short grip in the middle so the bar reads as draggable.
     let gw = 24.0 * s;
     let c = bar.center();
     p.rect_filled(
         Rect::from_center_size(c, Vec2::new(gw, 2.0 * s)),
         1.0 * s,
-        if resp.hovered || resp.pressed { st.palette.focus_ring } else { st.palette.text_disabled },
+        if resp.hovered || resp.pressed {
+            st.palette.focus_ring
+        } else {
+            st.palette.text_disabled
+        },
     );
 }
 
@@ -630,7 +827,10 @@ fn preview_pane(
         .collect::<Vec<_>>()
         .join("  \u{00B7}  ");
     let pv = &mut state.preview;
-    let chip = pv.mesh.as_deref().map(|m| format!("{}  \u{00B7}  {readout}", stem(m)));
+    let chip = pv
+        .mesh
+        .as_deref()
+        .map(|m| format!("{}  \u{00B7}  {readout}", stem(m)));
     let time = pv.time();
     skinned_preview_pane(
         ui,
@@ -669,7 +869,11 @@ pub fn plot_rect(doc: &BlendSpaceDoc, canvas: Rect, left: f32, s: f32) -> Rect {
 
 fn norm(a: &BlendAxis, v: f32) -> f32 {
     let span = a.max - a.min;
-    if span.abs() < 1e-6 { 0.5 } else { (v - a.min) / span }
+    if span.abs() < 1e-6 {
+        0.5
+    } else {
+        (v - a.min) / span
+    }
 }
 
 /// Axis units → screen: min at the left/bottom edge of `plot`, max at the
@@ -701,7 +905,9 @@ pub fn screen_to_doc(doc: &BlendSpaceDoc, plot: Rect, p: Pos2) -> [f32; 2] {
 fn canvas(ui: &mut Ui, rect: Rect, s: f32, selection: Color, state: &mut BlendSpaceEditorState) {
     let st = ui.style();
     let name_w = if state.doc.is_2d() {
-        ui.painter().measure_text(&state.doc.axes[1].name, st.fonts.body, None).x
+        ui.painter()
+            .measure_text(&state.doc.axes[1].name, st.fonts.body, None)
+            .x
     } else {
         0.0
     };
@@ -711,7 +917,10 @@ fn canvas(ui: &mut Ui, rect: Rect, s: f32, selection: Color, state: &mut BlendSp
         rect,
         Direction::TopDown,
         Id::new("blend_space_canvas").with(state.path.as_str()),
-        UiOptions { padding: Vec2::ZERO, spacing: 0.0 },
+        UiOptions {
+            padding: Vec2::ZERO,
+            spacing: 0.0,
+        },
         |ui| {
             ui.set_clip(rect.intersect(ui.clip_rect()));
             ui.painter().rect_filled(rect, 0.0, st.palette.window);
@@ -803,9 +1012,16 @@ fn interact(ui: &mut Ui, canvas: Rect, plot: Rect, s: f32, state: &mut BlendSpac
     }
     if let (Some(i), false) = (state.hovered, pointer_down) {
         let sm = &state.doc.samples[i];
-        let name = if sm.clip.is_empty() { "(no clip)".to_string() } else { clip_stem(&sm.clip) };
+        let name = if sm.clip.is_empty() {
+            "(no clip)".to_string()
+        } else {
+            clip_stem(&sm.clip)
+        };
         let text = if state.doc.is_2d() {
-            format!("{name}  \u{00B7}  {} {:.2}  {} {:.2}", state.doc.axes[0].name, sm.x, state.doc.axes[1].name, sm.y)
+            format!(
+                "{name}  \u{00B7}  {} {:.2}  {} {:.2}",
+                state.doc.axes[0].name, sm.x, state.doc.axes[1].name, sm.y
+            )
         } else {
             format!("{name}  \u{00B7}  {} {:.2}", state.doc.axes[0].name, sm.x)
         };
@@ -824,12 +1040,21 @@ fn interact(ui: &mut Ui, canvas: Rect, plot: Rect, s: f32, state: &mut BlendSpac
     };
     if let Some(p) = right {
         ui.ctx_mut().take_modal_reopen();
-        let sample = hits.iter().rev().find(|(_, b)| b.contains(p)).map(|(i, _)| *i);
+        let sample = hits
+            .iter()
+            .rev()
+            .find(|(_, b)| b.contains(p))
+            .map(|(i, _)| *i);
         if sample.is_some() {
             state.selection = sample;
         }
         let at = to_doc(&state.doc, p);
-        state.menu = Some(CanvasMenu { open_at: Some([p.x, p.y]), at, sample, snap: !shift });
+        state.menu = Some(CanvasMenu {
+            open_at: Some([p.x, p.y]),
+            at,
+            sample,
+            snap: !shift,
+        });
         return;
     }
 
@@ -845,7 +1070,9 @@ fn interact(ui: &mut Ui, canvas: Rect, plot: Rect, s: f32, state: &mut BlendSpac
         return;
     }
     // Background press: Ctrl places the preview point, plain deselects.
-    let Some(p) = pointer.filter(|_| ui.contains_pointer(canvas)) else { return };
+    let Some(p) = pointer.filter(|_| ui.contains_pointer(canvas)) else {
+        return;
+    };
     if pressed && !modal {
         if ctrl {
             let d = to_doc(&state.doc, p);
@@ -866,17 +1093,22 @@ fn canvas_menu(ui: &mut Ui, state: &mut BlendSpaceEditorState) {
     state.menu = Some(m);
     let has_preview = state.preview_point.is_some();
     let (mut add, mut delete, mut preview, mut clear) = (false, false, false, false);
-    crusty_gui::widgets::context_menu_at(ui, ("bs_canvas_menu", state.path.as_str()), open_at, |ui| {
-        match m.sample {
-            Some(_) => delete = ui.menu_item("Delete sample"),
-            None => add = ui.menu_item("Add sample here"),
-        }
-        ui.separator();
-        preview = ui.menu_item("Set preview point here");
-        if has_preview {
-            clear = ui.menu_item("Clear preview point");
-        }
-    });
+    crusty_gui::widgets::context_menu_at(
+        ui,
+        ("bs_canvas_menu", state.path.as_str()),
+        open_at,
+        |ui| {
+            match m.sample {
+                Some(_) => delete = ui.menu_item("Delete sample"),
+                None => add = ui.menu_item("Add sample here"),
+            }
+            ui.separator();
+            preview = ui.menu_item("Set preview point here");
+            if has_preview {
+                clear = ui.menu_item("Clear preview point");
+            }
+        },
+    );
     if add {
         state.add_sample_at(m.at, m.snap);
         state.menu = None;
@@ -905,7 +1137,13 @@ fn draw_hint(ui: &mut Ui, canvas: Rect, state: &BlendSpaceEditorState, st: &Styl
     let mut p = ui.painter();
     match state.preview_point {
         None => {
-            p.text(at, "Hold Ctrl to set the preview point", st.fonts.small, st.palette.text_disabled, None);
+            p.text(
+                at,
+                "Hold Ctrl to set the preview point",
+                st.fonts.small,
+                st.palette.text_disabled,
+                None,
+            );
         }
         Some(pt) => {
             let text = state
@@ -916,11 +1154,24 @@ fn draw_hint(ui: &mut Ui, canvas: Rect, state: &BlendSpaceEditorState, st: &Styl
                 .map(|(k, a)| format!("{} {:.2}", a.name, pt[k]))
                 .collect::<Vec<_>>()
                 .join("  \u{00B7}  ");
-            let size = p.measure_text_family(&text, st.fonts.small, None, FontFamily::Mono) + Vec2::splat(pad * 1.2);
+            let size = p.measure_text_family(&text, st.fonts.small, None, FontFamily::Mono)
+                + Vec2::splat(pad * 1.2);
             let r = Rect::from_min_size(at, size);
             p.rect_filled(r, st.rounding.small, st.palette.elevated);
-            p.rect_stroke(r, st.rounding.small, st.metrics.border, Palette::invariant_status().success);
-            p.text_family(r.min + Vec2::splat(pad * 0.6), &text, st.fonts.small, st.palette.text, None, FontFamily::Mono);
+            p.rect_stroke(
+                r,
+                st.rounding.small,
+                st.metrics.border,
+                Palette::invariant_status().success,
+            );
+            p.text_family(
+                r.min + Vec2::splat(pad * 0.6),
+                &text,
+                st.fonts.small,
+                st.palette.text,
+                None,
+                FontFamily::Mono,
+            );
             p.text(
                 Pos2::new(r.max.x + pad, r.min.y + pad * 0.6),
                 "Esc clears",
@@ -934,7 +1185,14 @@ fn draw_hint(ui: &mut Ui, canvas: Rect, state: &BlendSpaceEditorState, st: &Styl
 
 /// The frame, its grid, and the axis labels in the margins around it.
 /// `left` is the Y column's width (the name is centred in it).
-fn draw_frame_and_grid(ui: &mut Ui, frame: Rect, left: f32, s: f32, state: &BlendSpaceEditorState, st: &Style) {
+fn draw_frame_and_grid(
+    ui: &mut Ui,
+    frame: Rect,
+    left: f32,
+    s: f32,
+    state: &BlendSpaceEditorState,
+    st: &Style,
+) {
     let doc = &state.doc;
     let bg = st.palette.panel;
     let small = st.fonts.small;
@@ -944,18 +1202,33 @@ fn draw_frame_and_grid(ui: &mut Ui, frame: Rect, left: f32, s: f32, state: &Blen
     let ax = &doc.axes[0];
     for i in 1..ax.grid_divisions.max(1) {
         let x = frame.min.x + frame.width() * i as f32 / ax.grid_divisions as f32;
-        p.line_segment(Pos2::new(x, frame.min.y), Pos2::new(x, frame.max.y), st.metrics.border, grid_minor(bg));
+        p.line_segment(
+            Pos2::new(x, frame.min.y),
+            Pos2::new(x, frame.max.y),
+            st.metrics.border,
+            grid_minor(bg),
+        );
     }
     if doc.is_2d() {
         let ay = &doc.axes[1];
         for j in 1..ay.grid_divisions.max(1) {
             let y = frame.min.y + frame.height() * j as f32 / ay.grid_divisions as f32;
-            p.line_segment(Pos2::new(frame.min.x, y), Pos2::new(frame.max.x, y), st.metrics.border, grid_minor(bg));
+            p.line_segment(
+                Pos2::new(frame.min.x, y),
+                Pos2::new(frame.max.x, y),
+                st.metrics.border,
+                grid_minor(bg),
+            );
         }
     } else {
         // One axis: the strip's centreline is where the samples sit.
         let y = frame.center().y;
-        p.line_segment(Pos2::new(frame.min.x, y), Pos2::new(frame.max.x, y), st.metrics.border, grid_major(bg, false));
+        p.line_segment(
+            Pos2::new(frame.min.x, y),
+            Pos2::new(frame.max.x, y),
+            st.metrics.border,
+            grid_major(bg, false),
+        );
     }
     p.rect_stroke(frame, 0.0, st.metrics.border, grid_major(bg, true));
 
@@ -964,24 +1237,68 @@ fn draw_frame_and_grid(ui: &mut Ui, frame: Rect, left: f32, s: f32, state: &Blen
     // between a pair of arrows — the mockup's "← Yaw →".
     let mono = FontFamily::Mono;
     let secondary = st.palette.text_secondary;
-    let fmt = |v: f32| format!("{v:.2}").trim_end_matches('0').trim_end_matches('.').to_string();
+    let fmt = |v: f32| {
+        format!("{v:.2}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    };
     let below = frame.max.y + small * 0.5;
-    p.text_family(Pos2::new(frame.min.x, below), &fmt(ax.min), small, secondary, None, mono);
+    p.text_family(
+        Pos2::new(frame.min.x, below),
+        &fmt(ax.min),
+        small,
+        secondary,
+        None,
+        mono,
+    );
     let max_label = fmt(ax.max);
     let mw = p.measure_text_family(&max_label, small, None, mono).x;
-    p.text_family(Pos2::new(frame.max.x - mw, below), &max_label, small, secondary, None, mono);
+    p.text_family(
+        Pos2::new(frame.max.x - mw, below),
+        &max_label,
+        small,
+        secondary,
+        None,
+        mono,
+    );
     let tw = p.measure_text(&ax.name, st.fonts.body, None).x;
     let ty = below + small * 1.3;
     let tx = frame.center().x - tw * 0.5;
-    p.text(Pos2::new(tx, ty), &ax.name, st.fonts.body, st.palette.text, None);
+    p.text(
+        Pos2::new(tx, ty),
+        &ax.name,
+        st.fonts.body,
+        st.palette.text,
+        None,
+    );
     let mid = ty + st.fonts.body * 0.62;
     let gap = ARROW_GAP * s;
     let len = ARROW_LEN * s;
-    arrow(&mut p, Pos2::new(tx - gap, mid), Pos2::new(tx - gap - len, mid), s, secondary);
-    arrow(&mut p, Pos2::new(tx + tw + gap, mid), Pos2::new(tx + tw + gap + len, mid), s, secondary);
+    arrow(
+        &mut p,
+        Pos2::new(tx - gap, mid),
+        Pos2::new(tx - gap - len, mid),
+        s,
+        secondary,
+    );
+    arrow(
+        &mut p,
+        Pos2::new(tx + tw + gap, mid),
+        Pos2::new(tx + tw + gap + len, mid),
+        s,
+        secondary,
+    );
     if let Some(param) = param_note(ax) {
         let pw = p.measure_text_family(&param, small, None, mono).x;
-        p.text_family(Pos2::new(frame.center().x - pw * 0.5, ty + st.fonts.body * 1.25), &param, small, secondary, None, mono);
+        p.text_family(
+            Pos2::new(frame.center().x - pw * 0.5, ty + st.fonts.body * 1.25),
+            &param,
+            small,
+            secondary,
+            None,
+            mono,
+        );
     }
 
     if doc.is_2d() {
@@ -989,10 +1306,24 @@ fn draw_frame_and_grid(ui: &mut Ui, frame: Rect, left: f32, s: f32, state: &Blen
         let right = frame.min.x - small * 0.5;
         let lo = fmt(ay.min);
         let lw = p.measure_text_family(&lo, small, None, mono).x;
-        p.text_family(Pos2::new(right - lw, frame.max.y - small * 1.2), &lo, small, secondary, None, mono);
+        p.text_family(
+            Pos2::new(right - lw, frame.max.y - small * 1.2),
+            &lo,
+            small,
+            secondary,
+            None,
+            mono,
+        );
         let hi = fmt(ay.max);
         let hw = p.measure_text_family(&hi, small, None, mono).x;
-        p.text_family(Pos2::new(right - hw, frame.min.y), &hi, small, secondary, None, mono);
+        p.text_family(
+            Pos2::new(right - hw, frame.min.y),
+            &hi,
+            small,
+            secondary,
+            None,
+            mono,
+        );
         // Name stacked between an up and a down arrow, centred in the left
         // column; the arrows step aside when the frame is too short to hold
         // the stack clear of the range labels.
@@ -1000,14 +1331,39 @@ fn draw_frame_and_grid(ui: &mut Ui, frame: Rect, left: f32, s: f32, state: &Blen
         let cx = frame.min.x - left * 0.5;
         let cy = frame.center().y;
         let half = st.fonts.body * 0.62;
-        p.text(Pos2::new(cx - tw * 0.5, cy - half), &ay.name, st.fonts.body, st.palette.text, None);
+        p.text(
+            Pos2::new(cx - tw * 0.5, cy - half),
+            &ay.name,
+            st.fonts.body,
+            st.palette.text,
+            None,
+        );
         if frame.height() > 2.0 * (half + gap + len) + 3.0 * small {
-            arrow(&mut p, Pos2::new(cx, cy - half - gap), Pos2::new(cx, cy - half - gap - len), s, secondary);
-            arrow(&mut p, Pos2::new(cx, cy + half + gap), Pos2::new(cx, cy + half + gap + len), s, secondary);
+            arrow(
+                &mut p,
+                Pos2::new(cx, cy - half - gap),
+                Pos2::new(cx, cy - half - gap - len),
+                s,
+                secondary,
+            );
+            arrow(
+                &mut p,
+                Pos2::new(cx, cy + half + gap),
+                Pos2::new(cx, cy + half + gap + len),
+                s,
+                secondary,
+            );
         }
         if let Some(param) = param_note(ay) {
             let pw = p.measure_text_family(&param, small, None, mono).x;
-            p.text_family(Pos2::new(cx - pw * 0.5, cy + half + st.fonts.body * 0.2), &param, small, secondary, None, mono);
+            p.text_family(
+                Pos2::new(cx - pw * 0.5, cy + half + st.fonts.body * 0.2),
+                &param,
+                small,
+                secondary,
+                None,
+                mono,
+            );
         }
     }
 }
@@ -1024,7 +1380,12 @@ fn arrow(p: &mut crusty_gui::paint::Painter, from: Pos2, to: Pos2, s: f32, color
     let base = Pos2::new(to.x - ux * head, to.y - uy * head);
     p.line_segment(from, base, 1.0 * s, color);
     let (nx, ny) = (-uy * head * 0.5, ux * head * 0.5);
-    p.triangle(to, Pos2::new(base.x + nx, base.y + ny), Pos2::new(base.x - nx, base.y - ny), color);
+    p.triangle(
+        to,
+        Pos2::new(base.x + nx, base.y + ny),
+        Pos2::new(base.x - nx, base.y - ny),
+        color,
+    );
 }
 
 /// The parameter an axis reads, when it is not simply the axis name.
@@ -1041,7 +1402,11 @@ fn draw_triangulation(ui: &mut Ui, plot: Rect, s: f32, state: &BlendSpaceEditorS
     let mut p = ui.painter();
     let hull = space.hull();
     for t in space.triangles() {
-        p.polygon_stroke(&[at(t[0]), at(t[1]), at(t[2])], st.metrics.border, st.palette.stroke);
+        p.polygon_stroke(
+            &[at(t[0]), at(t[1]), at(t[2])],
+            st.metrics.border,
+            st.palette.stroke,
+        );
     }
     match hull.len() {
         0 | 1 => {}
@@ -1053,7 +1418,14 @@ fn draw_triangulation(ui: &mut Ui, plot: Rect, s: f32, state: &BlendSpaceEditorS
     }
 }
 
-fn draw_samples(ui: &mut Ui, plot: Rect, s: f32, selection: Color, state: &BlendSpaceEditorState, st: &Style) {
+fn draw_samples(
+    ui: &mut Ui,
+    plot: Rect,
+    s: f32,
+    selection: Color,
+    state: &BlendSpaceEditorState,
+    st: &Style,
+) {
     let doc = &state.doc;
     let fill = asset_color("animation");
     let success = Palette::invariant_status().success;
@@ -1066,35 +1438,80 @@ fn draw_samples(ui: &mut Ui, plot: Rect, s: f32, selection: Color, state: &Blend
         let weight = weights.iter().find(|(k, _)| *k == i).map(|(_, w)| *w);
         let selected = state.selection == Some(i);
         let hovered = state.hovered == Some(i);
-        let radius = if hovered || state.drag.as_ref().is_some_and(|(k, _)| *k == i) { r * 1.25 } else { r };
+        let radius = if hovered || state.drag.as_ref().is_some_and(|(k, _)| *k == i) {
+            r * 1.25
+        } else {
+            r
+        };
         // Contributing samples glow in the preview colour under the dot.
         if let Some(w) = weight {
-            p.circle_filled(c, radius + (3.0 + 5.0 * w) * s, success.with_alpha(0.25 + 0.35 * w));
+            p.circle_filled(
+                c,
+                radius + (3.0 + 5.0 * w) * s,
+                success.with_alpha(0.25 + 0.35 * w),
+            );
         }
-        p.circle_filled(c, radius, if sm.clip.is_empty() { st.palette.text_disabled } else { fill });
+        p.circle_filled(
+            c,
+            radius,
+            if sm.clip.is_empty() {
+                st.palette.text_disabled
+            } else {
+                fill
+            },
+        );
         if selected {
             p.circle_stroke(c, radius + 2.0 * s, 1.5 * s, selection);
         }
         if selected || hovered || weight.is_some() {
-            let mut label = if sm.clip.is_empty() { "(no clip)".to_string() } else { clip_stem(&sm.clip) };
+            let mut label = if sm.clip.is_empty() {
+                "(no clip)".to_string()
+            } else {
+                clip_stem(&sm.clip)
+            };
             if let Some(n) = &sm.clip_name {
                 label = format!("{label}:{n}");
             }
             let w = p.measure_text(&label, label_px, None).x;
-            p.text(Pos2::new(c.x - w * 0.5, c.y + radius + 3.0 * s), &label, label_px, st.palette.text, None);
+            p.text(
+                Pos2::new(c.x - w * 0.5, c.y + radius + 3.0 * s),
+                &label,
+                label_px,
+                st.palette.text,
+                None,
+            );
         }
         if let Some(w) = weight {
             let pct = format!("{:.0}%", w * 100.0);
-            let pw = p.measure_text_family(&pct, label_px, None, FontFamily::Mono).x;
-            p.text_family(Pos2::new(c.x - pw * 0.5, c.y - radius - label_px - 3.0 * s), &pct, label_px, success, None, FontFamily::Mono);
+            let pw = p
+                .measure_text_family(&pct, label_px, None, FontFamily::Mono)
+                .x;
+            p.text_family(
+                Pos2::new(c.x - pw * 0.5, c.y - radius - label_px - 3.0 * s),
+                &pct,
+                label_px,
+                success,
+                None,
+                FontFamily::Mono,
+            );
         }
     }
     if let Some(pt) = state.preview_point {
         let c = doc_to_screen(doc, plot, pt);
         // Crosshair ticks tie the point to the axes it reads.
         let t = SAMPLE_R * 2.2 * s;
-        p.line_segment(Pos2::new(c.x - t, c.y), Pos2::new(c.x + t, c.y), 1.0 * s, success.with_alpha(0.7));
-        p.line_segment(Pos2::new(c.x, c.y - t), Pos2::new(c.x, c.y + t), 1.0 * s, success.with_alpha(0.7));
+        p.line_segment(
+            Pos2::new(c.x - t, c.y),
+            Pos2::new(c.x + t, c.y),
+            1.0 * s,
+            success.with_alpha(0.7),
+        );
+        p.line_segment(
+            Pos2::new(c.x, c.y - t),
+            Pos2::new(c.x, c.y + t),
+            1.0 * s,
+            success.with_alpha(0.7),
+        );
         p.circle_filled(c, r * 0.9, success);
         p.circle_stroke(c, r * 0.9, 1.0 * s, st.palette.window);
     }
@@ -1106,7 +1523,12 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, state: &mut BlendSpaceEditorState) {
     {
         let mut p = ui.painter();
         p.rect_filled(rect, 0.0, st.palette.panel);
-        p.line_segment(rect.min, Pos2::new(rect.max.x, rect.min.y), st.metrics.border, st.palette.stroke);
+        p.line_segment(
+            rect.min,
+            Pos2::new(rect.max.x, rect.min.y),
+            st.metrics.border,
+            st.palette.stroke,
+        );
     }
     let (text, color) = match &state.compiled {
         Ok(space) => (
@@ -1115,7 +1537,11 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, state: &mut BlendSpaceEditorState) {
                 doc_len(state),
                 if doc_len(state) == 1 { "" } else { "s" },
                 space.triangles().len(),
-                if space.triangles().len() == 1 { "" } else { "s" }
+                if space.triangles().len() == 1 {
+                    ""
+                } else {
+                    "s"
+                }
             ),
             st.palette.text_secondary,
         ),
@@ -1126,12 +1552,28 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, state: &mut BlendSpaceEditorState) {
         // The clear affordance, right-aligned.
         let bw = CLEAR_W * s;
         let bh = (rect.height() - 4.0 * s).min(st.metrics.control_height);
-        let brect = Rect::from_min_size(Pos2::new(right - bw, rect.center().y - bh * 0.5), Vec2::new(bw, bh));
+        let brect = Rect::from_min_size(
+            Pos2::new(right - bw, rect.center().y - bh * 0.5),
+            Vec2::new(bw, bh),
+        );
         let mut clear = false;
         let id = ui.alloc_id(("bs_footer_clear", state.path.as_str()));
-        ui.run_at(brect, Direction::LeftToRight, id, UiOptions { padding: Vec2::ZERO, spacing: 0.0 }, |ui| {
-            clear = Button::new("Clear preview").exact_size(brect.size()).ghost().show(ui).clicked;
-        });
+        ui.run_at(
+            brect,
+            Direction::LeftToRight,
+            id,
+            UiOptions {
+                padding: Vec2::ZERO,
+                spacing: 0.0,
+            },
+            |ui| {
+                clear = Button::new("Clear preview")
+                    .exact_size(brect.size())
+                    .ghost()
+                    .show(ui)
+                    .clicked;
+            },
+        );
         if clear {
             state.clear_preview();
         }
@@ -1140,14 +1582,29 @@ fn footer(ui: &mut Ui, rect: Rect, s: f32, state: &mut BlendSpaceEditorState) {
     // What the pane animates (the scene entity, when one is bound, follows
     // the same point — it needs no mention here).
     let (hint, hint_color) = match &state.preview.mesh {
-        Some(m) if state.preview.status.is_none() => (format!("Preview: {}", stem(m)), Palette::invariant_status().success),
-        Some(m) => (format!("Preview: {}", stem(m)), Palette::invariant_status().warning),
-        None => ("Preview: none".to_string(), Palette::invariant_status().warning),
+        Some(m) if state.preview.status.is_none() => (
+            format!("Preview: {}", stem(m)),
+            Palette::invariant_status().success,
+        ),
+        Some(m) => (
+            format!("Preview: {}", stem(m)),
+            Palette::invariant_status().warning,
+        ),
+        None => (
+            "Preview: none".to_string(),
+            Palette::invariant_status().warning,
+        ),
     };
     {
         let mut p = ui.painter();
         let hw = p.measure_text(&hint, st.fonts.small, None).x;
-        p.text(Pos2::new(right - hw, rect.center().y - st.fonts.small * 0.62), &hint, st.fonts.small, hint_color, None);
+        p.text(
+            Pos2::new(right - hw, rect.center().y - st.fonts.small * 0.62),
+            &hint,
+            st.fonts.small,
+            hint_color,
+            None,
+        );
         right -= hw + pad;
     }
     ui.painter().text_family(
@@ -1165,7 +1622,9 @@ fn doc_len(state: &BlendSpaceEditorState) -> usize {
 }
 
 fn draw_toast(ui: &mut Ui, rect: Rect, state: &mut BlendSpaceEditorState) {
-    let Some((msg, at)) = state.toast.clone() else { return };
+    let Some((msg, at)) = state.toast.clone() else {
+        return;
+    };
     if at.elapsed().as_secs_f32() * 1000.0 > TOAST_MS {
         state.toast = None;
         return;
@@ -1177,7 +1636,13 @@ fn draw_toast(ui: &mut Ui, rect: Rect, state: &mut BlendSpaceEditorState) {
     let r = Rect::from_min_size(Pos2::new(rect.max.x - size.x - pad, rect.min.y + pad), size);
     p.rect_filled(r, st.rounding.small, st.palette.elevated);
     p.rect_stroke(r, st.rounding.small, st.metrics.border, st.palette.stroke);
-    p.text(r.min + Vec2::splat(pad), &msg, st.fonts.body, st.palette.text, None);
+    p.text(
+        r.min + Vec2::splat(pad),
+        &msg,
+        st.fonts.body,
+        st.palette.text,
+        None,
+    );
 }
 
 fn handle_panel_keys(
@@ -1195,7 +1660,8 @@ fn handle_panel_keys(
         state.undo();
     }
     if (ctrl && input.key_pressed(UiKey::Char('y')))
-        || (input.modifiers == Modifiers::CTRL.union(Modifiers::SHIFT) && input.key_pressed(UiKey::Char('z')))
+        || (input.modifiers == Modifiers::CTRL.union(Modifiers::SHIFT)
+            && input.key_pressed(UiKey::Char('z')))
     {
         state.redo();
     }
@@ -1247,8 +1713,16 @@ mod tests {
         let d = doc_2d();
         for size in [Vec2::new(400.0, 300.0), Vec2::new(1200.0, 90.0)] {
             let p = Rect::from_min_size(Pos2::new(17.0, 23.0), size);
-            assert_eq!(doc_to_screen(&d, p, [0.0, -1.0]), Pos2::new(p.min.x, p.max.y), "min → left/bottom");
-            assert_eq!(doc_to_screen(&d, p, [6.0, 1.0]), Pos2::new(p.max.x, p.min.y), "max → right/top");
+            assert_eq!(
+                doc_to_screen(&d, p, [0.0, -1.0]),
+                Pos2::new(p.min.x, p.max.y),
+                "min → left/bottom"
+            );
+            assert_eq!(
+                doc_to_screen(&d, p, [6.0, 1.0]),
+                Pos2::new(p.max.x, p.min.y),
+                "max → right/top"
+            );
         }
     }
 
@@ -1266,7 +1740,12 @@ mod tests {
         assert_eq!(strip.center().y, r.center().y);
         assert_eq!((strip.min.x, strip.max.x), (r.min.x, r.max.x));
         // Never inverted, however small the panel.
-        let tiny = plot_rect(&d, Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(30.0, 30.0)), MARGIN_L, 1.0);
+        let tiny = plot_rect(
+            &d,
+            Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(30.0, 30.0)),
+            MARGIN_L,
+            1.0,
+        );
         assert!(tiny.width() >= 0.0 && tiny.height() >= 0.0);
     }
 }

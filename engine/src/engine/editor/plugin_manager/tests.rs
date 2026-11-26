@@ -201,7 +201,10 @@ fn orphan_manifest_entry_becomes_a_not_in_this_build_row() {
     let orphan = model.get("from_another_build").expect("orphan row");
     assert_eq!(orphan.state, RowState::NotInThisBuild);
     assert!(orphan.state.is_problem());
-    assert!(orphan.state.toggle_locked(), "an absent plugin cannot be toggled on");
+    assert!(
+        orphan.state.toggle_locked(),
+        "an absent plugin cannot be toggled on"
+    );
 }
 
 /// Pending is the disagreement between the edited manifest and the running
@@ -222,7 +225,10 @@ fn editing_the_manifest_after_build_produces_pending_states() {
     set_manifest_enabled(&mut project, "stopped", true);
     let model = PluginManagerModel::build(&set, &project);
 
-    assert_eq!(model.get("running").unwrap().state, RowState::PendingDisable);
+    assert_eq!(
+        model.get("running").unwrap().state,
+        RowState::PendingDisable
+    );
     assert_eq!(model.get("stopped").unwrap().state, RowState::PendingEnable);
     assert_eq!(model.pending_count(), 2);
     // A pending-disable plugin is still live until the relaunch (§5.8).
@@ -271,7 +277,9 @@ fn search_matches_name_author_and_description() {
     let (model, _set, _p) = model_of(
         vec![
             TestPlugin::ok(
-                manifest("physics").with_author("Ada").with_description("rigid bodies"),
+                manifest("physics")
+                    .with_author("Ada")
+                    .with_description("rigid bodies"),
             ),
             TestPlugin::ok(manifest("audio").with_description("mixer buses")),
         ],
@@ -340,11 +348,17 @@ fn cascade_describes_internal_dependents_in_prose() {
         false,
     );
     let prompt = dependents_of(&set, "physics_rapier");
-    assert!(prompt.dependents.is_empty(), "internal ones are not listed as rows");
+    assert!(
+        prompt.dependents.is_empty(),
+        "internal ones are not listed as rows"
+    );
     assert!(prompt.hits_internal);
     let msg = prompt.message();
     assert!(msg.contains("gameplay systems"), "{msg}");
-    assert!(!msg.contains("game_client"), "internal ids stay out of the copy");
+    assert!(
+        !msg.contains("game_client"),
+        "internal ids stay out of the copy"
+    );
 }
 
 #[test]
@@ -374,7 +388,10 @@ fn toggling_materializes_an_entry_and_preserves_orphans() {
     // Toggling again edits in place rather than appending a duplicate.
     set_manifest_enabled(&mut project, "dev_nodes", true);
     assert_eq!(project.plugins.len(), 2);
-    assert!(project.plugins.iter().any(|e| e.id == "dev_nodes" && e.enabled));
+    assert!(project
+        .plugins
+        .iter()
+        .any(|e| e.id == "dev_nodes" && e.enabled));
     assert!(
         project.plugins.iter().any(|e| e.id == "from_another_build"),
         "an orphan entry must survive an unrelated toggle"

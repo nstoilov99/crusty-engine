@@ -161,7 +161,9 @@ fn validate_mp_settings(server_uri: &str, module: &str) -> Result<(), String> {
         ));
     }
     if !server_uri.starts_with("http://") && !server_uri.starts_with("https://") {
-        return Err(format!("invalid server URI '{server_uri}' (must be http(s)://...)"));
+        return Err(format!(
+            "invalid server URI '{server_uri}' (must be http(s)://...)"
+        ));
     }
     Ok(())
 }
@@ -324,8 +326,7 @@ impl BuildDialog {
         }
 
         if target != BuildTarget::Standalone {
-            if let Err(e) = validate_mp_settings(&self.settings.server_uri, &self.settings.module)
-            {
+            if let Err(e) = validate_mp_settings(&self.settings.server_uri, &self.settings.module) {
                 if let Ok(mut log) = self.build_log.lock() {
                     log.push(format!("ERROR: {e}"));
                 }
@@ -377,7 +378,13 @@ impl BuildDialog {
 
         self.copy_thread = Some(std::thread::spawn(move || {
             copy_build_output(
-                profile, platform, target, &server_uri, &module, &output_dir, build_log,
+                profile,
+                platform,
+                target,
+                &server_uri,
+                &module,
+                &output_dir,
+                build_log,
             )
         }));
     }
@@ -687,11 +694,17 @@ mod tests {
     fn the_dirty_guard_covers_exe_targets_only() {
         for target in [BuildTarget::Standalone, BuildTarget::MpClient] {
             assert!(export_blocked_by_dirty_project(target, true), "{target:?}");
-            assert!(!export_blocked_by_dirty_project(target, false), "{target:?}");
+            assert!(
+                !export_blocked_by_dirty_project(target, false),
+                "{target:?}"
+            );
         }
         // A module publish reads no Cargo features, so `project.ron` cannot
         // leak into it — blocking it would be a spurious refusal.
-        assert!(!export_blocked_by_dirty_project(BuildTarget::MpServer, true));
+        assert!(!export_blocked_by_dirty_project(
+            BuildTarget::MpServer,
+            true
+        ));
     }
 
     /// The export's provenance is stated in the log the user is already

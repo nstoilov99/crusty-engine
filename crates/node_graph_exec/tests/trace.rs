@@ -166,8 +166,11 @@ fn a_latent_reports_its_resume_edge_on_the_tick_it_wakes() {
     let mut reporting_ticks = Vec::new();
     for i in 1..8 {
         let rec = step(&mut inst, &mut effects, i as f64 * 0.1);
-        let resume: Vec<&(usize, String, usize)> =
-            rec.exec.iter().filter(|(from, _, _)| *from == delay).collect();
+        let resume: Vec<&(usize, String, usize)> = rec
+            .exec
+            .iter()
+            .filter(|(from, _, _)| *from == delay)
+            .collect();
         match resume.len() {
             0 => assert!(
                 rec.exec.is_empty(),
@@ -198,8 +201,16 @@ fn a_latent_reports_its_resume_edge_on_the_tick_it_wakes() {
 fn host_and_sub() -> (GraphDoc, BTreeMap<String, GraphDoc>) {
     let mut sub = GraphDoc::default();
     sub.inputs = vec![
-        IfacePin { slug: "run".into(), label: "Run".into(), ty: PinType::Exec },
-        IfacePin { slug: "n".into(), label: "N".into(), ty: PinType::Int },
+        IfacePin {
+            slug: "run".into(),
+            label: "Run".into(),
+            ty: PinType::Exec,
+        },
+        IfacePin {
+            slug: "n".into(),
+            label: "N".into(),
+            ty: PinType::Int,
+        },
     ];
     sub.outputs = vec![IfacePin {
         slug: "done".into(),
@@ -267,7 +278,10 @@ fn run_traced(doc: &GraphDoc, subs: &BTreeMap<String, GraphDoc>, ticks: usize) -
     let mut effects: Vec<Effect> = Vec::new();
     let mut rec = Recorder::default();
     for i in 0..ticks {
-        let t = TickInput { dt: 0.1, time: i as f64 * 0.1 };
+        let t = TickInput {
+            dt: 0.1,
+            time: i as f64 * 0.1,
+        };
         tick_traced(
             &plan,
             &mut inst,
@@ -339,7 +353,11 @@ fn inlined_subgraph_nodes_map_to_their_host() {
             || (type_of(&plan, i) == PRINT && n.name.contains("add10"));
         if from_sub {
             assert!(n.inlined, "{} should report as inlined", n.name);
-            assert_eq!(n.doc_node, 1, "{} should map to the host subgraph node", n.name);
+            assert_eq!(
+                n.doc_node, 1,
+                "{} should map to the host subgraph node",
+                n.name
+            );
         } else {
             assert!(!n.inlined, "{} is authored in the host", n.name);
         }
@@ -374,7 +392,10 @@ fn fired_exec_edges_are_reported_in_order() {
     assert_eq!(
         readable,
         vec![
-            (format!("{EVENT_BEGIN_PLAY_TYPE_ID}.{EXEC_OUT_PIN}"), FOR_LOOP),
+            (
+                format!("{EVENT_BEGIN_PLAY_TYPE_ID}.{EXEC_OUT_PIN}"),
+                FOR_LOOP
+            ),
             ("for_loop.body".to_string(), PRINT),
             ("for_loop.body".to_string(), PRINT),
         ],
@@ -409,7 +430,9 @@ fn pulled_data_wires_report_their_last_value() {
     // Constants are not wires: Print's `text` is wired, but the ForLoop's
     // `first`/`last` are stored constants and report nothing.
     assert!(
-        !rec.data.iter().any(|(_, pin, _)| pin == "first" || pin == "last"),
+        !rec.data
+            .iter()
+            .any(|(_, pin, _)| pin == "first" || pin == "last"),
         "an unwired input has no wire to hover"
     );
 }
@@ -430,7 +453,10 @@ fn tracing_does_not_change_what_the_graph_does() {
     let mut b = GraphInstance::new(&plan, EntityRef::SelfEntity, 7);
     let mut rec = Recorder::default();
     for i in 0..3 {
-        let t = TickInput { dt: 0.1, time: i as f64 * 0.1 };
+        let t = TickInput {
+            dt: 0.1,
+            time: i as f64 * 0.1,
+        };
         tick(&plan, &mut a, &impls, t, &NoWorld, &mut plain);
         tick_traced(
             &plan,

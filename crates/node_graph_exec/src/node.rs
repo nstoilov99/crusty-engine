@@ -44,7 +44,11 @@ pub enum ExecError {
     /// A node's input was not the type its implementation expected. Only
     /// reachable through a document that skipped validation, or a node
     /// implementation disagreeing with its own descriptor.
-    TypeMismatch { node: String, pin: String, expected: String },
+    TypeMismatch {
+        node: String,
+        pin: String,
+        expected: String,
+    },
     /// No implementation registered for a node type the plan contains.
     MissingImpl { node: String, type_id: String },
     /// A variable the plan does not declare. Validation catches this at edit
@@ -62,7 +66,11 @@ impl std::fmt::Display for ExecError {
                 "node '{node}': iteration budget of {budget} firings exhausted \
                  (runaway loop or exec cycle)"
             ),
-            ExecError::TypeMismatch { node, pin, expected } => {
+            ExecError::TypeMismatch {
+                node,
+                pin,
+                expected,
+            } => {
                 write!(f, "node '{node}': input '{pin}' is not a {expected}")
             }
             ExecError::MissingImpl { node, type_id } => {
@@ -111,7 +119,11 @@ impl Suspension {
     /// Suspend until `until`, continuing on `pin`. `since` is stamped by the
     /// interpreter at park time — a node has no clock of its own.
     pub fn until(until: f64, pin: &str) -> Self {
-        Self { until, resume: Some(pin.to_string()), since: 0.0 }
+        Self {
+            until,
+            resume: Some(pin.to_string()),
+            since: 0.0,
+        }
     }
 
     /// How far through the wait `now` is, in `[0, 1]`. A zero-length or
@@ -322,35 +334,43 @@ macro_rules! input_accessors {
         }
 
         pub fn int(&self, pin: &str) -> Result<i32, ExecError> {
-            self.input(pin).as_int().ok_or_else(|| ExecError::TypeMismatch {
-                node: self.node.to_string(),
-                pin: pin.to_string(),
-                expected: "Int".to_string(),
-            })
+            self.input(pin)
+                .as_int()
+                .ok_or_else(|| ExecError::TypeMismatch {
+                    node: self.node.to_string(),
+                    pin: pin.to_string(),
+                    expected: "Int".to_string(),
+                })
         }
 
         pub fn float(&self, pin: &str) -> Result<f32, ExecError> {
-            self.input(pin).as_float().ok_or_else(|| ExecError::TypeMismatch {
-                node: self.node.to_string(),
-                pin: pin.to_string(),
-                expected: "Float".to_string(),
-            })
+            self.input(pin)
+                .as_float()
+                .ok_or_else(|| ExecError::TypeMismatch {
+                    node: self.node.to_string(),
+                    pin: pin.to_string(),
+                    expected: "Float".to_string(),
+                })
         }
 
         pub fn bool(&self, pin: &str) -> Result<bool, ExecError> {
-            self.input(pin).as_bool().ok_or_else(|| ExecError::TypeMismatch {
-                node: self.node.to_string(),
-                pin: pin.to_string(),
-                expected: "Bool".to_string(),
-            })
+            self.input(pin)
+                .as_bool()
+                .ok_or_else(|| ExecError::TypeMismatch {
+                    node: self.node.to_string(),
+                    pin: pin.to_string(),
+                    expected: "Bool".to_string(),
+                })
         }
 
         pub fn vec3(&self, pin: &str) -> Result<[f32; 3], ExecError> {
-            self.input(pin).as_vec3().ok_or_else(|| ExecError::TypeMismatch {
-                node: self.node.to_string(),
-                pin: pin.to_string(),
-                expected: "Vec3".to_string(),
-            })
+            self.input(pin)
+                .as_vec3()
+                .ok_or_else(|| ExecError::TypeMismatch {
+                    node: self.node.to_string(),
+                    pin: pin.to_string(),
+                    expected: "Vec3".to_string(),
+                })
         }
 
         /// The node's plan-level name, for error reporting.

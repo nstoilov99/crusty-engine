@@ -50,7 +50,7 @@ pub fn create_swapchain_with_present_mode(
     let surface_formats = device
         .physical_device()
         .surface_formats(&surface, Default::default())?;
-    let image_format = surface_formats
+    let image_format = *surface_formats
         .iter()
         .find(|(format, _)| *format == vulkano::format::Format::B8G8R8A8_SRGB)
         .or_else(|| {
@@ -58,8 +58,7 @@ pub fn create_swapchain_with_present_mode(
                 .iter()
                 .find(|(format, _)| *format == vulkano::format::Format::R8G8B8A8_SRGB)
         })
-        .unwrap_or(&surface_formats[0])
-        .clone();
+        .unwrap_or(&surface_formats[0]);
 
     let composite_alpha = surface_capabilities
         .supported_composite_alpha

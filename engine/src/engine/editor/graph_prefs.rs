@@ -89,8 +89,7 @@ pub enum TurnPriority {
 }
 
 impl TurnPriority {
-    pub const ALL: [TurnPriority; 3] =
-        [TurnPriority::None, TurnPriority::Node, TurnPriority::Pin];
+    pub const ALL: [TurnPriority; 3] = [TurnPriority::None, TurnPriority::Node, TurnPriority::Pin];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -321,7 +320,10 @@ mod tests {
 
     #[test]
     fn disable_pin_offset_turns_at_the_border() {
-        let w = WirePrefs { disable_pin_offset: true, ..WirePrefs::default() };
+        let w = WirePrefs {
+            disable_pin_offset: true,
+            ..WirePrefs::default()
+        };
         assert_eq!(w.offset(), 0.0);
     }
 

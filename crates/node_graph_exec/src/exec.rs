@@ -71,7 +71,14 @@ pub fn tick_with_budget(
     budget: u32,
 ) -> TickReport {
     tick_traced(
-        plan, instance, impls, tick_in, world, effects, budget, &mut NoTrace,
+        plan,
+        instance,
+        impls,
+        tick_in,
+        world,
+        effects,
+        budget,
+        &mut NoTrace,
     )
 }
 
@@ -225,7 +232,8 @@ pub fn tick_debug<T: TraceSink>(
                         start_phase(plan, instance, phase, ev.name.as_deref(), &ev.payload);
                 }
                 if phase == EventPhase::Tick {
-                    report.activations += start_phase(plan, instance, phase, None, &BTreeMap::new());
+                    report.activations +=
+                        start_phase(plan, instance, phase, None, &BTreeMap::new());
                 }
             }
         }
@@ -425,7 +433,10 @@ fn advance<T: TraceSink>(
         // exec cycle and a pathological pure chain both hit the same wall.
         report.steps += 1;
         if report.steps > budget {
-            return Err(ExecError::BudgetExceeded { node: node.name.clone(), budget });
+            return Err(ExecError::BudgetExceeded {
+                node: node.name.clone(),
+                budget,
+            });
         }
 
         // Pull the data inputs backward through the pure chains. The memo is
@@ -458,7 +469,9 @@ fn advance<T: TraceSink>(
             .frames
             .last()
             .filter(|f| f.node == node_ix)
-            .map(|f| LoopFrameView { iteration: f.iteration });
+            .map(|f| LoopFrameView {
+                iteration: f.iteration,
+            });
 
         let entered = instance.threads[thread].entered.clone();
         let node_state = instance.node_state.get(&node_ix).cloned();
@@ -520,7 +533,10 @@ fn advance<T: TraceSink>(
             FireResult::Loop(body) => {
                 let frames = &mut instance.threads[thread].frames;
                 if frames.last().map(|f| f.node) != Some(node_ix) {
-                    frames.push(Frame { node: node_ix, iteration: 0 });
+                    frames.push(Frame {
+                        node: node_ix,
+                        iteration: 0,
+                    });
                 }
                 match plan.nodes[node_ix].exec.get(body) {
                     // An empty body is legal — the loop still counts down,
@@ -573,7 +589,10 @@ fn advance<T: TraceSink>(
                 // visualization cannot walk back. So the edge is *parked* on
                 // the activation instead, and the latent phase pulses it at
                 // wake — the moment control actually leaves this node.
-                let next = s.resume.as_deref().and_then(|pin| plan.nodes[node_ix].exec.get(pin));
+                let next = s
+                    .resume
+                    .as_deref()
+                    .and_then(|pin| plan.nodes[node_ix].exec.get(pin));
                 instance.threads[thread].resume_edge = next
                     .and(s.resume.as_deref())
                     .map(|pin| (node_ix, pin.to_string()));
@@ -701,7 +720,10 @@ fn pull_output<T: TraceSink>(
 
     report.steps += 1;
     if report.steps > budget {
-        return Err(ExecError::BudgetExceeded { node: node.name.clone(), budget });
+        return Err(ExecError::BudgetExceeded {
+            node: node.name.clone(),
+            budget,
+        });
     }
 
     // Data-edge cycles are rejected at validation (P1's `DataCycle` rule), so

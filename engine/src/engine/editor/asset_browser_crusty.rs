@@ -448,12 +448,8 @@ fn icon_toggle(
         if active {
             ui.painter()
                 .rect_filled(rect, 3.0, style.palette.accent_soft);
-            ui.painter().rect_stroke(
-                rect,
-                3.0,
-                style.metrics.border,
-                style.palette.accent_active,
-            );
+            ui.painter()
+                .rect_stroke(rect, 3.0, style.metrics.border, style.palette.accent_active);
         } else if resp.hovered {
             ui.painter().rect_filled(rect, 3.0, style.palette.hover);
         }
@@ -1189,10 +1185,17 @@ fn create_submenu(ui: &mut Ui) -> Option<Option<AssetType>> {
     picked
 }
 
-fn push_create_event(panel: &mut AssetBrowserPanel, choice: Option<AssetType>, parent_path: PathBuf) {
+fn push_create_event(
+    panel: &mut AssetBrowserPanel,
+    choice: Option<AssetType>,
+    parent_path: PathBuf,
+) {
     panel.events.push(match choice {
         None => AssetBrowserEvent::CreateFolder { parent_path },
-        Some(asset_type) => AssetBrowserEvent::CreateAsset { asset_type, parent_path },
+        Some(asset_type) => AssetBrowserEvent::CreateAsset {
+            asset_type,
+            parent_path,
+        },
     });
 }
 

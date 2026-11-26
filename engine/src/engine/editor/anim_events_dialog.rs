@@ -68,61 +68,6 @@ impl AnimEventsDialog {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::engine::assets::model_loader::RawAnimationClip;
-
-    /// Load → edit the list → save → reload: the marker edit is on disk, and
-    /// the file stays a valid `.anim` container.
-    #[test]
-    fn edits_round_trip_through_the_asset() {
-        let dir = std::env::temp_dir().join("rust_engine_anim_events_dialog");
-        let _ = std::fs::create_dir_all(&dir);
-        let path = dir.join("hero.anim");
-        write_anim_binary(
-            &path,
-            &[RawAnimationClip {
-                name: "Walk".into(),
-                duration_seconds: 1.0,
-                channels: vec![],
-                events: vec![],
-            }],
-            &["root".to_string()],
-        )
-        .expect("fixture written");
-
-        let mut dlg =
-            AnimEventsDialog::load(path.clone(), "anims/hero.anim".into()).expect("loads");
-        assert!(dlg.selected_events_mut().is_empty(), "viewable: starts empty");
-        dlg.selected_events_mut().extend([
-            AnimEventMarker {
-                time_seconds: 0.7,
-                name: "plant".into(),
-            },
-            AnimEventMarker {
-                time_seconds: 0.2,
-                name: "lift".into(),
-            },
-        ]);
-        dlg.save().expect("saves");
-
-        let (_, clips) = load_anim_binary(&path).expect("reloads");
-        assert_eq!(
-            clips[0]
-                .events
-                .iter()
-                .map(|e| (e.time_seconds, e.name.as_str()))
-                .collect::<Vec<_>>(),
-            vec![(0.2, "lift"), (0.7, "plant")],
-            "edits persist, sorted by time"
-        );
-
-        let _ = std::fs::remove_file(&path);
-        let _ = std::fs::remove_dir(&dir);
-    }
-}
-
 /// The modal list: a clip selector when the container holds several, then one
 /// row per marker (time in seconds, name, remove), an add button, Save/Cancel.
 pub fn anim_events_dialog_panel(ui: &mut Ui, dlg: &mut AnimEventsDialog) -> AnimEventsAction {
@@ -200,15 +145,83 @@ pub fn anim_events_dialog_panel(ui: &mut Ui, dlg: &mut AnimEventsDialog) -> Anim
             ui.add_space(12.0);
             ui.horizontal(|ui| {
                 let size = Vec2::new(80.0, 26.0);
-                if Button::new("Save").primary().min_size(size).show(ui).clicked {
+                if Button::new("Save")
+                    .primary()
+                    .min_size(size)
+                    .show(ui)
+                    .clicked
+                {
                     action = AnimEventsAction::Save;
                 }
                 ui.add_space(8.0);
-                if Button::new("Cancel").ghost().min_size(size).show(ui).clicked {
+                if Button::new("Cancel")
+                    .ghost()
+                    .min_size(size)
+                    .show(ui)
+                    .clicked
+                {
                     action = AnimEventsAction::Cancel;
                 }
             });
         });
 
     action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::assets::model_loader::RawAnimationClip;
+
+    /// Load → edit the list → save → reload: the marker edit is on disk, and
+    /// the file stays a valid `.anim` container.
+    #[test]
+    fn edits_round_trip_through_the_asset() {
+        let dir = std::env::temp_dir().join("rust_engine_anim_events_dialog");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("hero.anim");
+        write_anim_binary(
+            &path,
+            &[RawAnimationClip {
+                name: "Walk".into(),
+                duration_seconds: 1.0,
+                channels: vec![],
+                events: vec![],
+            }],
+            &["root".to_string()],
+        )
+        .expect("fixture written");
+
+        let mut dlg =
+            AnimEventsDialog::load(path.clone(), "anims/hero.anim".into()).expect("loads");
+        assert!(
+            dlg.selected_events_mut().is_empty(),
+            "viewable: starts empty"
+        );
+        dlg.selected_events_mut().extend([
+            AnimEventMarker {
+                time_seconds: 0.7,
+                name: "plant".into(),
+            },
+            AnimEventMarker {
+                time_seconds: 0.2,
+                name: "lift".into(),
+            },
+        ]);
+        dlg.save().expect("saves");
+
+        let (_, clips) = load_anim_binary(&path).expect("reloads");
+        assert_eq!(
+            clips[0]
+                .events
+                .iter()
+                .map(|e| (e.time_seconds, e.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(0.2, "lift"), (0.7, "plant")],
+            "edits persist, sorted by time"
+        );
+
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir(&dir);
+    }
 }
