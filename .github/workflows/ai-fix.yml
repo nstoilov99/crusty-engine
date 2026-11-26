@@ -116,8 +116,7 @@ jobs:
             4. Apply the fixes. Keep them minimal and in the spirit of the PR. Run
                `cargo fmt --all` and `cargo check -p <crate>` for the crates you touched.
                Do not run the full workspace build; CI does that.
-            5. Commit with a clear message ending in
-               "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>" and push to BRANCH.
+            5. Commit with a clear message (no AI attribution lines) and push to BRANCH.
                Never force-push, never touch other branches.
             6. Reply to every comment you handled: "Fixed in <short sha>: <one line>" or
                "Not changed: <one line reason>".
