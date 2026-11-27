@@ -8,6 +8,7 @@ what Codex-specific tooling looks for.
 
 The rules live in `docs/roadmap/ROADMAP.md` ▸ Merge policy and PR evidence;
 the `Merge policy` line itself is in `CLAUDE.md`. Never edit that line.
+No merge on red, and never `--admin`.
 
 ## Code Review Rules
 

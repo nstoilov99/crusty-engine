@@ -18,8 +18,10 @@ A roadmap task runs claim → plan → packages → close-out. Everything lives 
    *Gotchas* section of `docs/KNOWLEDGE.md`; skim `CONTEXT.md` for the terms.
 4. Verify every claim you will build on against the code. The roadmap records
    what was true when it was written.
-5. Claim the milestone: write your branch in the status board's **Claimed**
-   column and name any hot-path PR you will need. This goes in your first PR.
+5. Claim the milestone: check the open PRs for its id, then open your PR as a
+   draft titled `M<NN>: <task>` before coding. In that PR, write its link in
+   the status board's **Claimed** column and name any hot-path PR you will
+   need.
 
 **If the milestone is still an outline** (M14 and later), expand it first, in
 `ROADMAP.md`, to the level of M11–M13: tasks with goal, scope, out of scope,
@@ -45,16 +47,17 @@ Write the plan in the PR description (open the PR as a draft early):
 6. **Questions for the owner** — only choices that change the work
    materially. Stop and ask; do not start packages on open questions.
 
-Ask for a read-only challenge of the plan (see *Cost routing* in `CLAUDE.md`)
-and fold the findings in before coding.
+Ask for a read-only challenge of the plan (see *Picking the right model for
+workflows and subagents* in `CLAUDE.md`) and fold the findings in before
+coding.
 
 ## 3. Packages
 
 - Branch `m<NN>-<task>-<slug>` from `main` (for example `m11-2-headless`).
   One commit per package, conventional-commit subject, no trailers.
 - Stay inside your track's paths. A change to a hot path (`Cargo.lock`, the
-  ECS API, `FramePacket`, `game_shared`, unowned paths) goes in its own small
-  PR that merges first.
+  ECS API, `FramePacket`, unowned paths) or to another track's paths goes in
+  its own small PR that merges first.
 - Per package: tests first where a seam exists (`/tdd`), then
   `bash scripts/ci_local.sh --quick` (or `pwsh scripts/ci_local.ps1 -Quick`)
   before the commit.
@@ -71,14 +74,13 @@ Done when every package is committed and the full local gate
 | File | Change |
 |---|---|
 | `docs/roadmap/ROADMAP.md` | Your milestone's status-board row and section only: mark the task done with the PR number and move its section out in this same PR (nothing is left for after the merge), update **Open follow-ups** if the task closed or created any |
-| `docs/roadmap/COMPLETED.md` | Append the task section: status line with date, decisions, acceptance table (verified live / proven by tests / **not run**), review notes, **Deferred ledger** |
+| `docs/roadmap/COMPLETED.md` | Append the task section under its milestone's heading (so parallel tracks merge cleanly): status line with date, decisions, acceptance table (verified live / proven by tests / **not run**), review notes, **Deferred ledger** |
 | `docs/ARCHITECTURE.md` | New or changed subsystem section |
 | `docs/KNOWLEDGE.md` | `## <Area> Gotchas (<task id>)` — what the next agent would otherwise rediscover |
 | `CONTEXT.md` | New canonical terms |
-| `CLAUDE.md` ▸ Current Development Focus | The `Next:` line |
 
-Then run `/code-review` against `main` and complete the PR evidence listed in
-`ROADMAP.md` ▸ **Merge policy and PR evidence**. Who merges is decided by the
-`Merge policy` line in `CLAUDE.md`: with `owner`, hand the PR over and stop;
-with `agents`, merge once the evidence is complete. Never merge on red and
-never use `--admin`.
+`CLAUDE.md` is not touched: the status board is the only record of what is
+next.
+
+Then run `/code-review` against `main`, complete the PR evidence and follow
+the merge rules, both in `ROADMAP.md` ▸ **Merge policy and PR evidence**.
