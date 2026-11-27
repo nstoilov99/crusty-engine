@@ -72,6 +72,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The fixer (ai-fix.yml) pushes as claude[bot]; without this the
+          # re-review of its push is refused as started by a non-human actor.
+          # The loop stays bounded by AI_FIX_MAX_ROUNDS in ai-fix.yml.
+          allowed_bots: "claude[bot]"
           claude_args: |
             --model ${{ matrix.reviewer.model }}
             --max-turns 40
