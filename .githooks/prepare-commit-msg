@@ -24,6 +24,8 @@ fi
 # Strip Co-Authored-By lines (we don't want AI co-author attribution)
 sed -i '/^Co-Authored-By:/d' "$commit_msg_file"
 sed -i '/^co-authored-by:/d' "$commit_msg_file"
+# Strip the "Generated with [Claude Code]" line too
+sed -i -E '/Generated with \[?Claude Code/d' "$commit_msg_file"
 
 # Clean up noise phrases from any commit message (regardless of source)
 # Strips suffixes like " — implementation prompt", " — plan", " — spec"

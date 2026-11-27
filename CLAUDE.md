@@ -218,3 +218,6 @@ How to apply:
 - Do not include HTML comments (e.g. <!-- generated-by-cyrus -->)
 - Do not include the "Tip" block about @mentioning cyrusagent
 - Do not append a "Linear issue:" link at the bottom
+- Do not add "Generated with Claude Code" or any other AI attribution line to
+  PR descriptions or commits (`.claude/settings.json` turns it off for Claude
+  Code; `.github/workflows/pr-body-clean.yml` strips it from PR descriptions)
