@@ -3,6 +3,9 @@ name: add-editor-panel
 description: Add a dock panel to the crusty-gui editor — EditorTab variant, persisted tab id, layout profile placement, thin drawing fn, dispatch in CrustyGui::layout, View ▸ Panels entry, theme tokens + design lint. Use when adding or re-homing an editor panel.
 ---
 
+What the panel should do and which editor it follows is decided in
+`docs/EDITOR-UX.md` (`editor-ux` skill); this skill covers the mechanics.
+
 Panels are thin drawing layers over state structs; logic stays in the state
 module and systems. Exemplar: Anim Preview — `dock_layout.rs`,
 `dock_crusty.rs`, `menu_bar_crusty.rs`, `anim_preview.rs`,
