@@ -60,7 +60,7 @@ What the audit found between this state and the goal:
 |---|---|
 | Verification | The engine has no frame capture and cannot start without a window, so an agent on a machine with no GPU cannot check rendering or the editor. Only `crusty-gui` has golden-image tests. |
 | CI | `main` is red: three clippy sites on Linux and one failing editor test on Windows. No check is required. Linux never builds the editor. |
-| Device | Created at Vulkan 1.0 with only `khr_swapchain`; no optional feature is enabled. |
+| Device | No minimum Vulkan version is checked and no device feature is enabled; the only extension is `khr_swapchain`. |
 | Renderer | One vertex and index buffer per mesh, one descriptor set of four samplers per material, a CPU draw loop, one light, no velocity target. The G-buffer stores absolute world position in 16-bit floats, which loses 0.25 m of precision 256–512 m from the origin. |
 | Server | About 150 active movers per module. `move_tick` scans every player row ever created, every input is its own transaction rewriting the public player row, the module is built for size, and the whole world's collision is compiled into it. |
 | World | No level of detail, no terrain, full detail only within two cells (about 160 m). |
@@ -120,6 +120,11 @@ bake tool, asset cooking), plus verification and the follow-up ledger.
 Waits across tracks: M19 needs M16 and M18. Terrain brushes in M18 need the
 terrain runtime from M16. With one agent, follow the numbers.
 
+**Shared tools.** Infra owns the `tools/xtask` framework. A subcommand
+(`server-gate`, `bench`) lives in its own module and belongs to the track
+that adds it. Visual scenarios are one file per track under
+`tests/visual/`, so tracks do not edit each other's lists.
+
 **Hot paths.** These change only in a small standalone PR that merges before
 the work depending on it, and the agent names it when it claims the
 milestone: `Cargo.lock`, the ECS API (`engine/src/engine/ecs`), `FramePacket`,
@@ -148,7 +153,7 @@ Windows.
   frame capture to PNG, golden-image comparison, input replay, and UI
   automation that finds widgets by stable id. Image goldens are compared on
   Linux with Mesa's CPU Vulkan driver (lavapipe), which is the reference
-  platform.
+  platform. The agent machine and CI use the same pinned Mesa version.
 - **New automation is one Rust program**, `cargo xtask <command>` in
   `tools/xtask`, so there is a single implementation for both systems. The
   existing paired `.sh` / `.ps1` scripts stay.
@@ -167,6 +172,11 @@ Frame rate on floor hardware is certified only on a floor-class card. A new
 pass has no baseline to regress against, so the milestone that adds it states
 an absolute tier 2 budget for it.
 
+The **floor preset** is a named settings file created in M11.6 (today's
+defaults at 1080p); later milestones extend it. GPU memory is the sum of the
+engine's own allocations, so it does not depend on the driver. The tier 1
+gates apply from the task that adds each counter.
+
 ### Merge policy and PR evidence
 
 `CLAUDE.md` carries the line `Merge policy: owner` or `Merge policy: agents`.
@@ -178,6 +188,8 @@ an absolute tier 2 budget for it.
 - Agents never edit that line. A PR that touches it is merged by the owner
   only.
 - "Full send" in a request authorises merging that one PR.
+- For the PR skills (`babysit-pr`, `full-send`), `Merge policy: agents`
+  counts as the user's explicit request to merge.
 - Nobody merges on red, and nobody uses `--admin` to get past a check.
 
 Evidence a PR carries before anyone merges it:
@@ -196,9 +208,10 @@ Evidence a PR carries before anyone merges it:
 
 ### Closing a task
 
-When a task's PR merges, its section moves from this file to COMPLETED.md
-with the date, the decisions taken, the acceptance results and a deferred
-ledger. The `roadmap-task` skill lists every file a close-out touches.
+The task's own PR moves its section from this file to COMPLETED.md, with
+the date, the decisions taken, the acceptance results and a deferred ledger,
+so that nothing is left to do after the merge. The `roadmap-task` skill lists
+every file a close-out touches.
 
 ### Owner actions
 
@@ -208,13 +221,13 @@ Only the owner can do these. Agents work around them until they are done.
 |---|---|
 | Make the Linux, Windows, wasm32 and design-lint checks required on `main` | M11.1 |
 | Install the Claude GitHub App (https://github.com/apps/claude), or leave the AI-review jobs skipping | any time |
-| Register the Windows desktop (RTX 5080) as a self-hosted runner under a dedicated non-administrator account | M11.6 |
+| Register the Windows desktop (RTX 5080) as a self-hosted runner under a dedicated non-administrator account, then set the repository variable `GPU_RUNNER` to `true` | M11.6 |
 | Choose production server hosting | end of M17 |
 
 The GPU runner runs on `main` after each merge. On a PR it runs for one
-commit only, when whoever holds merge authority adds the `gpu-check` label;
-the label is removed automatically on every new push. It never runs for
-forks.
+commit only, when whoever holds merge authority adds the `gpu-check` label:
+the job checks out the head commit recorded in that label event, and the
+label is removed automatically on every new push. It never runs for forks.
 
 ---
 
@@ -227,7 +240,7 @@ something.
 **Demo:** `cargo xtask verify` on Ubuntu captures the locomotion demo and the
 editor on lavapipe, compares them with committed goldens, replays a scripted
 editor session that clicks widgets by id, and exits 0. The same command runs
-on Windows.
+on Windows (proven in M11.5).
 
 ### M11.1 Green `main` and required checks
 
@@ -273,6 +286,12 @@ window and no swapchain, deterministically, and write frames to disk.
 - `--frames N` runs N frames and exits. `--dt` fixes the time step (default
   1/60) for simulation, animation, particles and physics. `--seed` fixes
   every random source. Audio uses a null backend.
+- No wall-clock time in headless mode: world streaming and asset loads
+  finish synchronously inside the frame that asks for them. `WorldStreamer`
+  has a 1 ms wall-clock budget and an IO worker today, which would make two
+  runs differ.
+- A `gpu_memory_bytes` counter in `RenderCounters`: the sum of the engine's
+  own buffer and image allocations.
 - `--capture <dir>` with `--capture-frames a,b,c` writes those frames as PNG
   and one `counters.json` holding the `RenderCounters` of each.
 - `--validate` turns on the Vulkan validation layers (open follow-up from
@@ -287,12 +306,16 @@ windowed path's behaviour.
 **Depends on:** M11.1.
 
 **Acceptance:**
-- `game_client --headless --scene scenes/locomotion_demo.scene --frames 120
-  --capture out --capture-frames 0,60,119 --validate` exits 0 on Ubuntu with
-  lavapipe and on Windows, with three PNGs and a `counters.json`.
+- `cargo run -p game_client -- --headless --scene
+  scenes/locomotion_demo.scene --frames 120 --capture out --capture-frames
+  0,60,119 --validate` exits 0 on Ubuntu with lavapipe, with three PNGs and a
+  `counters.json`.
 - The same command with `--features editor` captures the editor.
-- Two runs on one machine produce byte-identical PNGs and counters.
+- Two runs on one machine produce byte-identical PNGs and counters, for the
+  locomotion demo and for the streamed greybox world.
 - The windowed client and editor behave as before.
+- It builds on Windows. Running it on Windows is proven in M11.5, which is
+  the first task with a Windows device to run on.
 
 **Verify:** a test that runs the command twice and compares the output
 bytes; run the windowed editor once by hand (`run-app` skill).
@@ -303,11 +326,12 @@ bytes; run the windowed editor once by hand (`run-app` skill).
 produces something an agent can look at.
 
 **Scope:**
-- A scenario list in `tests/visual/scenarios.ron`: scene, build features,
-  frames, size, tolerance. First set: the locomotion demo (three frames), the
-  greybox world from a fixed camera, the editor's default layout with a scene
-  open, the graph editor on `content/graphs/runner_demo.graph`, and the
-  animation pipeline canvas.
+- `tools/xtask` and the `cargo xtask` alias in `.cargo/config.toml` are
+  created here.
+- Scenario lists under `tests/visual/`: scene, build features, frames, size,
+  tolerance. First set: the locomotion demo (three frames), the greybox
+  world from a fixed camera, and the editor's default layout with a scene
+  given on the command line. Scenarios that need clicks come in M11.4.
 - Image comparison reuses the tolerance logic of the `crusty-gui` harness
   (`crates/crusty-gui/tests/common/mod.rs`), moved to where both can use it.
 - `cargo xtask verify` runs every scenario. A failure writes the actual,
@@ -316,18 +340,26 @@ produces something an agent can look at.
   scenario.
 - `cargo xtask verify --bless` rewrites the goldens. A PR that blesses shows
   the before and after images in its description.
-- The Linux CI job runs `cargo xtask verify`. The Mesa version is recorded
-  beside the goldens; a Mesa upgrade re-blesses in its own PR.
+- The Linux CI job runs `cargo xtask verify`.
+- One Mesa version for the agent machine and CI, recorded beside the
+  goldens. `verify` sets `LP_NATIVE_VECTOR_WIDTH=256`, because lavapipe
+  otherwise compiles for the host CPU and two machines produce different
+  pixels. It stops with a clear message when the installed Mesa differs from
+  the recorded one. A Mesa upgrade re-blesses in its own PR.
 
-**Out of scope:** goldens on Windows (the run must exit clean with matching
-counters; images are uploaded, not compared), performance numbers.
+**Out of scope:** comparing images on Windows. There the run must exit clean
+and match the driver-independent counters (draws, triangles, culled
+fraction, engine-side memory); images are uploaded, not compared. Also out
+of scope: performance numbers.
 
 **Depends on:** M11.2.
 
 **Acceptance:**
-- `cargo xtask verify` passes on Ubuntu and exits clean on Windows.
+- `cargo xtask verify` passes on the agent machine and in the Linux CI job
+  from the same goldens.
 - Changing one shader constant makes it fail with a difference image.
 - CI uploads the three images of a failing scenario.
+- It builds on Windows; the Windows run is proven in M11.5.
 
 **Verify:** the deliberate-break check above, run once and reverted.
 
@@ -350,9 +382,10 @@ widgets by name instead of by pixel position.
   as JSON.
 - Ids for every existing editor panel. A test fails when two widgets in one
   frame share an id.
-- Two replay scenarios join `scenarios.ron`: an editor session (select an
-  entity in the hierarchy, edit a transform field, undo) and a gameplay
-  session (walk and jump in the locomotion demo).
+- Replay scenarios join the visual scenarios: an editor session (select an
+  entity in the hierarchy, edit a transform field, undo), a gameplay session
+  (walk and jump in the locomotion demo), the graph editor opened on
+  `content/graphs/runner_demo.graph`, and the animation pipeline canvas.
 
 **Out of scope:** recording a replay from live input, automation of native
 file dialogs.
@@ -360,7 +393,7 @@ file dialogs.
 **Depends on:** M11.3.
 
 **Acceptance:**
-- The two replay scenarios pass in `cargo xtask verify` on Ubuntu.
+- The four replay scenarios pass in `cargo xtask verify` on Ubuntu.
 - `--dump-ui` lists every interactive widget of the default editor layout
   with a unique id.
 - Moving a panel in the dock layout does not break a replay that clicks by
@@ -378,10 +411,11 @@ and agents have one documented way to check their work.
 - `cargo xtask smoke`: the windowed client and editor run 120 frames with a
   real swapchain, resize once, and exit 0 with no validation error. It runs
   under `xvfb-run` on Linux and on the desktop on Windows.
-- The Linux CI job runs it. For the hosted Windows job, try Mesa's lavapipe
-  build for Windows; if that does not work within a day, the Windows run of
-  `verify` and `smoke` moves to the self-hosted runner (M11.6) and the PR
-  says so.
+- The Linux CI job runs it.
+- Windows runtime proof for everything in M11.2–M11.4 is collected here. For
+  the hosted Windows job, try Mesa's lavapipe build for Windows; if that
+  does not work within a day, the Windows run of `verify` and `smoke` moves
+  to the self-hosted runner (M11.6) and the PR says so.
 - Update the `run-app` skill and `CLAUDE.md` ▸ Before Making Changes:
   `cargo xtask verify` is the gate for visual and editor work.
   `scripts/screenshot.ps1` remains for a desktop session.
@@ -391,7 +425,10 @@ and agents have one documented way to check their work.
 **Depends on:** M11.4.
 
 **Acceptance:**
-- `cargo xtask smoke` passes on Ubuntu under Xvfb and on a Windows desktop.
+- `cargo xtask smoke` passes on Ubuntu under Xvfb.
+- `cargo xtask verify` and `cargo xtask smoke` pass on Windows, on the
+  hosted job or on the self-hosted runner. If neither exists yet, the PR
+  lists the Windows run as not run and M11.6 closes it.
 - A fresh agent following `CLAUDE.md` alone can run the harness.
 
 **Verify:** run both commands on both systems; record which Windows path was
@@ -405,8 +442,15 @@ doing anything by hand.
 **Scope:**
 - `.github/workflows/gpu.yml` for a self-hosted runner labelled `gpu-5080`.
   It runs on `main` after each merge, and on a PR when the `gpu-check` label
-  is added. A second small workflow removes the label on every new push. It
-  never runs for forks.
+  is added. The job checks out the head commit recorded in the label event,
+  not the branch tip. A second small workflow removes the label on every new
+  push. It never runs for forks.
+- The job runs only when the repository variable `GPU_RUNNER` is `true`. A
+  job whose runner does not exist is not skipped by GitHub: it queues for a
+  day and then fails.
+- Quality presets as named settings files. `floor` starts as today's
+  defaults at 1080p.
+- GPU timestamp queries around each render pass. The engine has none today.
 - `cargo xtask bench`: fixed benchmark scenes and camera paths at fixed
   settings; per-pass GPU timings, CPU frame time and record time; p50 and
   p99 written as JSON.
@@ -425,7 +469,9 @@ scenes for later milestones.
 **Acceptance:**
 - With the runner registered, a merge to `main` produces a timing report.
 - A deliberate 10% slowdown on a PR with the label fails the job.
-- Before the runner exists, the workflow is skipped, not failed.
+- While `GPU_RUNNER` is unset, no GPU job is queued.
+- If M11.5 deferred the Windows run, `verify` and `smoke` pass on this
+  runner.
 
 **Verify:** the deliberate-slowdown check, once the owner has registered the
 runner. Until then this task is test-proven only, and its PR says so.
@@ -470,8 +516,8 @@ stay.
 - `cargo xtask verify` and all CI jobs pass, including an offline-build
   check added to CI.
 
-**Verify:** `cargo tree -p game_client --no-default-features -e normal`,
-then the harness.
+**Verify:** `cargo tree -p game_client --no-default-features --features
+hud,graph-scripting -e normal`, then the harness.
 
 ### M12.2 Dev profile that does not fill the disk
 
@@ -527,12 +573,17 @@ dependencies.
 and the engine knows what the hardware offers.
 
 **Scope:**
-- Request the highest API version the driver offers, with Vulkan 1.2 as the
-  minimum.
-- Required features: multi-draw indirect, draw-indirect count, and
-  descriptor indexing (runtime arrays, partially bound, update after bind,
-  variable count). Starting on a device without them fails with a message
-  naming what is missing.
+- Require Vulkan 1.2 or later. Vulkano already asks for the highest version
+  the driver offers; what is missing is the check.
+- Required features: multi-draw indirect, draw-indirect count,
+  `drawIndirectFirstInstance`, `shaderDrawParameters`, and descriptor
+  indexing (runtime arrays, non-uniform indexing of sampled images,
+  partially bound, update after bind, variable count). Starting on a device
+  without them fails with a message naming what is missing.
+- Before enforcing the list, confirm every feature and the limits M14 relies
+  on against the pinned lavapipe and a GTX 1060 capability report, and put
+  the comparison in the PR. A feature the floor card lacks goes to the owner
+  before it is required.
 - Optional features, detected and recorded: ray query, acceleration
   structures, mesh shaders, sparse binding.
 - A `DeviceCaps` value available to the renderer and printed at start.
@@ -569,8 +620,14 @@ asynchronous calls between databases that M17 needs.
 
 **Acceptance:**
 - The WASM parity suite passes.
-- On the agent machine, the uniform-50, churn-100 and thrash-50 scenarios of
-  `tools/net_bots` stay within the bars in `M8-LOAD-REPORT.md`.
+- A minimal two-database test confirms that an asynchronous inter-database
+  call works on 2.16. M17 depends on it; if it does not work, tell the owner
+  now.
+- On the agent machine, `tools/net_bots` stays within these bars: uniform-50
+  round trip p50 at most 39 ms and p95 at most 75 ms; churn-100 p50 at most
+  43 ms; thrash-50 at most 3 swaps per bot in 120 s; zero unexpected
+  disconnects. (The M8 report's numbers came from a 16-core Windows desktop;
+  these bars are restated for the agent machine.)
 - The packaged smoke test (`scripts/smoke_packaged.ps1`) passes on Windows,
   or is listed as not run.
 
@@ -583,26 +640,31 @@ numbers go in the PR.
 which is what blocks running systems in parallel later. This is the early
 half of old Task 58, done now because it touches about 70 files.
 
-**Scope:**
-- `System::run` takes `&hecs::World`, the declared access, and a command
-  buffer. Spawns, despawns and component adds or removes go through
-  commands applied between systems.
-- A structural-access flag on `SystemDescriptor`; `GraphScriptRunnerSystem`
-  declares its real writes.
-- Schedule validation runs in CI.
+**Scope, as two PRs that each build and pass:**
+1. A command buffer for structural edits (`hecs` has `CommandBuffer` and
+   `reserve_entity(&self)`). Systems move their spawns, despawns and
+   component adds or removes onto it; commands are applied between systems.
+2. `System::run` changes from `&mut hecs::World` to `&hecs::World` plus the
+   command buffer. A structural-access flag on `SystemDescriptor`;
+   `GraphScriptRunnerSystem` declares its real writes. Schedule validation
+   runs in CI.
 
-**Out of scope:** a parallel executor (added when a profile asks for it),
-change detection, moving off `hecs` 0.10.
+`&mut Resources` stays as it is in this task.
+
+**Out of scope:** a parallel executor and per-resource access declarations
+(both come when a profile asks for parallel systems), change detection,
+moving off `hecs` 0.10.
 
 **Depends on:** M12.5.
 
 **Acceptance:**
 - No system receives `&mut World`.
 - Every golden image is unchanged and all tests pass.
-- CPU frame time in the locomotion demo is within 3% of the previous
-  commit.
+- Main-thread schedule time, as the median of three headless runs with
+  `--stress-anim 300`, is within 5% of the previous commit. The tier 2
+  runner confirms it once it exists.
 
-**Verify:** `cargo xtask verify`; the benchmark runner before and after.
+**Verify:** `cargo xtask verify`; the three-run timing before and after.
 
 ---
 
@@ -621,8 +683,8 @@ included; each input is its own reducer and rewrites the public `player`
 row to bump `last_input_seq`, so every input fans out to every subscriber;
 idle players are stepped every tick; the collision step allocates a
 `HashMap` per call and casts shapes against every candidate triangle; the
-module is built with `opt-level = "z"`; and the next tick is scheduled 50 ms
-after the previous one finishes, not on a fixed clock.
+module is built with `opt-level = "z"`; and on SpacetimeDB 2.6 the next tick
+was scheduled 50 ms after the previous one finished, not on a fixed clock.
 
 ### M13.1 One command measures the gate
 
@@ -636,8 +698,15 @@ anything is optimised.
 - `tools/net_bots` reports what the gate needs and does not have yet: the
   simulation rate per minute, the number of other full-detail avatars each
   client receives, and the staleness of visible players.
-- The module exposes `move_tick` duration so that p95 and the maximum can be
-  read without scraping logs.
+- `move_tick` duration covers the whole reducer body, including the player
+  scan (today's stopwatch starts after it). Host-side timing or the module's
+  stopwatch logs are both acceptable sources, as long as the command turns
+  them into p95 and the maximum by itself.
+- Server and bot CPU are reported separately. A run is void when the bots
+  miss more than 1% of their own 20 Hz send deadlines, so that a starved bot
+  process is never read as a slow server. The agent machine has 8 cores, and
+  M8's hotspot-150 used 12.
+- The `server-gate` subcommand is the Server track's module in `tools/xtask`.
 - A baseline run on the agent machine, recorded in the PR.
 
 **Out of scope:** any optimisation.
@@ -659,7 +728,9 @@ clock.
 - Build the module at `opt-level = 3`.
 - Iterate online movers only, through a table or index that holds them.
 - Skip players with no input and no motion.
-- Schedule ticks at a fixed 20 Hz, not relative to the previous completion.
+- Ticks on a fixed 20 Hz clock. SpacetimeDB 2.16 may already anchor interval
+  schedules: measure the cadence from M13.1 first and change the scheduling
+  only if it drifts.
 - Remove the per-call allocation in `game_shared/src/collision/store.rs` and
   reduce the candidate set before the shape cast.
 
@@ -720,14 +791,18 @@ averaging across runs.
 
 - Hotspot only: staleness of visible players p95 at most 250 ms, and back
   within the uniform bars 20 s after dispersing.
-- Regression: churn-100 and thrash-50 stay within the M8 bars.
+- Regression: churn-100 round trip p50 at most 43 ms; thrash-50 at most 3
+  swaps per bot in 120 s.
 - All scenarios: zero unexpected disconnects (scheduled churn cycles
   excluded) and at least 99% of pings returned.
 - Soak: 30 minutes of uniform-250 with resident memory growing by at most
   10%.
 
-**If a bar fails:** N is the largest hotspot count that passes every hotspot
-bar while uniform-250 still passes. Profile the failing run.
+**If uniform-250 fails:** no area cap can be set. Profile the run and take
+the result to the owner before anything else.
+
+**If only hotspot bars fail:** N is the largest hotspot count that passes
+every hotspot bar while uniform-250 still passes. Profile the failing run.
 
 - **N is 150 or more, and WASM stepping is not the dominant cost:** N
   becomes the cap per area. Crowds above it are split by layering, the far
@@ -769,7 +844,9 @@ goldens with the new path.
 - Tier 1, scene `bench_10k` (10,000 static instances, at least 50 meshes
   and 20 materials): at most 16 indirect draw calls for the opaque G-buffer
   pass; the GPU culling result equals a CPU reference cull for every
-  captured frame; GPU memory at most 3 GB at the floor preset.
+  captured frame, except objects whose bounds lie within a stated epsilon of
+  a frustum plane; the visible geometry matches the pre-M14 renderer's; GPU
+  memory at most 3 GB at the floor preset.
 - `bench_100k` (100,000 instances) renders with the same draw-call bound.
 - The reference scene moved 4 km from the origin matches its render at the
   origin within the golden tolerance (lighting, shadows and SSAO).
@@ -800,8 +877,9 @@ scene with 1,024 lights.
   render matches a brute-force reference that evaluates every light per
   pixel, within the golden tolerance; at most 64 lights in any cluster.
 - Shadow passes use at most 4 × the opaque pass's indirect draw calls.
-- Shadow stability: moving the camera by less than one shadow texel changes
-  no pixel in the shadowed region by more than the golden tolerance.
+- Shadow stability: each cascade's origin snaps to whole texels, and the
+  shadow term sampled at fixed world points does not change when the camera
+  moves by less than one shadow texel.
 - Tier 2 absolute budgets at 1080p on the RTX 5080: lighting with 1,024
   lights at most 1.5 ms; four cascades on `bench_10k` at most 1.5 ms; sky
   and fog at most 0.5 ms.
@@ -836,18 +914,23 @@ distance, and has terrain; then the image is stabilised and upscaled.
 the harness.
 
 **Gate:**
-- Fly-through at 60 m/s on the fixed path: no frame is missing a cell inside
-  the near radius; process memory at most 6 GB; GPU memory at most 3 GB at
-  the floor preset; at most 64 indirect draw calls and 3 million triangles
-  submitted per frame at the floor preset.
-- The reference scene at (8 km, 8 km) matches its render at the origin
-  within the golden tolerance.
+- Fly-through on the fixed path, in the harness: process memory at most
+  6 GB; GPU memory at most 3 GB at the floor preset; at most 64 indirect
+  draw calls and 3 million triangles submitted per frame at the floor
+  preset.
+- The same fly-through in real time at 60 m/s on the RTX 5080 runner: no
+  frame is missing a cell inside the near radius. (A fixed-step run on
+  lavapipe would pass this trivially.)
+- Precision: a close-up of fine geometry placed 16 km from the origin on
+  both axes, the far corner of the design limit, matches the same shot at
+  the origin within the golden tolerance.
 - Terrain collision passes the client and server parity suite.
 - Touching one texture re-cooks only what depends on it; the world streams
   from a pak with no pak fully in memory.
-- Anti-aliasing: with a static camera, pixel luminance variance over 16
-  frames is below the threshold set in the expansion; a moving object leaves
-  no trail above it.
+- Anti-aliasing: with a static camera, the converged image has a structural
+  similarity of at least 0.95 with a 16× supersampled reference. One second
+  after a moving object has passed, the pixels it covered are within the
+  golden tolerance of the static background.
 - Upsampling at 67% render scale: structural similarity of at least 0.92
   against native-resolution output on the static goldens.
 - Tier 2: the fly-through's frame time baseline is committed, with absolute
@@ -864,17 +947,22 @@ player noticing a border.
 **Scope notes:** one database per zone, each loading only its own zone's
 collision from a table instead of compiling the whole world into the module;
 handoff between zones through SpacetimeDB's asynchronous inter-database
-calls (outbox tables); clients subscribed to both databases near a seam;
-gameplay data tables published to every zone. Hosting is chosen by the owner
-at the end.
+calls (outbox tables); clients subscribed to both databases near a seam.
+Publishing gameplay data tables to zones is M18's publisher and is not part
+of this milestone. Hosting is chosen by the owner at the end.
 
 **Demo (the MMO slice):** a packaged client walks across a zone border in
 the middle of a fight, among bots, and nothing is lost.
 
 **Gate, on the agent machine:**
-- Four zone databases and 500 bots. Each bot crosses a seam at least 10
-  times in 10 minutes. At every audit sample each identity is owned by
-  exactly one zone: none lost, none duplicated.
+- Four zone databases and 500 bots, with one zone held at the per-area
+  population M13 supports and the rest spread over the others. Each bot
+  crosses a seam at least 10 times in 10 minutes.
+- Every handoff carries a transfer id and ends as exactly one of committed
+  or rolled back. No identity is active in two zones for longer than 1 s,
+  none stays in transit longer than 5 s, and at the end every identity is
+  active in exactly one zone. (Zones commit independently, so a simultaneous
+  one-row audit across them would be unsound.)
 - Handoff takes at most 500 ms at p95, and the client's position error at
   handoff is at most 0.5 m.
 - A player inside the near radius across a seam is visible, with staleness
@@ -912,7 +1000,9 @@ schema, prefabs by overrides, game data by typed tables.
    row types in a shared crate, edited in a grid, imported from and exported
    to CSV. At deploy they are published as rows into SpacetimeDB through an
    owner-only reducer with a content hash; the same source is cooked for
-   offline play. The M7 ability roster moves into a table.
+   offline play. The M7 ability roster moves into a table. The publish
+   reducer and the roster move touch `server/`, so they go in as a hot-path
+   PR agreed with the Server track.
 5. **Terrain brushes**, after the terrain runtime in M16: sculpt and paint
    modes, brush size, falloff and strength, weight layers.
 6. **The rest of old Task 54:** undo for the remaining editor operations,
@@ -1005,8 +1095,8 @@ dynamic compute updates.
   most 2% of the exterior's, and no interior pixel above 5%.
 - Outdoor fixture: total indirect energy within 10% of a converged
   high-density reference.
-- Streaming: on the M16 fly-through, mean frame luminance changes by at most
-  2% between consecutive frames as cells arrive.
+- Streaming: with the camera stopped, a cell arriving changes mean frame
+  luminance by at most 2%.
 - The floor-preset result is recorded as a diagnostic.
 
 ---

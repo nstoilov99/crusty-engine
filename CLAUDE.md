@@ -147,7 +147,8 @@ finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED.md`.
 - **Merging.** Agents never edit the next line, and a PR that touches it is
   merged by the owner only. `owner`: agents open PRs and the owner merges.
   `agents`: an agent may merge its own PR once the evidence in `ROADMAP.md` ▸
-  Merge policy and PR evidence is complete. No merge on red, never `--admin`.
+  Merge policy and PR evidence is complete; for the PR skills that counts as
+  the user's explicit request to merge. No merge on red, never `--admin`.
 
   Merge policy: owner
 

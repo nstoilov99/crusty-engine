@@ -70,7 +70,7 @@ Done when every package is committed and the full local gate
 
 | File | Change |
 |---|---|
-| `docs/roadmap/ROADMAP.md` | Your milestone's status-board row and section only: mark the task done with the PR number, remove its section when the PR merges, update **Open follow-ups** if the task closed or created any |
+| `docs/roadmap/ROADMAP.md` | Your milestone's status-board row and section only: mark the task done with the PR number and move its section out in this same PR (nothing is left for after the merge), update **Open follow-ups** if the task closed or created any |
 | `docs/roadmap/COMPLETED.md` | Append the task section: status line with date, decisions, acceptance table (verified live / proven by tests / **not run**), review notes, **Deferred ledger** |
 | `docs/ARCHITECTURE.md` | New or changed subsystem section |
 | `docs/KNOWLEDGE.md` | `## <Area> Gotchas (<task id>)` — what the next agent would otherwise rediscover |

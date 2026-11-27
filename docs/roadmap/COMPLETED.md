@@ -1704,7 +1704,7 @@ The checkpoint is complete when **all** of the following are green:
 
 **Go/no-go gate for M5–M8.** Throwaway spike, **no engine integration**: standalone SpacetimeDB module (move/cast/chat reducers, cell-filtered subscriptions) + headless console bot clients, run at a **300 / 3,000 / 30,000 bot ladder** with hotspot, churn, and raid-moment scenarios. Pass criteria fixed up front; deliverable is the per-module ceiling and the implied sharding/zoning strategy for M8. No-go triggers the renet/QUIC fallback behind the same `game_shared` command interface.
 
-**Full plan:** [VULKANO-M0-SPACETIMEDB-SPIKE.md](VULKANO-M0-SPACETIMEDB-SPIKE.md)
+**Full plan:** [VULKANO-M0-SPACETIMEDB-SPIKE.md](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-M0-SPACETIMEDB-SPIKE.md)
 
 ---
 
@@ -1758,7 +1758,7 @@ Scene management **scoped to what multiplayer needs** (absorbs old Task 43; gene
 - Entity spawn/despawn tied to cell lifecycle, with stable identity across unload/reload (EntityGuid, ADR-013)
 - Async loading budget — no frame hitches on cell boundaries
 
-**Full plan:** [VULKANO-M4-ZONE-CHUNK-LIFECYCLE.md](VULKANO-M4-ZONE-CHUNK-LIFECYCLE.md)
+**Full plan:** [VULKANO-M4-ZONE-CHUNK-LIFECYCLE.md](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-M4-ZONE-CHUNK-LIFECYCLE.md)
 
 ---
 
@@ -2177,7 +2177,7 @@ pub struct SpeedBlend {
 
 ### Task 41.5: Animation at Scale + IK
 **Status:** ✅ **Complete** (2026-09; foot IK live-verified through the Task 41.6 demo recordings). Plan + rulings R1–R15:
-[`VULKANO-41.5-ANIMATION-SCALE.md`](VULKANO-41.5-ANIMATION-SCALE.md).
+[`VULKANO-41.5-ANIMATION-SCALE.md`](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-41.5-ANIMATION-SCALE.md).
 **Prerequisites:** Task 41
 
 Hundreds of animated characters at frame rate, and IK v1 on top of the
@@ -2273,7 +2273,7 @@ Namco) are non-commercial only.
 
 ### Task 41.6: Locomotion Demo
 **Status:** ✅ **Complete** (2026-09-20). Plan + decisions D1–D11:
-[`VULKANO-41.6-LOCOMOTION-DEMO.md`](VULKANO-41.6-LOCOMOTION-DEMO.md);
+[`VULKANO-41.6-LOCOMOTION-DEMO.md`](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-41.6-LOCOMOTION-DEMO.md);
 process rulings in `.scratch/locomotion/spec.md`.
 **Prerequisites:** Task 41, 41.5, M6 input layer
 
@@ -2379,7 +2379,7 @@ Rapier's Average friction combine → P7.
 **Status:** ✅ **Complete** (2026-09-21) — test-proven; the user's live
 check (demo parity, the `aim` layer, the crowd bench) is still pending,
 see Acceptance. Plan + decisions D1–D7, U1–U5:
-[`VULKANO-41.7-ANIM-PIPELINE-ROOT.md`](VULKANO-41.7-ANIM-PIPELINE-ROOT.md);
+[`VULKANO-41.7-ANIM-PIPELINE-ROOT.md`](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-41.7-ANIM-PIPELINE-ROOT.md);
 process rulings R1–R36 + review notes in `.scratch/pipeline/spec.md`.
 **Prerequisites:** Task 41, 41.5, 41.6 (the demo graph is the migration fixture)
 
@@ -2513,7 +2513,7 @@ prefix the anchor arms do not strip).
 
 ### Task 45-A: Graph Execution Core (Visual Scripting v1)
 **Status:** ✅ **Complete** (2026-08-11). Plan + rulings:
-[`VULKANO-45A-GRAPH-EXECUTION-CORE.md`](VULKANO-45A-GRAPH-EXECUTION-CORE.md).
+[`VULKANO-45A-GRAPH-EXECUTION-CORE.md`](https://github.com/nstoilov99/crusty-engine/blob/6b9e008/docs/roadmap/VULKANO-45A-GRAPH-EXECUTION-CORE.md).
 
 Graphs run. A `.graph` on an entity executes Blueprint-style — events, exec
 control flow, lazily-pulled pure data chains, per-graph variables, latents
