@@ -54,11 +54,11 @@ Multiplayer: `scripts/export_windows.ps1` then `scripts/host_local.ps1`
 | `docs/DECISIONS.md`, `docs/adr/` | Architectural decision records |
 | `docs/PLUGINS.md` | Plugin author guide |
 | `docs/FLAGS.md` | Runtime CLI flags |
-| `docs/roadmap/ROADMAP.md` | Where the engine is, open follow-ups, remaining tasks |
+| `docs/roadmap/ROADMAP.md` | Goal, status board and milestones |
 | `docs/roadmap/COMPLETED.md` | Finished tasks with close-outs and deferred ledgers |
 
 ## Status
 
 See `docs/roadmap/ROADMAP.md` ▸ Where we are. The networked co-op slice
-milestone is achieved on packaged builds; current work is Phase 11
-(visual scripting tail, node graph editor v2).
+milestone is achieved on packaged builds; current work is M11 (green `main`
+and the verification harness).

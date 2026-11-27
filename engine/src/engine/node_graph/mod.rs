@@ -15,8 +15,8 @@
 //! including the `::rust_engine::engine::node_graph::…` paths the derive
 //! macros emit.
 //!
-//! Plans: `docs/roadmap/VULKANO-40-NODE-GRAPH-FRAMEWORK.md`,
-//! `docs/roadmap/VULKANO-45A-GRAPH-EXECUTION-CORE.md`.
+//! Plans: `docs/roadmap/COMPLETED.md` ▸ Task 40,
+//! `docs/roadmap/COMPLETED.md` ▸ Task 45-A.
 
 pub mod auto_register;
 pub mod markers;

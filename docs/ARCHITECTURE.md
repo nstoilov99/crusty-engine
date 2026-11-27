@@ -447,7 +447,7 @@ evaluators live here — consumers bring their own node libraries and backends.
 ## Graph Execution (Task 45-A)
 
 Graphs *run*. Plan and rulings:
-[VULKANO-45A-GRAPH-EXECUTION-CORE.md](roadmap/VULKANO-45A-GRAPH-EXECUTION-CORE.md).
+[COMPLETED.md ▸ Task 45-A](roadmap/COMPLETED.md).
 
 ### Crate layout, and why
 
@@ -542,7 +542,7 @@ loudly rather than quietly.
 
 `engine/src/engine/plugins/` is the engine/game/extension boundary. Author
 guide: [PLUGINS.md](PLUGINS.md). Plan and rulings:
-`roadmap/VULKANO-39.8-PLUGIN-SYSTEM.md`.
+`roadmap/COMPLETED.md` ▸ Task 39.8.
 
 ### Two-tier model
 
@@ -674,13 +674,14 @@ magic.
 
 Components in scenes (needs a name-keyed registry with
 serialize/deserialize/inspect — a reflection-lite arc), asset types/importers,
-and render passes. See `VULKANO-39.8-PLUGIN-SYSTEM.md` §D2.
+and render passes. See `roadmap/COMPLETED.md` ▸ Task 39.8; the component
+registry is M18.2 in `roadmap/ROADMAP.md`.
 
 ## Animation at Scale (Task 41.5)
 
 How hundreds of skinned characters run at frame rate, and where IK sits in
 the frame. Plan and rulings:
-[`VULKANO-41.5-ANIMATION-SCALE.md`](roadmap/VULKANO-41.5-ANIMATION-SCALE.md).
+[COMPLETED.md ▸ Task 41.5](roadmap/COMPLETED.md).
 Runtime: `engine/src/engine/animation/` (components, `graph/runner.rs`,
 `ik.rs`, `foot_placement.rs`); GPU side:
 `rendering/3d/skinning.rs` + `deferred/deferred_renderer.rs`.
@@ -848,7 +849,7 @@ The `--stress-anim N --bench-secs S` flags on the standalone client spawn a
 character crowd and write baseline metrics to
 `.scratch/anim-scale/baseline-N.txt`; the acceptance capture (2026-09-03:
 300 characters ≈ 271 fps, animation system 0.36 ms) closed the P8
-clip-layout gate as "skipped" — numbers in `roadmap/ROADMAP.md` ▸ Task 41.5.
+clip-layout gate as "skipped" — numbers in `roadmap/COMPLETED.md` ▸ Task 41.5.
 
 ## Offline character & orbit camera (Task 41.6)
 
@@ -856,9 +857,8 @@ A playable third-person character on an offline scene:
 `content/scenes/locomotion_demo.scene`, graph
 `content/graphs/locomotion_demo.animgraph` (since 41.7 a pipeline root:
 `State Machine → Layer(Idle_1 on mixamorig:Spine, weight aim) → foot_l →
-foot_r → Output Pose`), real Mixamo clips in `content/anims/`. Plan and rulings:
-[`VULKANO-41.6-LOCOMOTION-DEMO.md`](roadmap/VULKANO-41.6-LOCOMOTION-DEMO.md);
-close-out in `roadmap/ROADMAP.md` ▸ Task 41.6. Gameplay code:
+foot_r → Output Pose`), real Mixamo clips in `content/anims/`. Close-out and rulings:
+[COMPLETED.md ▸ Task 41.6](roadmap/COMPLETED.md). Gameplay code:
 `game_client/src/systems/{player_input,character_movement,orbit_camera}.rs`
 and `game_client/src/anim_bridge.rs`; components in
 `game_shared/src/components.rs` (`CharacterMovement`, `PlayerInput`,
@@ -1066,10 +1066,8 @@ resolved serially, `apply_ik` on retained model space); what a foot target
 The `.animgraph` root is a constrained pose graph in the Unreal AnimGraph
 shape: *what the character does* is the state machine, *how the final pose
 is assembled* is the pipeline — pose sources → per-bone layers / overlays →
-IK tail → Output Pose. The state machine is one node on that canvas. Plan +
-decisions D1–D7, U1–U5:
-[`VULKANO-41.7-ANIM-PIPELINE-ROOT.md`](roadmap/VULKANO-41.7-ANIM-PIPELINE-ROOT.md);
-close-out in `roadmap/ROADMAP.md` ▸ Task 41.7. Code:
+IK tail → Output Pose. The state machine is one node on that canvas. Close-out and
+decisions: [COMPLETED.md ▸ Task 41.7](roadmap/COMPLETED.md). Code:
 `animation/graph/pipeline.rs` (node set, plan types, compiler walk,
 upgrade), `plan.rs` (`Compiled`, `compile_machine`), `machine.rs` ▸
 Pipeline evaluation (`PipelineState`), `runner.rs` (arming, `tick_entity`),

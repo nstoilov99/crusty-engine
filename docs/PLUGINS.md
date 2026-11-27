@@ -5,7 +5,7 @@ guide walks through the whole surface using `DevNodesPlugin` — the fixture
 plugin at `engine/src/engine/plugins/dev_nodes.rs` — as the worked example.
 
 Architecture context: [ARCHITECTURE.md ▸ Plugin System](ARCHITECTURE.md).
-Design rationale: `roadmap/VULKANO-39.8-PLUGIN-SYSTEM.md`.
+Design rationale: `roadmap/COMPLETED.md` ▸ Task 39.8.
 
 ## The shape of a plugin
 

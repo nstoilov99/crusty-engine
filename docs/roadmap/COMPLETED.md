@@ -2,8 +2,11 @@
 
 Plans, close-outs, binding rulings and **deferred ledgers** of every finished
 (or superseded) task, moved here verbatim from `ROADMAP.md`. The live plan and
-status board are in [ROADMAP.md](ROADMAP.md); per-task plan documents are the
-`VULKANO-<N>-<NAME>.md` files beside this one.
+status board are in [ROADMAP.md](ROADMAP.md).
+
+The per-task plan documents (`VULKANO-<N>-<NAME>.md`) named below were
+removed in 2026-11; the references to them are historical. To read one:
+`git show 6b9e008:docs/roadmap/<file name>`.
 
 Read a task's deferred ledger before starting work that touches the same area —
 later tasks pick those items up.

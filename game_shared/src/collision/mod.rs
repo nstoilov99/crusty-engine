@@ -4,7 +4,7 @@
 //! the client and the server WASM module. All cooked data and all queries
 //! are Z-up world space; parry3d is the query backend (pinned to the exact
 //! version the workspace lockfile resolves for rapier3d — see
-//! `docs/roadmap/VULKANO-M2-COLLISION-PIPELINE.md`).
+//! `docs/roadmap/COMPLETED.md` ▸ Task M2).
 //!
 //! This crate does no I/O: callers hand chunk bytes to the store.
 //!

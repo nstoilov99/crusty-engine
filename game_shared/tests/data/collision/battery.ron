@@ -1,5 +1,5 @@
 // Golden query battery for the M2 collision pipeline (see
-// `docs/roadmap/VULKANO-M2-COLLISION-PIPELINE.md`, "Parity & correctness").
+// `docs/roadmap/COMPLETED.md` ▸ Task M2).
 // Runs against the checked-in chunk set in this directory (geometry documented
 // in `game_shared/tests/golden_battery.rs::test_chunk_set`).
 //

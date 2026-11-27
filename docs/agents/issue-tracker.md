@@ -18,9 +18,10 @@ either — try `gh pr view 42`, fall back to `gh issue view 42`.
 
 ## Where specs actually live
 
-Most work here is not ticketed. The spec for a task is its plan document
-`docs/roadmap/VULKANO-<N>-<NAME>.md`, and the acceptance list in it; the
-`/code-review` Spec axis should read that file when no issue is referenced.
+Most work here is not ticketed. The spec for a task is its section in
+`docs/roadmap/ROADMAP.md` (goal, scope, acceptance) plus the plan in the PR
+description; the `/code-review` Spec axis should read those when no issue is
+referenced.
 Ticket-sized breakdowns written during a task go in `.scratch/` (gitignored).
 
 ## Pull requests as a triage surface
