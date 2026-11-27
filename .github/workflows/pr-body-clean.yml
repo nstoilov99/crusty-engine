@@ -1,0 +1,35 @@
+# Removes AI attribution lines ("Generated with [Claude Code]", Claude
+# Co-Authored-By trailers) from pull request descriptions, whichever agent or
+# tool wrote them. The edit is made with the workflow token, which does not
+# trigger further workflow runs, so this cannot loop.
+name: PR body clean
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  strip-attribution:
+    name: Strip AI attribution
+    # Fork PRs get a read-only token; skip them instead of failing.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Strip attribution lines from the description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          PATTERN: 'Generated with \[?Claude Code|^Co-Authored-By:.*(Claude|anthropic)'
+        run: |
+          gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json body --jq .body > body.md
+          if grep -qiE "$PATTERN" body.md; then
+            # Drop the matching lines, then any blank lines left at the end.
+            grep -viE "$PATTERN" body.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > clean.md
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --body-file clean.md
+            echo "Removed attribution lines from PR #$PR."
+          else
+            echo "Nothing to remove."
+          fi

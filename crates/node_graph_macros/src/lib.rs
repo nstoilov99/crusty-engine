@@ -6,7 +6,8 @@
 //! types in `rust_engine::engine::node_graph` exactly. The two derives are
 //! thin wrappers over one shared parse/generate core (`expand`).
 //!
-//! Grammar (see `docs/roadmap/VULKANO-40-NODE-GRAPH-FRAMEWORK.md` D9):
+//! Grammar (Task 40 decision D9; plan:
+//! `git show 6b9e008:docs/roadmap/VULKANO-40-NODE-GRAPH-FRAMEWORK.md`):
 //! ```ignore
 //! #[derive(ScriptNode)]
 //! #[node(id = "damage_zone", name = "Damage Zone", category = "Gameplay",

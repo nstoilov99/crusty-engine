@@ -1,6 +1,6 @@
 # M5 World Identity & Session Contract
 
-**Status:** 🚧 Proposed (Package 0 of `VULKANO-M5-NET-A-CONNECTION-IDENTITY.md`)
+**Status:** 🚧 Proposed (Package 0 of Task M5, see `COMPLETED.md`)
 **Rule:** no M5 networking code lands until this contract is agreed. Changes
 after agreement require editing this doc first.
 

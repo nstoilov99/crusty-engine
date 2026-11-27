@@ -11,7 +11,7 @@
 //! scratch [`PluginContext`], and [`PluginSet`] commits that stage only when
 //! `build()` returned `Ok`. A plugin that fails half-way registers nothing.
 //!
-//! Plan: `docs/roadmap/VULKANO-39.8-PLUGIN-SYSTEM.md`.
+//! Plan: `docs/roadmap/COMPLETED.md` ▸ Task 39.8.
 
 mod context;
 /// Editor panel / settings-page extension points (D6). Editor-only: the

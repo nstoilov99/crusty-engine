@@ -43,7 +43,8 @@ Game World (Z-up)          Vulkan Render (Y-up)
 | `docs/ARCHITECTURE.md` | System architecture and module relationships |
 | `docs/KNOWLEDGE.md` | Conventions, patterns, and gotchas |
 | `docs/DECISIONS.md` | Architectural decision records |
-| `docs/roadmap/ROADMAP.md` | Where we are, open follow-ups, remaining tasks (finished work: `COMPLETED.md`) |
+| `docs/roadmap/ROADMAP.md` | Goal, status board, how work runs, milestones M11–M20 (finished work: `COMPLETED.md`) |
+| `docs/EDITOR-UX.md` | Which editor each surface follows, and the pattern to copy |
 | `CONTEXT.md` | Domain glossary — canonical terms for graphs and animation |
 
 ## Code Rules
@@ -110,26 +111,29 @@ use `println!` for temporary diagnostics (and remove before commit).
 
 ## Current Development Focus
 
-Authoritative status lives in `docs/roadmap/ROADMAP.md` ▸ Status board +
-Current focus; finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED.md`.
+What is next, claimed and done lives in `docs/roadmap/ROADMAP.md` ▸ Status
+board (nothing here repeats it); finished tasks (with deferred ledgers) in
+`docs/roadmap/COMPLETED.md`.
 
-- Networked Co-op Slice milestone (M0–M10): **achieved** on packaged builds.
-- Phase 11: Tasks 40, 41, 41.5, 41.6, 41.7 and 45-A **complete**; 41.7's
-  live check by the user is pending.
-- **Next:** Task 45 (visual scripting tail) → Task 45.5 (node graph editor v2);
-  proposed after that: Task 54-A (component schema + Inspector undo).
+- Goal: one engine for an MMO with a large seamless world and for large
+  offline open-world games (`ROADMAP.md` ▸ Goal).
+- Networked Co-op Slice milestone (M0–M10) and Tasks 40–41.7, 45-A:
+  **complete**; 41.7's live check by the user is pending.
 
 ## Agent workflow
 
-- **Plan → implement → close out** a roadmap task with the `roadmap-task`
-  skill; it names every file a close-out must touch.
+- **Claim → plan → implement → close out** a roadmap task with the
+  `roadmap-task` skill; it names every file a close-out must touch. There is
+  no plan file per task: the plan goes in the PR description.
+- **Tracks:** stay inside your track's paths (`ROADMAP.md` ▸ Tracks); shared
+  code changes through a small PR that merges first.
 - **Repo-specific recipes** (model-invoked skills in `.claude/skills/`, mirrored
   for Codex in `.agents/skills/`): `add-node`, `add-component`,
-  `add-render-pass`, `add-editor-panel`, `run-app`. Process skills (`tdd`,
+  `add-render-pass`, `add-editor-panel`, `editor-ux`, `run-app`. Process skills (`tdd`,
   `code-review`, `diagnosing-bugs`, …) are the installed Matt Pocock set.
 - **Working area:** `.scratch/` (gitignored) for tickets, review transcripts,
-  recordings. Plan docs are tracked under `docs/roadmap/`.
-- **Branches / PRs:** one branch per task (`task-<N>-<slug>`), PR to `main`;
+  recordings.
+- **Branches / PRs:** one branch per task (`m<NN>-<task>-<slug>`), PR to `main`;
   conventional commit subjects, short and imperative, no `Co-Authored-By`
   (`.githooks/prepare-commit-msg` strips them — enable with
   `git config core.hooksPath .githooks`).
@@ -137,9 +141,15 @@ Current focus; finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED
   `sol-loop`, `council`, `full-send` / `full-stop`, `takeover`, `modernize`,
   `leaving-pr-comments`. Council members for this repo: Claude Opus 5.5,
   GPT Sol (latest), Claude Fable 5.2; `sol-loop` reviews with GPT Sol.
-  `full-send` may merge — only on an explicit "full send".
+  `full-send` may merge — only on an explicit "full send", which covers that
+  one PR.
+- **Merging.** The rules are in `ROADMAP.md` ▸ Merge policy and PR evidence,
+  and only there. Agents never edit the next line.
+
+  Merge policy: owner
+
 - **Research** that spans many files goes to Codex (read-only prompt); see
-  *Cost routing* below.
+  *Picking the right model for workflows and subagents* below.
 
 ## Patched Dependencies
 
@@ -208,3 +218,6 @@ How to apply:
 - Do not include HTML comments (e.g. <!-- generated-by-cyrus -->)
 - Do not include the "Tip" block about @mentioning cyrusagent
 - Do not append a "Linear issue:" link at the bottom
+- Do not add "Generated with Claude Code" or any other AI attribution line to
+  PR descriptions or commits (`.claude/settings.json` turns it off for Claude
+  Code; `.github/workflows/pr-body-clean.yml` strips it from PR descriptions)

@@ -607,7 +607,7 @@ Run a **throwaway, no-engine-integration scale spike (Net-0)** before any engine
 
 ### Consequences
 
-- Spike code is explicitly disposable — no code from it ships; only numbers, configs, and the written report survive (`docs/roadmap/VULKANO-M0-SPACETIMEDB-SPIKE.md`)
+- Spike code is explicitly disposable — no code from it ships; only numbers, configs, and the written report survive (`docs/roadmap/COMPLETED.md` ▸ Task M0)
 - Engine networking (M5+) is blocked until the gate decision is recorded
 - If the fallback triggers, the `game_shared` command interface (ADR-014) is the swap seam; M2–M4 (collision, greybox, zone lifecycle) proceed unchanged either way
 

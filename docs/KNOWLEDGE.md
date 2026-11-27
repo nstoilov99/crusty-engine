@@ -265,7 +265,8 @@ loop {
 
 ## Collision Pipeline (M2, cooked chunks)
 
-See `docs/roadmap/VULKANO-M2-COLLISION-PIPELINE.md` for the full design.
+Summary in `docs/roadmap/COMPLETED.md` ▸ Task M2; the full plan is in git
+history (see the note at the top of that file).
 
 ### Conventions
 

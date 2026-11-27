@@ -4,7 +4,7 @@
 **/*.rs.bk
 *.pdb
 # Local-only roadmap material: legacy tutorials/prompts and rendered HTML.
-# Plan docs (VULKANO-*.md, ROADMAP.md, COMPLETED.md) ARE tracked.
+# ROADMAP.md and COMPLETED.md ARE tracked.
 /docs/roadmap/legacy/
 /docs/roadmap/*.html
 /docs/roadmap/_render_to_html.py

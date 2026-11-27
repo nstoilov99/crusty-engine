@@ -4,6 +4,12 @@ Read `CLAUDE.md` first. It is the authoritative context for this repository
 (coordinate system, threading model, features, code rules). This file only adds
 what Codex-specific tooling looks for.
 
+## Merging
+
+The rules live in `docs/roadmap/ROADMAP.md` ▸ Merge policy and PR evidence;
+the `Merge policy` line itself is in `CLAUDE.md`. Never edit that line.
+No merge on red, and never `--admin`.
+
 ## Code Review Rules
 
 Codex code review reads this section. Report only findings a maintainer would

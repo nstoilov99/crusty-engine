@@ -2,7 +2,7 @@
 
 > The visual design system (tokens, state ladder, elevation, selection,
 > accent budget, settings-window anatomy) lives in
-> **`../crusty-gui/docs/DESIGN.md`**. This file only documents the
+> **`../crates/crusty-gui/docs/DESIGN.md`**. This file only documents the
 > engine-side icon pipeline.
 
 ## Icon System

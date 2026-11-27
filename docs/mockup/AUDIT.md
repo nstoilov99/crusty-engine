@@ -77,7 +77,7 @@ implementation to port*, not as shipped code.
 1. **`PinType` freeze vs Task 45-A.** Spec: "There is no Int, String, Quat,
    Transform, Struct or Wildcard — the UI must not imply one" and the diamond
    shape is reserved in writing for a future container concept.
-   `VULKANO-45A-GRAPH-EXECUTION-CORE.md` P1 (drafted earlier) adds `Int`,
+   Task 45-A's plan, package P1 (drafted earlier), adds `Int`,
    `String`, `Array`. These cannot both hold. Options: (a) 45-A P1 amends this
    spec first (new ramp slots + shapes for Int/String, Array takes the reserved
    diamond); (b) 45-A retargets to Float-only v1. Needs your call; everything
