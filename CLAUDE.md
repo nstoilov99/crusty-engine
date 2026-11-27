@@ -111,15 +111,14 @@ use `println!` for temporary diagnostics (and remove before commit).
 
 ## Current Development Focus
 
-Authoritative status lives in `docs/roadmap/ROADMAP.md` ▸ Status board;
-finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED.md`.
+What is next, claimed and done lives in `docs/roadmap/ROADMAP.md` ▸ Status
+board (nothing here repeats it); finished tasks (with deferred ledgers) in
+`docs/roadmap/COMPLETED.md`.
 
 - Goal: one engine for an MMO with a large seamless world and for large
   offline open-world games (`ROADMAP.md` ▸ Goal).
 - Networked Co-op Slice milestone (M0–M10) and Tasks 40–41.7, 45-A:
   **complete**; 41.7's live check by the user is pending.
-- **Next:** M11 (green `main`, then the verification harness), then M12.
-  Nothing else starts before M12 is done.
 
 ## Agent workflow
 
@@ -144,16 +143,13 @@ finished tasks (with deferred ledgers) in `docs/roadmap/COMPLETED.md`.
   GPT Sol (latest), Claude Fable 5.2; `sol-loop` reviews with GPT Sol.
   `full-send` may merge — only on an explicit "full send", which covers that
   one PR.
-- **Merging.** Agents never edit the next line, and a PR that touches it is
-  merged by the owner only. `owner`: agents open PRs and the owner merges.
-  `agents`: an agent may merge its own PR once the evidence in `ROADMAP.md` ▸
-  Merge policy and PR evidence is complete; for the PR skills that counts as
-  the user's explicit request to merge. No merge on red, never `--admin`.
+- **Merging.** The rules are in `ROADMAP.md` ▸ Merge policy and PR evidence,
+  and only there. Agents never edit the next line.
 
   Merge policy: owner
 
 - **Research** that spans many files goes to Codex (read-only prompt); see
-  *Cost routing* below.
+  *Picking the right model for workflows and subagents* below.
 
 ## Patched Dependencies
 

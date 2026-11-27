@@ -32,8 +32,9 @@ Read this before designing or changing an editor surface. Visual style
 
 - **Copy the pattern, not the pixels.** The table names an interaction. The
   look comes from this editor's own design system.
-- **Aim for about 90% of the reference's behaviour**, and do not copy its
-  defects. When you depart from the reference on purpose, say why in the PR.
+- **How closely to match** is set in `CLAUDE.md` ▸ Following Visual
+  References; it applies to the reference's behaviour as well as its look.
+  When you depart from the reference on purpose, say why in the PR.
 - **One reference per surface.** If a surface needs something its reference
   lacks, take the nearest equivalent from the same engine before mixing in
   another.
@@ -41,6 +42,8 @@ Read this before designing or changing an editor surface. Visual style
   Edit ▸ Undo. A surface that writes the world directly is not finished.
 - **Every interactive widget has a stable id** (roadmap task M11.4), so the
   verification harness can drive the surface from a script.
+- **Colours and metrics come from theme tokens**, checked by
+  `bash scripts/lint_design.sh`.
 - **Verify with the harness:** a replay script that exercises the surface and
   a golden image of it, once the harness exists. Until then, a screenshot
   reviewed as `CLAUDE.md` ▸ Visual Changes describes.

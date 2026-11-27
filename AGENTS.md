@@ -6,12 +6,8 @@ what Codex-specific tooling looks for.
 
 ## Merging
 
-- Who merges is set by the `Merge policy` line in `CLAUDE.md`. Never edit that
-  line; a PR that touches it is merged by the owner only.
-- No merge on red, and never `--admin` or any other way past a failing or
-  missing check.
-- The evidence a PR must carry is listed in `docs/roadmap/ROADMAP.md` ▸ Merge
-  policy and PR evidence.
+The rules live in `docs/roadmap/ROADMAP.md` ▸ Merge policy and PR evidence;
+the `Merge policy` line itself is in `CLAUDE.md`. Never edit that line.
 
 ## Code Review Rules
 

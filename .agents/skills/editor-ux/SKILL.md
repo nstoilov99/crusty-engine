@@ -16,15 +16,8 @@ that surface stands today.
    what you leave out of the reference on purpose.
 3. **Build it** with the `add-editor-panel` skill for the mechanics (tab
    variant, persisted id, drawing function, menu entry, theme tokens).
-4. **Check the three rules that apply to every surface:**
-   - every mutation goes through `CommandHistory` with a verb and object
-     label;
-   - every interactive widget has a stable id;
-   - colours and metrics come from theme tokens (`bash scripts/lint_design.sh`).
-5. **Verify.** A replay script and a golden image through `cargo xtask verify`
-   once the harness exists (roadmap M11). Before that, run the editor
-   (`run-app` skill), capture a screenshot, and have it reviewed as
-   `CLAUDE.md` ▸ Visual Changes describes.
+4. **Apply every rule** in `docs/EDITOR-UX.md` ▸ How to apply it, and show
+   the evidence in the PR.
 
 Done when the surface behaves like its reference for the named pattern, the
-three rules hold, and the PR shows the evidence.
+rules hold, and the PR shows the evidence.

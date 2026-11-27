@@ -69,8 +69,10 @@ What the audit found between this state and the goal:
 
 ## Status board
 
-An agent claims a milestone by writing its branch in the **Claimed** column
-before it starts. Each PR updates only its own milestone's row and section.
+An agent claims a milestone by opening a draft PR titled with the milestone
+id (`M13: …`) before it starts; open PRs are the lock, so check them first.
+The **Claimed** column records that PR's link once it merges. Each PR updates
+only its own milestone's row and section.
 
 | ID | Milestone | Track | Depends on | Status | Claimed |
 |---|---|---|---|---|---|
@@ -95,8 +97,9 @@ and the [owner actions](#owner-actions) below.
 
 ### Tracks
 
-Four tracks, one agent per track, at most three coding at once. A track owns
-its paths: other tracks do not edit them except through a hot-path PR.
+Four tracks. Infra runs alone; afterwards the other three run in parallel,
+one agent each. A track owns its paths: other tracks do not edit them except
+through a hot-path PR.
 
 | Track | Milestones | Owns |
 |---|---|---|
@@ -104,10 +107,10 @@ its paths: other tracks do not edit them except through a hot-path PR.
 | **Server** | M13 → M17 | `server/`, `game_shared`, `game_client_net`, `tools/net_bots` |
 | **Render/World** | M14 → M15 → M16 → M20 | `engine/src/engine/{core,rendering,adapters,camera,world}`, shaders, the terrain runtime |
 | **Editor/Data** | M18 → M19 | `engine/src/engine/editor`, `crates/crusty-gui`, the graph crates, scenes, prefabs, assets |
+| **World tooling** (optional fifth agent) | world-tooling tasks of M16, the follow-up ledger | `tools/greybox_gen`, `tools/collision_cooker`, the terrain bake tool, asset cooking |
 
-A fourth agent, when there is one, takes world tooling that shares no files
-with the renderer (`tools/greybox_gen`, `tools/collision_cooker`, the terrain
-bake tool, asset cooking), plus verification and the follow-up ledger.
+The world-tooling role shares no files with the renderer; without a fifth
+agent, Render/World takes those paths.
 
 **What may run at the same time:**
 
@@ -128,8 +131,10 @@ that adds it. Visual scenarios are one file per track under
 **Hot paths.** These change only in a small standalone PR that merges before
 the work depending on it, and the agent names it when it claims the
 milestone: `Cargo.lock`, the ECS API (`engine/src/engine/ecs`), `FramePacket`,
-`game_shared`, and the paths no track owns (`game_client/`,
-`engine/src/engine/{gui,animation,physics,plugins,scripting}`).
+and the paths no track owns (`game_client/`,
+`engine/src/engine/{gui,animation,physics,plugins,scripting}`). Paths a track
+owns (`game_shared`, for example) are reached the same way by other tracks,
+reviewed by the owning track.
 
 ### How much detail each milestone has
 
@@ -889,7 +894,7 @@ scene with 1,024 lights.
 
 ## M16: World
 
-**Track:** Render/World, with world tooling for a fourth agent.
+**Track:** Render/World, with world tooling for the optional fifth agent.
 **Depends on:** M15. Carries old Tasks 44 and 46.
 
 **Goal:** an 8×8 km world that streams, holds its detail budget at any view
@@ -1189,40 +1194,11 @@ Deferred by finished tasks; the full ledgers are in COMPLETED.md.
 
 ## Settled decisions
 
-Decided with the owner and a three-model council in 2026-11. Reopen one only
-with new evidence.
-
-1. **Keep Vulkano 0.35.** Its source has multi-draw indirect with count,
-   descriptor indexing, compute, mesh shaders, acceleration structures, ray
-   query, ray tracing pipelines and raw sparse binding. Gaps are reachable
-   through raw `ash` calls.
-2. **Keep `hecs`, behind the engine's ECS API.** It does not block parallel
-   systems, replication or streaming; the engine's `&mut World` signature
-   does (M12.6).
-3. **Keep SpacetimeDB,** subject to the M13 gate. The 150-mover ceiling is
-   the module's own code. Scale beyond one database comes from one database
-   per zone.
-4. **Rendering order:** GPU-driven renderer, clustered lights and cascades;
-   then terrain, level of detail and camera-relative rendering; then
-   temporal anti-aliasing and upscaling; then probe-based global
-   illumination; virtual geometry and texturing last.
-5. **Hardware ray tracing is optional,** a player setting, never required.
-6. **Terrain is authored on a heightfield** and baked to cell meshes.
-7. **The editor follows Unreal** for most surfaces, Godot for scene
-   composition and in-editor documentation, and Unity for the game UI
-   designer and the command palette (`docs/EDITOR-UX.md`).
-8. **Offline games save to local files;** they do not bundle a database.
-9. **Data tables are typed RON,** published into SpacetimeDB as rows at
-   deploy.
-10. **Portable leaf crates:** anything that may run on the server
-    (`game_shared`, the graph crates, navigation) stays free of the engine
-    and is checked for wasm32 in CI.
-11. **Rust owns authority.** Graphs and scripts issue commands; they never
-    bypass the command and event interface.
-12. **Inspector first, graphs when needed.** Simple cases never require a
-    graph editor.
-
-Earlier decisions are recorded in `docs/DECISIONS.md`.
+The twelve decisions of the 2026-11 audit (keep Vulkano, `hecs` and
+SpacetimeDB; rendering order; terrain; saves; data tables; editor references;
+authority) are recorded in
+[`docs/adr/0003-2026-11-audit-settled-decisions.md`](../adr/0003-2026-11-audit-settled-decisions.md).
+Reopen one only with new evidence. Earlier decisions are in `docs/DECISIONS.md`.
 
 ---
 
