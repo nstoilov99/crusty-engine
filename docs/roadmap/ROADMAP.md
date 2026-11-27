@@ -383,9 +383,12 @@ widgets by name instead of by pixel position.
 - Ids for every existing editor panel. A test fails when two widgets in one
   frame share an id.
 - Replay scenarios join the visual scenarios: an editor session (select an
-  entity in the hierarchy, edit a transform field, undo), a gameplay session
-  (walk and jump in the locomotion demo), the graph editor opened on
+  entity in the hierarchy, edit a transform field in the Inspector, then
+  delete the entity and undo the delete), a gameplay session (walk and jump
+  in the locomotion demo), the graph editor opened on
   `content/graphs/runner_demo.graph`, and the animation pipeline canvas.
+  The undo step uses a hierarchy delete because Inspector edits are not
+  undoable until M18.2.
 
 **Out of scope:** recording a replay from live input, automation of native
 file dialogs.
