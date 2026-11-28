@@ -1,0 +1,10 @@
+# One compiler for CI and for every machine. The required checks run clippy
+# with `-D warnings`, so a floating `stable` can turn `main` red with no code
+# change. Upgrade in a PR of its own that also fixes the new lints.
+#
+# This is the only place the version is written: CI runs
+# `rustup toolchain install`, which reads this file.
+[toolchain]
+channel = "1.100.1"
+components = ["clippy", "rustfmt"]
+targets = ["wasm32-unknown-unknown"]

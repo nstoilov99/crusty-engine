@@ -26,6 +26,7 @@ permissions:
 env:
   AI_FIX_MAX_ROUNDS: "2"
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
   CMAKE_POLICY_VERSION_MINIMUM: "3.5"
 
 jobs:
@@ -124,10 +125,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends cmake ninja-build pkg-config libssl-dev libvulkan-dev libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain (version from rust-toolchain.toml)
         if: steps.guard.outputs.run == 'true'
-        with:
-          components: clippy, rustfmt
+        run: rustup toolchain install --no-self-update
 
       - uses: actions/cache@v4
         if: steps.guard.outputs.run == 'true'
@@ -136,9 +136,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-${{ hashFiles('rust-toolchain.toml') }}-
 
       - name: Triage and fix
         if: steps.guard.outputs.run == 'true'
