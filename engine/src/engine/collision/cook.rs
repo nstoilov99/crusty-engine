@@ -196,7 +196,7 @@ fn gather_mesh_triangles(
         let flip = glm::determinant(&m) < 0.0;
         let mut tri_index: u32 = 0;
         for geom in geoms {
-            for tri in geom.indices.chunks_exact(3) {
+            for tri in geom.indices.as_chunks::<3>().0 {
                 let mut v = [Vec3::ZERO; 3];
                 for (k, &i) in tri.iter().enumerate() {
                     let p = geom.positions[i as usize];

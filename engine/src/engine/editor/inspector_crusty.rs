@@ -1680,7 +1680,7 @@ fn edit_mesh_renderer(
             renderer.material_paths.push(String::new());
         }
         let slot_count = renderer.material_paths.len();
-        for i in 0..slot_count {
+        for (i, path) in renderer.material_paths.iter_mut().enumerate() {
             let label = if slot_count == 1 {
                 "Material".to_string()
             } else {
@@ -1690,7 +1690,7 @@ fn edit_mesh_renderer(
                 ui,
                 &format!("material_slot_{i}"),
                 &label,
-                &mut renderer.material_paths[i],
+                path,
                 &[AssetType::Material],
                 asset_browser,
                 icons,

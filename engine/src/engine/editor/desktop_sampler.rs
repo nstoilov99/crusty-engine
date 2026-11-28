@@ -105,7 +105,7 @@ fn sample_patch(eye: &mut EyedropperState) {
                 // 32bpp DIB pixels are laid out B,G,R,X.
                 let px = std::slice::from_raw_parts(bits as *const u8, (side * side * 4) as usize);
                 eye.patch.reserve((side * side) as usize);
-                for p in px.chunks_exact(4) {
+                for p in px.as_chunks::<4>().0 {
                     eye.patch.push([p[2], p[1], p[0]]);
                 }
             }

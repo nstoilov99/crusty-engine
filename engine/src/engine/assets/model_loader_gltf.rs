@@ -283,8 +283,8 @@ fn extract_skeleton(
             let floats: [f32; 16] = {
                 let bytes = &buffer[start..start + 64];
                 let mut arr = [0f32; 16];
-                for (j, chunk) in bytes.chunks_exact(4).enumerate() {
-                    arr[j] = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                for (j, chunk) in bytes.as_chunks::<4>().0.iter().enumerate() {
+                    arr[j] = f32::from_le_bytes(*chunk);
                 }
                 arr
             };

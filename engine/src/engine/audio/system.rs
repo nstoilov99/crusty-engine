@@ -180,7 +180,7 @@ impl System for AudioSystem {
         // ── Handle hot-reload queue ──
         let reloaded_paths: Vec<String> = resources
             .get_mut::<AudioReloadQueue>()
-            .map(|q| q.0.drain(..).collect())
+            .map(|q| std::mem::take(&mut q.0))
             .unwrap_or_default();
 
         if !reloaded_paths.is_empty() {
