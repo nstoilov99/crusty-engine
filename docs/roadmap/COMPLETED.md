@@ -2642,8 +2642,8 @@ home when the owning task is scheduled.
 ### M11.1 Green `main` and required checks
 **Status:** ✅ **Complete** (2026-11-28),
 [#17](https://github.com/nstoilov99/crusty-engine/pull/17). Proven by the
-full local gate on Ubuntu; the Windows job and the missing-app skip are in
-the acceptance table.
+full local gate on Ubuntu and by all four jobs passing on #17; the
+missing-app skip is proven by test only (see the acceptance table).
 
 **Goal:** every check on `main` passes, and the checks that matter block a
 merge.
@@ -2711,17 +2711,17 @@ pin.
 
 | Item | Verified live | Proven by tests | Not run |
 |---|---|---|---|
-| Windows, Linux, wasm32 and design-lint jobs green on `main` | Ubuntu 24.04, rustc 1.100.1: `bash scripts/ci_local.sh` passes (fmt, clippy and build on both feature sets, wasm32 checks, design lint) | 2,355 tests pass, 0 fail, 46 ignored, across both feature sets | The Windows job, and all four jobs on GitHub: see the PR's checks |
-| The Linux job builds, tests and lints `--features editor` | The same three commands pass locally | | The job itself on GitHub |
+| Windows, Linux, wasm32 and design-lint jobs green on `main` | All four jobs pass on #17 at `81ccb67` (run 46123212058), on rustc 1.100.1 installed from `rust-toolchain.toml`. Both Windows clippy steps ran and passed. Locally on Ubuntu 24.04: `bash scripts/ci_local.sh` passes | Linux: 2,355 pass, 0 fail, 46 ignored. Windows: 2,356 pass, 0 fail, 46 ignored. Both feature sets. `variable_groups_are_metadata_and_round_trip` passes on both | The jobs on `main` itself, until #17 merges |
+| The Linux job builds, tests and lints `--features editor` | The three steps pass in the Linux job of the same run | | |
 | A PR without the Claude GitHub App shows no failed check | | The `preflight` step from both workflow files, run under `bash -e` and `bash -eo pipefail` against eight responses (no secret, no OIDC token, installed, not installed, workflow validation, other 401, 502, network failure): 32 of 32 as expected | Live. The app is installed, and a PR that edits a workflow file is skipped by the action itself, so neither path can run on #17 |
-| The PR lists the four check names | Listed in `ROADMAP.md` ▸ Owner actions and `docs/ai-review-setup.md` step 7 | | The PR description, until the PR is open |
+| The PR lists the four check names | Listed in #17's description, `ROADMAP.md` ▸ Owner actions and `docs/ai-review-setup.md` step 7 | | |
 
 **Review notes.** An independent review of the finished diff found no
 defect in the Rust or workflow changes and scored it 8/10. Its five findings
 were all in the docs or the cache key and are fixed: a CRLF-finding recipe
 that also listed binary files, an overstated pipette follow-up, the cache
-key ignoring the toolchain version, and the two items now in the ledger
-(the PR number, the stale "Where we are" row). The council's read-only challenge of the plan found five
+key ignoring the toolchain version, the PR number (a guess when written,
+since confirmed), and the stale "Where we are" row (in the ledger). The council's read-only challenge of the plan found five
 errors, all fixed before the first package: the local compiler was 1.100.0
 while CI ran 1.100.1; the `@stable` installs were four in two workflows, not
 three workflows; the failing test reads one graph, not three; the cargo
@@ -2730,14 +2730,15 @@ when a job succeeds; and `docs/ARCHITECTURE.md` had no reason to change.
 
 **Deferred ledger**
 
-- **Windows clippy has not run on `main` for months.** The Windows job
-  stopped at the editor test, before both clippy steps. Linux cannot check
-  `cfg(windows)` code; one site was found by search
-  (`editor/desktop_sampler.rs`). Anything else shows on the PR's Windows job.
-- **Linux job time and disk.** The job now builds both feature sets. A cold
-  default build took 12 of the job's 17 minutes; expect about double until
-  `main` is green once and the cache is saved. Disk headroom is unmeasured;
-  M12.2 shrinks the dev profile.
+- **Job time with no cache.** On #17's first run the Windows job took 76
+  minutes and the Linux job 32 (both feature sets, nothing cached). Both
+  saved a cache at the end. A PR that
+  changes `Cargo.lock` or `rust-toolchain.toml` starts cold again, so a
+  required check can take over an hour. M12.2 shrinks the dev profile.
+- **Linux cannot check `cfg(windows)` code.** One lint site was found by
+  search (`editor/desktop_sampler.rs`); the Windows job then confirmed there
+  were no others. The next toolchain upgrade needs the Windows job to say
+  the same.
 - **`unused dependency typetag`** is a cargo warning on every build. M12.1
   removes it.
 - **Toolchain upgrades are manual.** Change `channel` in
@@ -2747,10 +2748,6 @@ when a job succeeds; and `docs/ARCHITECTURE.md` had no reason to change.
 - **The pipette on Linux.** `drive_eyedropper` is a no-op off Windows, but
   the colour picker can still arm it; it then never picks, and Escape or
   right-click cancels. Not checked in a running editor.
-- **The PR number is a guess until the PR is open.** The branch could not be
-  pushed when this was written (the machine's token was read-only), so `#17`
-  is the next free number, not a confirmed one. Correct it here and in
-  `ROADMAP.md` if the PR gets another number.
 - **`ROADMAP.md` ▸ Where we are still says `main` is red.** That table is
   the audit's record and outside this task's row and section; the owner may
   want to date it.

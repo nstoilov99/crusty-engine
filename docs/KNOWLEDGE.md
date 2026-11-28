@@ -682,7 +682,8 @@ pub struct EntityRef {
   `git ls-files --eol | grep -E '^i/(crlf|mixed)'` and convert those files
   only with `sed -i 's/\r$//'` (never a wider list: a PNG contains `\r\n`).
 - **`actions/cache` saves only when the job succeeds.** While `main` is red
-  every run is a cold build (Linux 17 minutes, Windows over 30).
+  every run is a cold build (Linux 32 minutes, Windows 76, measured on
+  #17 with both feature sets).
 - **A PR that edits `ai-review.yml` or `ai-fix.yml` gets no Claude review.**
   The action refuses a workflow file that differs from the default branch
   and exits green with a warning. Get another review for such a PR.
