@@ -21,9 +21,12 @@ permissions:
   id-token: write
 
 jobs:
-  # Skips (instead of failing) until CLAUDE_CODE_OAUTH_TOKEN exists. Job-level
-  # `if` cannot read secrets directly, hence the hop through an output.
+  # Skips (instead of failing) until CLAUDE_CODE_OAUTH_TOKEN exists and the
+  # Claude GitHub App is installed. Job-level `if` cannot read secrets
+  # directly, hence the hop through an output. The same step is in ai-fix.yml.
   preflight:
+    # Drafts are never reviewed, so they need no check.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
@@ -32,8 +35,43 @@ jobs:
         env:
           HAS_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: |
-          echo "enabled=$HAS_TOKEN" >> "$GITHUB_OUTPUT"
-          [ "$HAS_TOKEN" = "true" ] || echo "::notice::CLAUDE_CODE_OAUTH_TOKEN not set; AI review skipped (see docs/ai-review-setup.md)"
+          if [ "$HAS_TOKEN" != "true" ]; then
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN not set; AI review skipped (see docs/ai-review-setup.md)"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The action fails when the Claude GitHub App is not installed, and
+          # the workflow token cannot ask GitHub whether it is. So ask for the
+          # app token the way the action does. Only a clear "not installed"
+          # answer skips; anything else leaves the jobs enabled, so a real
+          # failure still shows as a failed check.
+          enabled=true
+          oidc=$(curl -sS --max-time 20 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=claude-code-github-action" | jq -r '.value // empty' || true)
+          if [ -z "$oidc" ]; then
+            echo "::notice::Claude app check inconclusive (no OIDC token); running AI review"
+          else
+            echo "::add-mask::$oidc"
+            status=$(curl -sS --max-time 20 -o exchange.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $oidc" \
+              https://api.anthropic.com/api/github/github-app-token-exchange || true)
+            if [ "$status" = "200" ]; then
+              # Installed. The probe has no use for the token it was given.
+              app_token=$(jq -r '.token // .app_token // empty' exchange.json 2>/dev/null || true)
+              if [ -n "$app_token" ]; then
+                echo "::add-mask::$app_token"
+                curl -sS --max-time 20 -o /dev/null -X DELETE \
+                  -H "Authorization: Bearer $app_token" https://api.github.com/installation/token || true
+              fi
+            elif [ "$status" = "401" ] && jq -r '.error.message // .message // empty' exchange.json 2>/dev/null | grep -qi 'not installed'; then
+              enabled=false
+              echo "::notice::Claude GitHub App not installed; AI review skipped (see docs/ai-review-setup.md)"
+            else
+              echo "::notice::Claude app check inconclusive (HTTP $status); running AI review"
+            fi
+            rm -f exchange.json
+          fi
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
 
   review:
     name: ${{ matrix.reviewer.name }}

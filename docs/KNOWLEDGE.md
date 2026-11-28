@@ -659,6 +659,40 @@ pub struct EntityRef {
   Standalone has no `EditorState` and always runs. The graph and single-clip
   systems ran unconditionally until 2026-09-23.
 
+## CI and Toolchain Gotchas (M11.1)
+
+- **CI shows one failing crate, not all of them.** `cargo clippy` stops
+  scheduling work after the first crate fails. To see every site, run
+  `cargo clippy --workspace --lib --bins --tests --keep-going -- -D warnings`
+  for both feature sets before estimating a lint fix.
+- **Linux cannot lint `cfg(windows)` code.** After fixing a lint, search for
+  the same pattern in the Windows-gated files (`editor/desktop_sampler.rs`,
+  `editor/relaunch.rs`, `editor/atomic_file.rs`, the `powershell` blocks in
+  the benchmark code). Only the Windows job proves them.
+- **The compiler version is in `rust-toolchain.toml` and nowhere else.** CI
+  runs `rustup toolchain install`, which reads it. To upgrade, change
+  `channel` in a PR of its own and fix the lints the new clippy adds. Do not
+  put a version in a workflow. The cargo cache key includes the file's hash,
+  so an upgrade starts from a cold build.
+- **`.graph` and `.subgraph` files are LF on every platform.**
+  `serialize_graph` pins the newline and `.gitattributes` marks both
+  extensions `-text`, so git never converts them. A file saved by a Windows
+  build from before `96fb571` carries CRLF and fails the byte-for-byte tests
+  on every platform. Find them with
+  `git ls-files --eol | grep -E '^i/(crlf|mixed)'` and convert those files
+  only with `sed -i 's/\r$//'` (never a wider list: a PNG contains `\r\n`).
+- **`actions/cache` saves only when the job succeeds.** While `main` is red
+  every run is a cold build (Linux 32 minutes, Windows 76, measured on
+  #17 with both feature sets).
+- **A PR that edits `ai-review.yml` or `ai-fix.yml` gets no Claude review.**
+  The action refuses a workflow file that differs from the default branch
+  and exits green with a warning. Get another review for such a PR.
+- **The `preflight` step is repeated in both AI workflows.** Change both.
+  `.scratch/` is not committed, so to test a change, run the step with a
+  fake `curl` first on `PATH` that returns each response the exchange can
+  give (200 with a token, 401 "not installed", 401 "workflow validation",
+  5xx, a network failure) and check `enabled=` in `$GITHUB_OUTPUT`.
+
 ## Performance Gotchas
 
 ### Profile Before Optimizing

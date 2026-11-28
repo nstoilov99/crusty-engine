@@ -14,6 +14,7 @@ use rust_engine::engine::physics::PhysicsWorld;
 use rust_engine::engine::rendering::rendering_3d::{DeferredRenderer, MeshRenderData};
 use rust_engine::engine::rendering::{RenderTarget, ResourceCounters};
 use rust_engine::{GameLoop, Renderer};
+#[cfg(target_os = "windows")]
 use std::process::Command;
 use std::sync::Arc;
 use vulkano::swapchain::PresentMode;

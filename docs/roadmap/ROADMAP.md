@@ -76,7 +76,7 @@ only its own milestone's row and section.
 
 | ID | Milestone | Track | Depends on | Status | Claimed |
 |---|---|---|---|---|---|
-| M11 | Green `main` and the verification harness | Infra | none | 📋 next | |
+| M11 | Green `main` and the verification harness | Infra | none | 🚧 M11.1 done; M11.2 next | [#17](https://github.com/nstoilov99/crusty-engine/pull/17) (M11.1) |
 | M12 | Build diet, upgrades and shared-API changes | Infra | M11 | 📋 | |
 | M13 | Server scale I, ending in the 250-player go/no-go | Server | M12 | 📋 | |
 | M14 | Renderer foundation and GPU-driven rendering | Render/World | M12 | 📋 outline | |
@@ -224,7 +224,7 @@ Only the owner can do these. Agents work around them until they are done.
 
 | Action | Needed by |
 |---|---|
-| Make the Linux, Windows, wasm32 and design-lint checks required on `main` | M11.1 |
+| Make these four checks required on `main`, once #17 has merged: `Windows`, `Linux`, `wasm32 (game_shared, graph interpreter)`, `Design lint` | now |
 | Install the Claude GitHub App (https://github.com/apps/claude), or leave the AI-review jobs skipping | any time |
 | Register the Windows desktop (RTX 5080) as a self-hosted runner under a dedicated non-administrator account, then set the repository variable `GPU_RUNNER` to `true` | M11.6 |
 | Choose production server hosting | end of M17 |
@@ -247,35 +247,9 @@ editor on lavapipe, compares them with committed goldens, replays a scripted
 editor session that clicks widgets by id, and exits 0. The same command runs
 on Windows (proven in M11.5).
 
-### M11.1 Green `main` and required checks
-
-**Goal:** every check on `main` passes, and the checks that matter block a
-merge.
-
-**Scope:**
-- Fix the clippy errors in `engine/src/engine/benchmark/report.rs`,
-  `game_client/src/benchmark_runner.rs` and
-  `crates/crusty-gui/tests/common/mod.rs`.
-- Fix the Windows editor test
-  `engine::editor::graph_editor::tests::variable_groups_are_metadata_and_round_trip`.
-- Add editor-feature build, test and clippy steps to the Linux job, matching
-  the Windows job. Three editor files use `windows_sys`; gate them so the
-  editor builds on Linux.
-- Change the two AI-review jobs so that they skip cleanly when the Claude
-  GitHub App is not installed. They stay non-required.
-
-**Out of scope:** new tests, refactors of the files touched, the harness.
-
-**Depends on:** nothing.
-
-**Acceptance:**
-- The Windows, Linux, wasm32 and design-lint jobs are green on `main`.
-- The Linux job builds, tests and lints `--features editor`.
-- A PR opened without the Claude GitHub App shows no failed check.
-- The PR description lists the four check names for the owner to mark
-  required.
-
-**Verify:** `bash scripts/ci_local.sh` locally, then the checks on the PR.
+**Done:** M11.1 Green `main` and required checks
+([#17](https://github.com/nstoilov99/crusty-engine/pull/17)); see
+[COMPLETED.md](COMPLETED.md#m111-green-main-and-required-checks).
 
 ### M11.2 Surfaceless offscreen mode and frame capture
 
@@ -1189,6 +1163,8 @@ Deferred by finished tasks; the full ledgers are in COMPLETED.md.
 | Graph plan cache is invalidated wholesale | M19, with the gameplay nodes |
 | `physics_rapier` cannot be stripped from exports | M18.2 |
 | `game_client/src/app.rs` is 9,514 lines | Split when a milestone next changes it substantially |
+| The Rust toolchain is pinned to 1.100.1 in `rust-toolchain.toml` | Upgrade in a PR of its own that also fixes the new lints |
+| The colour picker's pipette can be armed on Linux, where nothing samples the desktop, so it never picks (Escape or right-click still cancels) | M18 |
 
 ---
 
@@ -1202,5 +1178,5 @@ Reopen one only with new evidence. Earlier decisions are in `docs/DECISIONS.md`.
 
 ---
 
-**Last updated:** 2026-11-27. Rewritten around the two target games after
+**Last updated:** 2026-11-28. Rewritten around the two target games after
 the 2026-11 audit: milestones M11–M20 replace Tasks 42–60.

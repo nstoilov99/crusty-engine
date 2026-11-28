@@ -16,6 +16,7 @@ later tasks pick those items up.
 | Phases 1–10 | 9–39.5, Refactor Checkpoints #1–#5 |
 | Phase M | M0–M10, Networked Co-op Slice milestone, Refactor Checkpoint #6, 39.8 |
 | Phase 11 (done part) | 40, 41, 41.5, 41.6, 41.7, 45-A |
+| Milestones M11–M20 | M11.1 |
 | Superseded | Single-Player Vertical Slice milestone, Task 59 |
 
 ---
@@ -2633,6 +2634,127 @@ home when the owning task is scheduled.
   node showing its track pins) could not be captured — the workstation locked
   mid-session and GDI capture needs an unlocked desktop. Substituted by two
   independent code reviews with fixes applied; a manual pass is queued.
+
+---
+
+## M11: Green `main` and the verification harness
+
+### M11.1 Green `main` and required checks
+**Status:** ✅ **Complete** (2026-11-28),
+[#17](https://github.com/nstoilov99/crusty-engine/pull/17). Proven by the
+full local gate on Ubuntu and by all four jobs passing on #17; the
+missing-app skip is proven by test only (see the acceptance table).
+
+**Goal:** every check on `main` passes, and the checks that matter block a
+merge.
+
+**What the roadmap said and what was true.** The roadmap listed three clippy
+files, a Windows-only editor test and three `windows_sys` files to gate.
+Checked against `f863aee`:
+
+- Clippy had nine sites in eight files. CI stops at the first crate that
+  fails, so its log only ever showed `crusty-gui`.
+- The editor test failed on Linux too. Commit `96fb571` pinned
+  `serialize_graph` to LF and converted the fixtures in
+  `crates/node_graph_types/src/fixtures`, but the three graphs under
+  `content/graphs` were still CRLF. Only Windows ran the editor tests, so
+  only Windows showed it.
+- The three `windows_sys` files were already gated and the editor already
+  built on Linux. Only the CI steps were missing.
+
+**Commit map** (branch `m11-1-green-main`, oldest first)
+
+| Pkg | Commit | What landed |
+|---|---|---|
+| 1 | `fix: clear clippy 1.100 lints on both feature sets` | `chunks_exact_to_as_chunks` (4 files, one of them Windows-only), `drain_collect`, `needless_range_loop`, and `cfg(target_os = "windows")` on two `Command` imports |
+| 2 | `fix(content): convert the committed graphs to LF` | `runner_demo.graph` (the file the test reads), plus `demo.graph` and `lib/calc.subgraph`, the only other tracked files with CRLF. Line endings only: `git diff --ignore-cr-at-eol` is empty |
+| 3 | `ci: build, test and lint the editor feature on Linux` | Three steps in the Linux job, in the Windows job's order |
+| 4 | `ci: skip AI review when the Claude app is not installed` | The same `preflight` step in `ai-review.yml` and `ai-fix.yml`; `docs/ai-review-setup.md` |
+| 5 | `build: pin the Rust toolchain to 1.100.1` | `rust-toolchain.toml`; CI runs `rustup toolchain install`, which reads it; the cargo cache key includes the file's hash |
+
+**Decisions**
+
+- **D1. Fix each lint the way clippy suggests.** Rejected: `#[allow]`, which
+  hides the same lint in new code.
+- **D2. Convert the graphs, do not loosen the test.** Rejected: comparing
+  modulo line endings, which weakens a byte-for-byte claim and leaves files
+  the editor rewrites on the next save.
+- **D3. Editor steps go in the existing Linux job.** Rejected: a separate
+  job, which adds a fifth check name and a second cold build.
+- **D4. AI review skips on a probe, and the probe fails open.** The workflow
+  token cannot ask GitHub whether an app is installed. `preflight` requests
+  the app token the way `anthropics/claude-code-action` does and skips only
+  on HTTP 401 with a message that contains "not installed". Every other
+  answer runs the jobs, so an outage or an expired secret still shows as a
+  failed check. A token it is given is masked and revoked. Rejected: a
+  repository variable `AI_REVIEW` (a second manual switch that would have
+  turned working review off at merge until the owner set it), and
+  `continue-on-error` on the action (turns every failure green). Cost: the
+  endpoint is not documented; if it changes, the probe runs the jobs and
+  behaviour is as before this task.
+- **D5. Both workflows get the probe.** The fixer runs the same action and
+  fails the same way when a Codex review triggers it. The step is repeated
+  inline because a shared action would need a checkout in `preflight`.
+- **D6. Pin the toolchain, outside the listed scope.** Five of the nine
+  lint sites came from one lint that clippy added in 1.98
+  (`chunks_exact_to_as_chunks`), and CI had already moved from 1.100.0 to
+  1.100.1 between two runs. With required checks, a floating `stable` can
+  block every merge on a release day. The version is written only in
+  `rust-toolchain.toml`. It is its own commit so the owner can drop it.
+
+The owner did not answer the two plan questions (D4 and D6) within the 15
+minutes they set, so a council decided them: Claude Opus 5.5 and Claude
+Fable 5.2 chose the probe, GPT Sol chose the variable; all three chose the
+pin.
+
+**Acceptance**
+
+| Item | Verified live | Proven by tests | Not run |
+|---|---|---|---|
+| Windows, Linux, wasm32 and design-lint jobs green on `main` | All four jobs pass on #17 at `81ccb67` (run 46123212058), on rustc 1.100.1 installed from `rust-toolchain.toml`. Both Windows clippy steps ran and passed. Locally on Ubuntu 24.04: `bash scripts/ci_local.sh` passes | Linux: 2,355 pass, 0 fail, 46 ignored. Windows: 2,356 pass, 0 fail, 46 ignored. Both feature sets. `variable_groups_are_metadata_and_round_trip` passes on both | The jobs on `main` itself, until #17 merges |
+| The Linux job builds, tests and lints `--features editor` | The three steps pass in the Linux job of the same run | | |
+| A PR without the Claude GitHub App shows no failed check | | The `preflight` step from both workflow files, run under `bash -e` and `bash -eo pipefail` against eight responses (no secret, no OIDC token, installed, not installed, workflow validation, other 401, 502, network failure): 32 of 32 as expected | Live. The app is installed, and a PR that edits a workflow file is skipped by the action itself, so neither path can run on #17 |
+| The PR lists the four check names | Listed in #17's description, `ROADMAP.md` ▸ Owner actions and `docs/ai-review-setup.md` step 7 | | |
+
+**Review notes.** An independent review of the finished diff found no
+defect in the Rust or workflow changes and scored it 8/10. Its five findings
+were all in the docs or the cache key and are fixed: a CRLF-finding recipe
+that also listed binary files, an overstated pipette follow-up, the cache
+key ignoring the toolchain version, the PR number (a guess when written,
+since confirmed), and the stale "Where we are" row (in the ledger). The council's read-only challenge of the plan found five
+errors, all fixed before the first package: the local compiler was 1.100.0
+while CI ran 1.100.1; the `@stable` installs were four in two workflows, not
+three workflows; the failing test reads one graph, not three; the cargo
+cache has never been saved on `main`, because `actions/cache` saves only
+when a job succeeds; and `docs/ARCHITECTURE.md` had no reason to change.
+
+**Deferred ledger**
+
+- **Job time with no cache.** On #17's first run the Windows job took 76
+  minutes and the Linux job 32 (both feature sets, nothing cached). Both
+  saved a cache at the end. A PR that
+  changes `Cargo.lock` or `rust-toolchain.toml` starts cold again, so a
+  required check can take over an hour. M12.2 shrinks the dev profile.
+- **Linux cannot check `cfg(windows)` code.** One lint site was found by
+  search (`editor/desktop_sampler.rs`); the Windows job then confirmed there
+  were no others. The next toolchain upgrade needs the Windows job to say
+  the same.
+- **`unused dependency typetag`** is a cargo warning on every build. M12.1
+  removes it.
+- **Toolchain upgrades are manual.** Change `channel` in
+  `rust-toolchain.toml` in a PR that also fixes the new lints.
+- **The missing-app skip is unproven live.** The first PR opened after an
+  uninstall would show it.
+- **The pipette on Linux.** `drive_eyedropper` is a no-op off Windows, but
+  the colour picker can still arm it; it then never picks, and Escape or
+  right-click cancels. Not checked in a running editor.
+- **`ROADMAP.md` ▸ Where we are still says `main` is red.** That table is
+  the audit's record and outside this task's row and section; the owner may
+  want to date it.
+- **`docs/ai-review-setup.md` step 7** now says to leave required approvals
+  at 0, because GitHub does not let an author approve their own PR and
+  agents open PRs under the owner's account. The owner may prefer a second
+  account or a bot instead.
 
 ---
 

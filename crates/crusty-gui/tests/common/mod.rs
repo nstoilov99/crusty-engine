@@ -320,8 +320,10 @@ fn compare(name: &str, actual: &[u8], size: [u32; 2]) {
     let mut max_delta = 0u8;
     let mut diff = vec![0u8; total * 4];
     for (i, (a, g)) in actual
-        .chunks_exact(4)
-        .zip(golden.chunks_exact(4))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(golden.as_chunks::<4>().0)
         .enumerate()
     {
         let d = (0..4).map(|c| a[c].abs_diff(g[c])).max().unwrap();
