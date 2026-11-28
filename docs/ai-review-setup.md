@@ -28,8 +28,16 @@ comments, and a human merges from [Pyor](https://pyor.review) or GitHub.
    If the author shown on its first review differs, update `allowed_bots`.
 6. **Install Pyor** (https://pyor.review/download) and connect this repository.
 7. **Protect main**: Settings > Rules > Rulesets > New branch ruleset, target
-   `main`, enable "Require a pull request before merging" (1 approval) and
-   "Require status checks to pass" (Windows, Linux, Design lint, wasm32).
+   `main`, enable "Require a pull request before merging" and "Require status
+   checks to pass" with these four checks: `Windows`, `Linux`, `Design lint`
+   and `wasm32 (game_shared, graph interpreter)`. Leave required approvals at
+   0 while agents open PRs under your account: GitHub does not let an author
+   approve their own PR, so one required approval would block every merge.
+
+Until steps 1 to 3 are done the Claude jobs skip instead of failing. The
+`preflight` job in each workflow checks for the secret and then asks for the
+app token the way the action does; a "not installed" answer skips the jobs
+with a notice. Any other answer runs them, so a real failure still shows.
 
 ## How a PR flows
 
