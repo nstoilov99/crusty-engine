@@ -103,7 +103,7 @@ jobs:
       - name: Check the graph crates for wasm32
         run: cargo check -p node_graph_types -p node_graph_exec -p curve_asset --target wasm32-unknown-unknown
 
-  # Optional: Linux for cross-platform validation
+  # Linux: the platform agents build on. Runs the same steps as Windows.
   linux:
     name: Linux
     # Pinned: ubuntu-latest (GCC 15) cannot compile the glslang sources bundled in
@@ -139,11 +139,20 @@ jobs:
       - name: Build (default features)
         run: cargo build --workspace
 
+      - name: Build (editor feature)
+        run: cargo build -p game_client --features editor
+
       - name: Test (default features)
         run: cargo test --workspace --lib --tests
 
+      - name: Test (editor feature)
+        run: cargo test --workspace --lib --tests --features editor
+
       - name: Clippy (default features)
         run: cargo clippy --workspace --lib --bins --tests -- -D warnings
+
+      - name: Clippy (editor feature)
+        run: cargo clippy --workspace --lib --bins --tests --features editor -- -D warnings
 
       - name: Format check
         run: cargo fmt --all -- --check
