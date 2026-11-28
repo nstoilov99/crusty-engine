@@ -76,7 +76,7 @@ only its own milestone's row and section.
 
 | ID | Milestone | Track | Depends on | Status | Claimed |
 |---|---|---|---|---|---|
-| M11 | Green `main` and the verification harness | Infra | none | 📋 next | |
+| M11 | Green `main` and the verification harness | Infra | none | 🚧 M11.1 in progress | [#17](https://github.com/nstoilov99/crusty-engine/pull/17) |
 | M12 | Build diet, upgrades and shared-API changes | Infra | M11 | 📋 | |
 | M13 | Server scale I, ending in the 250-player go/no-go | Server | M12 | 📋 | |
 | M14 | Renderer foundation and GPU-driven rendering | Render/World | M12 | 📋 outline | |
